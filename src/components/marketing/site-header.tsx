@@ -4,11 +4,7 @@ import { Logo } from "@/components/layout/logo";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 
-const NAV_LINKS = [
-  { href: "#features", label: "Features" },
-  { href: "#templates", label: "Templates" },
-  { href: "#pricing", label: "Pricing" },
-];
+const NAV_LINKS = [{ href: "#features", label: "Features" }];
 
 export function SiteHeader() {
   return (
