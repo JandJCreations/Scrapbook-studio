@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "scrapbook-dev",
+      "runtimeExecutable": "C:/Users/julia/OneDrive/Desktop/Scrapbook App/dev.cmd",
+      "runtimeArgs": [],
+      "port": 3000
+    }
+  ]
+}
