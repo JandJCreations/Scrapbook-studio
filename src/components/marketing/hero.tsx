@@ -59,31 +59,6 @@ export function Hero() {
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
           </Button>
-          <Button size="lg" variant="outline" asChild>
-            <Link href="#features">See what&apos;s possible</Link>
-          </Button>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.25 }}
-          className="mt-16 w-full max-w-4xl"
-        >
-          <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-primary/10">
-            <div className="absolute inset-0 grid grid-cols-6 grid-rows-4 gap-3 p-6">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="rounded-lg bg-gradient-to-br from-muted to-muted/40"
-                  style={{
-                    gridColumn: `span ${[2, 1, 2, 1, 1, 2, 1, 2][i]} / span ${[2, 1, 2, 1, 1, 2, 1, 2][i]}`,
-                    gridRow: `span ${[2, 1, 1, 2, 1, 1, 2, 1][i]} / span ${[2, 1, 1, 2, 1, 1, 2, 1][i]}`,
-                  }}
-                />
-              ))}
-            </div>
-          </div>
         </motion.div>
       </div>
     </section>
