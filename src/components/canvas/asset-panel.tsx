@@ -47,7 +47,12 @@ export function AssetPanel({ projectId, stageWidth, stageHeight }: AssetPanelPro
   const stickers = useStickerStore((s) => s.stickers);
   const addSticker = useStickerStore((s) => s.addSticker);
   const removeSticker = useStickerStore((s) => s.removeSticker);
+  const fetchStickers = useStickerStore((s) => s.fetchStickers);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    fetchStickers();
+  }, [fetchStickers]);
 
   function addAssetToCanvas(src: string, name: string, width: number, height: number) {
     const worldCenterX = (-viewport.x + stageWidth / 2) / viewport.scale;

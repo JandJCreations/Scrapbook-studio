@@ -1,7 +1,8 @@
 "use client";
 
+import * as React from "react";
 import { useTheme } from "next-themes";
-import { CloudOff, Laptop, Moon, Sun } from "lucide-react";
+import { CloudCheck, Laptop, Moon, Sun } from "lucide-react";
 
 import {
   Card,
@@ -31,7 +32,7 @@ const THEME_OPTIONS = [
 
 const ALL_FORMATS: ExportFormat[] = FORMAT_GROUPS.flatMap((g) => g.formats);
 
-export function SettingsView() {
+export function SettingsView({ email }: { email: string }) {
   const { theme, setTheme } = useTheme();
   const defaultExportFormat = useSettingsStore((s) => s.defaultExportFormat);
   const setDefaultExportFormat = useSettingsStore(
@@ -45,6 +46,11 @@ export function SettingsView() {
   const setDefaultFramePresetId = useSettingsStore(
     (s) => s.setDefaultFramePresetId,
   );
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+
+  React.useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
 
   return (
     <div className="flex max-w-2xl flex-col gap-5">
@@ -62,6 +68,7 @@ export function SettingsView() {
                 key={opt.value}
                 type="button"
                 onClick={() => setTheme(opt.value)}
+                suppressHydrationWarning
                 className={cn(
                   "flex flex-col items-center gap-1.5 rounded-lg border px-3 py-3 text-xs font-medium transition-colors",
                   theme === opt.value
@@ -160,16 +167,17 @@ export function SettingsView() {
         <CardHeader>
           <CardTitle>Account & sync</CardTitle>
           <CardDescription>
-            Cloud accounts, autosave, and sync aren&apos;t set up yet.
+            {email ? `Signed in as ${email}` : "Your account"}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-            <CloudOff className="size-5 shrink-0" />
+            <CloudCheck className="size-5 shrink-0 text-primary" />
             <p>
-              Your projects are stored locally in this browser session.
-              Cloud sync and multi-device access are coming in a future
-              update.
+              Everything autosaves to the cloud as you work — projects,
+              canvas content, media, fonts, stickers, and these
+              preferences. Sign in on another device to pick up right
+              where you left off.
             </p>
           </div>
         </CardContent>

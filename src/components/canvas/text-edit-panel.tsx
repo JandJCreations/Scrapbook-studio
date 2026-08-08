@@ -49,7 +49,12 @@ export function TextEditPanel({
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
   const customFonts = useCustomFontStore((s) => s.fonts);
   const addFont = useCustomFontStore((s) => s.addFont);
+  const fetchFonts = useCustomFontStore((s) => s.fetchFonts);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    fetchFonts();
+  }, [fetchFonts]);
 
   const adjustments = object.textAdjustments;
   if (!adjustments) return null;

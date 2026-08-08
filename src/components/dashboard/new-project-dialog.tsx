@@ -45,8 +45,13 @@ export function NewProjectDialog({
   const createProject = useProjectStore((s) => s.createProject);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
   const defaultFramePresetId = useSettingsStore((s) => s.defaultFramePresetId);
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const activeFolderId = useDashboardUiStore((s) => s.activeFolderId);
   const router = useRouter();
+
+  React.useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
 
   const {
     register,

@@ -1,6 +1,12 @@
 import { SettingsView } from "@/components/dashboard/settings-view";
+import { createClient } from "@/lib/supabase/server";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="mb-6">
@@ -10,7 +16,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <SettingsView />
+      <SettingsView email={user?.email ?? ""} />
     </div>
   );
 }

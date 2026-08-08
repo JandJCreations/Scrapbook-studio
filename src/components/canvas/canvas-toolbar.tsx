@@ -27,6 +27,7 @@ import { saveProjectFrame } from "@/lib/sync/project-content-sync";
 import { useCanvasStore } from "@/store/use-canvas-store";
 import { useCanvasFrame, useCanvasFrameStore } from "@/store/use-canvas-frame-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
+import { useSettingsStore } from "@/store/use-settings-store";
 import { useTextEditingStore } from "@/store/use-text-editing-store";
 
 const ExportDialog = dynamic(() =>
@@ -62,6 +63,11 @@ export function CanvasToolbar({
   const [exportOpen, setExportOpen] = React.useState(false);
   const [versionsOpen, setVersionsOpen] = React.useState(false);
   const setSidebarOpen = useEditorUiStore((s) => s.setSidebarOpen);
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+
+  React.useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
 
   const activePresetId =
     FRAME_PRESETS.find((p) => p.width === frame.width && p.height === frame.height)?.id ??
