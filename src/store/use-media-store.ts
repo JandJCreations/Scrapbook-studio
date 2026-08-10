@@ -40,7 +40,7 @@ interface MediaStore {
   loading: boolean;
   error: string | null;
   fetchMedia: () => Promise<void>;
-  addFiles: (files: File[], folderId: string | null) => void;
+  addFiles: (files: File[], folderId: string | null) => string[];
   deleteItem: (id: string) => void;
   renameItem: (id: string, name: string) => void;
   moveItem: (id: string, folderId: string | null) => void;
@@ -225,6 +225,8 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
         void processMediaItem(user.id, item, files[index], update);
       });
     })();
+
+    return newItems.map((item) => item.id);
   },
 
   deleteItem: (itemId) => {
