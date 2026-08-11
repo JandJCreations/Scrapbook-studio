@@ -25,6 +25,28 @@ function storagePathFor(userId: string, itemId: string, filename: string) {
   return `${userId}/media/${itemId}/${filename}`;
 }
 
+// Uploading many files (e.g. a big batch picked from a phone's photo
+// library) all at once saturates the connection and floods the UI with
+// simultaneous progress updates, which on mobile shows up as lag/freezing.
+// Capping concurrency keeps memory and re-render pressure bounded.
+const UPLOAD_CONCURRENCY = 3;
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+) {
+  let cursor = 0;
+  async function runNext(): Promise<void> {
+    const index = cursor;
+    cursor += 1;
+    if (index >= items.length) return;
+    await worker(items[index]);
+    return runNext();
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, runNext));
+}
+
 function thumbnailPathFor(userId: string, itemId: string) {
   return `${userId}/media/${itemId}/thumb.jpg`;
 }
@@ -221,9 +243,10 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
         );
         return;
       }
-      newItems.forEach((item, index) => {
-        void processMediaItem(user.id, item, files[index], update);
-      });
+      const paired = newItems.map((item, index) => ({ item, file: files[index] }));
+      void runWithConcurrency(paired, UPLOAD_CONCURRENCY, ({ item, file }) =>
+        processMediaItem(user.id, item, file, update),
+      );
     })();
 
     return newItems.map((item) => item.id);
