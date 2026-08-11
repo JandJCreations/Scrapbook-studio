@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { UploadCloud } from "lucide-react";
+import { toast } from "sonner";
 
-import { ACCEPTED_MEDIA_INPUT } from "@/lib/media/file-type";
+import { ACCEPTED_MEDIA_INPUT, MAX_FILES_PER_UPLOAD } from "@/lib/media/file-type";
 import { cn } from "@/lib/utils";
 import { useMediaStore } from "@/store/use-media-store";
 import { useMediaUiStore } from "@/store/use-media-ui-store";
@@ -29,7 +30,13 @@ export const MediaDropzone = React.forwardRef<
 
   function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
-    addFiles(Array.from(fileList), activeFolderId);
+    const files = Array.from(fileList);
+    if (files.length > MAX_FILES_PER_UPLOAD) {
+      toast.info(
+        `Uploading the first ${MAX_FILES_PER_UPLOAD} files — select the rest in a separate batch.`,
+      );
+    }
+    addFiles(files.slice(0, MAX_FILES_PER_UPLOAD), activeFolderId);
   }
 
   return (
