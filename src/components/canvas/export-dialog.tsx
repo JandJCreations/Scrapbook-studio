@@ -132,7 +132,10 @@ export function ExportDialog({ projectId, open, onOpenChange }: ExportDialogProp
 
         const url = URL.createObjectURL(blob);
         downloadDataUrl(url, `${filenameBase}.${format}`);
-        URL.revokeObjectURL(url);
+        // Safari reads the blob asynchronously after the download is
+        // triggered, so revoking immediately can truncate larger exports
+        // (video/GIF). Give it a moment to actually finish reading.
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
       }
 
       toast.success("Export complete");

@@ -31,6 +31,18 @@ export function useTimelinePlayback(projectId: string) {
       return;
     }
 
+    // A clip deleted mid-playback (e.g. removing a music track while
+    // auditioning the scrapbook) would otherwise leave its <audio> element
+    // orphaned in the map, still playing, since the tick loop below only
+    // iterates clips that still exist.
+    const liveClipIds = new Set(clips.map((c) => c.id));
+    audioElementsRef.current.forEach((el, clipId) => {
+      if (!liveClipIds.has(clipId)) {
+        el.pause();
+        audioElementsRef.current.delete(clipId);
+      }
+    });
+
     const hasSolo = tracks.some((t) => t.solo);
     const timelineEnd = clips.reduce(
       (max, c) => Math.max(max, clipEnd(c)),
