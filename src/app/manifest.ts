@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
       "Design beautiful, animated digital scrapbooks with photos, video, audio, and stickers.",
     start_url: "/dashboard",
     display: "standalone",
-    background_color: "#ffffff",
+    background_color: "#fbf9f2",
     theme_color: "#7c3aed",
     orientation: "portrait-primary",
     icons: [
