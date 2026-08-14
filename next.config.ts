@@ -4,12 +4,17 @@ import type { NextConfig } from "next";
 // fonts.googleapis.com/fonts.gstatic.com serve on-demand Google Fonts.
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  // blob: is required here (not just worker-src) because the FFmpeg WASM
+  // loader spawns its worker from a blob: URL in a way some browsers
+  // attribute to script-src rather than worker-src.
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https://*.supabase.co",
   "media-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data: https://fonts.gstatic.com https://*.supabase.co",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com",
+  // blob: here too: the FFmpeg worker fetch()es its WASM binary from a
+  // blob: URL we create for it, which connect-src (not worker-src) governs.
+  "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

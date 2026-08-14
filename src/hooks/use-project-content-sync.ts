@@ -69,7 +69,9 @@ export function useProjectContentSync(projectId: string) {
   // needs to attach its listeners once) can always save the latest edit,
   // not whatever was current when it was set up.
   const latestRef = React.useRef({ projectId, objects, tracks, clips });
-  latestRef.current = { projectId, objects, tracks, clips };
+  React.useEffect(() => {
+    latestRef.current = { projectId, objects, tracks, clips };
+  });
 
   React.useEffect(() => {
     if (!contentLoaded) return;
