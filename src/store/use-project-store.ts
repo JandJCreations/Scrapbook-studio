@@ -2,6 +2,11 @@ import { create } from "zustand";
 
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/database.types";
+import {
+  loadProjectContent,
+  saveProjectContent,
+  saveProjectFrame,
+} from "@/lib/sync/project-content-sync";
 import type { Project, ProjectFolder, ProjectId } from "@/types/project";
 
 type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
@@ -173,6 +178,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (error || !data) return;
     const project = rowToProject(data);
     set((state) => ({ projects: [project, ...state.projects] }));
+
+    const content = await loadProjectContent(source.id);
+    const trackIdMap = new Map(content.tracks.map((t) => [t.id, crypto.randomUUID()]));
+    const objects = content.objects.map((o) => ({ ...o, id: crypto.randomUUID() }));
+    const tracks = content.tracks.map((t) => ({ ...t, id: trackIdMap.get(t.id)! }));
+    const clips = content.clips.map((c) => ({
+      ...c,
+      id: crypto.randomUUID(),
+      trackId: trackIdMap.get(c.trackId)!,
+    }));
+
+    await saveProjectContent(project.id, objects, tracks, clips);
+    if (content.frame) await saveProjectFrame(project.id, content.frame);
   },
 
   toggleFavorite: async (id) => {
