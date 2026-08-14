@@ -62,7 +62,11 @@ export function EditorSidebar(props: EditorSidebarProps) {
       </aside>
 
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="w-72 p-0 lg:hidden">
+        <SheetContent
+          side="left"
+          className="w-72 p-0 lg:hidden"
+          overlayClassName="lg:hidden"
+        >
           <SheetHeader className="h-12 justify-center border-b border-border px-4 py-0">
             <SheetTitle className="text-sm">Panels</SheetTitle>
           </SheetHeader>
