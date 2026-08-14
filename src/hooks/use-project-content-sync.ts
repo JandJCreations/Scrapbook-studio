@@ -8,6 +8,8 @@ import { useCanvasFrameStore } from "@/store/use-canvas-frame-store";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 
 const AUTOSAVE_DELAY_MS = 1500;
+const MAX_LOAD_ATTEMPTS = 4;
+const LOAD_RETRY_DELAY_MS = 1500;
 const loadedProjects = new Set<string>();
 
 /**
@@ -26,10 +28,13 @@ export function useProjectContentSync(projectId: string) {
   const [contentLoaded, setContentLoaded] = React.useState(() =>
     loadedProjects.has(projectId),
   );
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = React.useState(0);
 
   if (projectId !== trackedProjectId) {
     setTrackedProjectId(projectId);
     setContentLoaded(loadedProjects.has(projectId));
+    setLoadError(null);
   }
 
   const loadObjects = useCanvasStore((s) => s.loadObjects);
@@ -44,24 +49,52 @@ export function useProjectContentSync(projectId: string) {
     if (loadedProjects.has(projectId)) return;
 
     let cancelled = false;
-    loadProjectContent(projectId)
-      .then((content) => {
-        if (cancelled) return;
-        loadObjects(projectId, content.objects);
-        loadTracksAndClips(projectId, content.tracks, content.clips);
-        if (content.frame) setFrame(projectId, content.frame);
-        loadedProjects.add(projectId);
-        setContentLoaded(true);
-      })
-      .catch((error) => {
-        console.error("Failed to load project content:", error);
-        setContentLoaded(true);
-      });
+    // A local counter, not React state — the whole retry sequence for this
+    // effect invocation lives here so it can't be affected by any state-
+    // update/re-render timing. Each attempt is scheduled only after the
+    // previous one has actually rejected.
+    let attempts = 0;
+
+    function attempt() {
+      attempts += 1;
+      loadProjectContent(projectId)
+        .then((content) => {
+          if (cancelled) return;
+          loadObjects(projectId, content.objects);
+          loadTracksAndClips(projectId, content.tracks, content.clips);
+          if (content.frame) setFrame(projectId, content.frame);
+          loadedProjects.add(projectId);
+          setLoadError(null);
+          setContentLoaded(true);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          console.error("Failed to load project content:", error);
+          // Never mark this project "loaded" on failure — doing so used to
+          // let the autosave effect below fire with empty/unpopulated local
+          // state a moment later, and its delete-missing sync would then
+          // wipe every real row for this project from the database. Retry a
+          // few times (most failures here are transient — a network blip, a
+          // dev-server restart mid-request), and only surface a permanent
+          // error state that blocks autosave entirely once attempts run out.
+          if (attempts >= MAX_LOAD_ATTEMPTS) {
+            setLoadError(
+              error instanceof Error ? error.message : "Failed to load project content",
+            );
+          } else {
+            setTimeout(() => {
+              if (!cancelled) attempt();
+            }, LOAD_RETRY_DELAY_MS);
+          }
+        });
+    }
+
+    attempt();
 
     return () => {
       cancelled = true;
     };
-  }, [projectId, loadObjects, loadTracksAndClips, setFrame]);
+  }, [projectId, retryNonce, loadObjects, loadTracksAndClips, setFrame]);
 
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -122,5 +155,10 @@ export function useProjectContentSync(projectId: string) {
     };
   }, []);
 
-  return { contentLoaded };
+  function retryLoad() {
+    setLoadError(null);
+    setRetryNonce((n) => n + 1);
+  }
+
+  return { contentLoaded, loadError, retryLoad };
 }

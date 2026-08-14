@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { FileQuestion } from "lucide-react";
+import { FileQuestion, TriangleAlert } from "lucide-react";
 
 import { CanvasStage } from "@/components/canvas/canvas-stage";
 import { CanvasToolbar } from "@/components/canvas/canvas-toolbar";
@@ -30,7 +30,7 @@ export function EditorView({ projectId }: { projectId: string }) {
   );
   const projectsLoaded = useProjectStore((s) => s.loaded);
   const fetchProjects = useProjectStore((s) => s.fetchProjects);
-  const { contentLoaded } = useProjectContentSync(projectId);
+  const { contentLoaded, loadError, retryLoad } = useProjectContentSync(projectId);
 
   React.useEffect(() => {
     fetchProjects();
@@ -74,6 +74,19 @@ export function EditorView({ projectId }: { projectId: string }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [projectId, selectedIds, removeObjects, duplicateObjects, setSelectedIds]);
+
+  if (project && loadError) {
+    return (
+      <div className="flex h-svh flex-col items-center justify-center bg-muted/20 p-6">
+        <EmptyState
+          icon={TriangleAlert}
+          title="Couldn't load this scrapbook"
+          description="We couldn't reach the server to load your content. Nothing was lost — retry when you're ready."
+          action={<Button onClick={retryLoad}>Try again</Button>}
+        />
+      </div>
+    );
+  }
 
   if (!projectsLoaded || (project && !contentLoaded)) {
     return (
