@@ -145,7 +145,7 @@ export function TimelinePanel({ projectId }: { projectId: string }) {
 
           {visualRows.length === 0 ? (
             <div className="flex h-10 items-center border-b border-border px-3 text-xs text-muted-foreground">
-              Add photos or video from the Media tab to see them here.
+              No layers yet
             </div>
           ) : (
             visualRows.map((object) => (

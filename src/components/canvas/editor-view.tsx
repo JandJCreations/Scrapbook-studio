@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { FileQuestion, TriangleAlert } from "lucide-react";
+import { FileQuestion, ImagePlus, TriangleAlert } from "lucide-react";
 
 import { CanvasStage } from "@/components/canvas/canvas-stage";
 import { CanvasToolbar } from "@/components/canvas/canvas-toolbar";
@@ -139,6 +139,21 @@ export function EditorView({ projectId }: { projectId: string }) {
                 width={size.width}
                 height={size.height}
               />
+            )}
+            {objects.length === 0 && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+                <div className="flex flex-col items-center text-center">
+                  <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <ImagePlus className="size-6" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">
+                    This scrapbook is empty
+                  </h3>
+                  <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+                    Add photos, video, or text from the panel to get started.
+                  </p>
+                </div>
+              </div>
             )}
             <TextEditOverlay projectId={projectId} />
             <SelectionToolbar projectId={projectId} />
