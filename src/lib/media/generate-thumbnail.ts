@@ -49,6 +49,40 @@ export function generateVideoThumbnail(
   });
 }
 
+const MAX_THUMBNAIL_DIMENSION = 480;
+
+/**
+ * Media libraries are commonly phone-camera photos (3000-4000px, several MB
+ * each). Loading those at full resolution just to show an 80px grid square
+ * is what makes the media panel feel slow/laggy on mobile — downscale once
+ * at upload time instead.
+ */
+export function generateImageThumbnail(objectUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const scale = Math.min(
+        1,
+        MAX_THUMBNAIL_DIMENSION / Math.max(img.naturalWidth, img.naturalHeight),
+      );
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        reject(new Error("Canvas context unavailable"));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = objectUrl;
+  });
+}
+
 export function getAudioDuration(objectUrl: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const audio = document.createElement("audio");

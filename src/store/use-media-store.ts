@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import {
+  generateImageThumbnail,
   generateVideoThumbnail,
   getAudioDuration,
 } from "@/lib/media/generate-thumbnail";
@@ -97,6 +98,10 @@ async function processMediaItem(
       thumbnailBlob = dataUrlToBlob(result.thumbnailUrl);
     } else if (type === "audio") {
       duration = await getAudioDuration(localUrl).catch(() => 0);
+    } else if (type === "image") {
+      thumbnailBlob = await generateImageThumbnail(localUrl)
+        .then(dataUrlToBlob)
+        .catch(() => null);
     }
 
     update(item.id, { progress: 30 });
@@ -118,8 +123,11 @@ async function processMediaItem(
     }
 
     const url = await getSignedUrl(storagePath);
-    const thumbnailUrl =
-      type === "image" ? url : thumbnailPath ? await getSignedUrl(thumbnailPath) : null;
+    const thumbnailUrl = thumbnailPath
+      ? await getSignedUrl(thumbnailPath)
+      : type === "image"
+        ? url
+        : null;
 
     const { error: insertError } = await supabase.from("media_items").insert({
       id: item.id,
