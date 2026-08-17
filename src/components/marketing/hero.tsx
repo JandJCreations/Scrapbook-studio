@@ -31,7 +31,7 @@ export function Hero() {
           className="text-balance text-4xl font-semibold tracking-tight sm:text-6xl"
         >
           Turn your memories into
-          <span className="block bg-gradient-to-r from-primary via-fuchsia-500 to-orange-400 bg-clip-text text-transparent">
+          <span className="block bg-gradient-to-r from-primary via-fuchsia-300 to-orange-300 bg-clip-text text-transparent">
             living scrapbooks
           </span>
         </motion.h1>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 export function CtaSection() {
   return (
     <section className="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
-      <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-card to-fuchsia-500/10 px-8 py-16 text-center shadow-sm sm:py-20">
+      <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-card to-fuchsia-300/10 px-8 py-16 text-center shadow-sm sm:py-20">
         <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
           Start your first scrapbook today
         </h2>
