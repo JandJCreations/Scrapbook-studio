@@ -24,6 +24,14 @@ interface CanvasStageProps {
   height: number;
 }
 
+// Konva defaults to rendering at the full device pixel ratio (3 on most
+// phones), so every pan/zoom/drag repaint composites up to 9x more pixels
+// than a ratio-1 screen — a major, well-documented source of mobile canvas
+// lag. Capped here for interactive editing only; export (capture-frame.ts)
+// sets its own explicit pixelRatio for the final render, independent of this.
+const EDIT_PIXEL_RATIO =
+  typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+
 export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
   const objects = useCanvasObjects(projectId);
   const frame = useCanvasFrame(projectId);
@@ -275,6 +283,7 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
       y={viewport.y}
       scaleX={viewport.scale}
       scaleY={viewport.scale}
+      pixelRatio={EDIT_PIXEL_RATIO}
       draggable
       onDragEnd={(e) => {
         if (e.target === stageRef.current) {
