@@ -63,6 +63,7 @@ interface MediaStore {
   loading: boolean;
   error: string | null;
   fetchMedia: () => Promise<void>;
+  backfillMissingThumbnails: () => void;
   addFiles: (files: File[], folderId: string | null) => string[];
   deleteItem: (id: string) => void;
   renameItem: (id: string, name: string) => void;
@@ -192,11 +193,14 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
       mimeType: row.mime_type,
       size: row.size,
       url: signedUrls.get(row.storage_path) ?? "",
+      // Deliberately does NOT fall back to the full-resolution storage_path
+      // for images missing a thumbnail — loading dozens of multi-MB phone
+      // photos at full size just to render a grid square is what crashes
+      // the tab on mobile. Items without one show a placeholder until
+      // backfillMissingThumbnails generates a real one.
       thumbnailUrl: row.thumbnail_path
         ? (signedUrls.get(row.thumbnail_path) ?? null)
-        : row.type === "image"
-          ? (signedUrls.get(row.storage_path) ?? null)
-          : null,
+        : null,
       duration: row.duration,
       folderId: row.folder_id,
       createdAt: row.created_at,
@@ -210,6 +214,57 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
       loading: false,
       loaded: true,
     });
+
+    get().backfillMissingThumbnails();
+  },
+
+  // Photos uploaded before thumbnail generation existed have no
+  // thumbnail_path, so they'd otherwise load at full resolution forever.
+  // Heals them in the background, one at a time with a pause between each
+  // — this is exactly the kind of image-processing work that crashed the
+  // tab when done eagerly/in bulk, so it deliberately stays slow and gentle.
+  backfillMissingThumbnails: () => {
+    const targets = get().items.filter(
+      (i) => i.type === "image" && i.status === "ready" && !i.thumbnailUrl && i.url,
+    );
+    if (targets.length === 0) return;
+
+    (async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      for (const item of targets) {
+        try {
+          const dataUrl = await generateImageThumbnail(item.url);
+          const blob = dataUrlToBlob(dataUrl);
+          const thumbnailPath = thumbnailPathFor(user.id, item.id);
+
+          const { error: uploadError } = await supabase.storage
+            .from(MEDIA_BUCKET)
+            .upload(thumbnailPath, blob, { contentType: "image/jpeg", upsert: true });
+          if (uploadError) continue;
+
+          const { error: updateError } = await supabase
+            .from("media_items")
+            .update({ thumbnail_path: thumbnailPath })
+            .eq("id", item.id);
+          if (updateError) continue;
+
+          const thumbnailUrl = await getSignedUrl(thumbnailPath);
+          set((state) => ({
+            items: state.items.map((i) =>
+              i.id === item.id ? { ...i, thumbnailUrl: thumbnailUrl ?? i.thumbnailUrl } : i,
+            ),
+          }));
+        } catch {
+          // Leave this one showing the placeholder — it'll retry next load.
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+    })();
   },
 
   addFiles: (files, folderId) => {

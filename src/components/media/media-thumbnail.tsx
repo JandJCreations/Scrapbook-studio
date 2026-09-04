@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type { MediaItem } from "@/types/media";
 
 const AUDIO_GRADIENT = "from-emerald-400/30 to-teal-400/20";
+const IMAGE_GRADIENT = "from-sky-400/30 to-violet-400/20";
 
 export function MediaThumbnail({
   item,
@@ -37,6 +38,15 @@ export function MediaThumbnail({
           )}
         >
           <MediaTypeIcon type="audio" className="size-8 text-foreground/40" />
+        </div>
+      ) : item.status === "ready" ? (
+        <div
+          className={cn(
+            "flex size-full items-center justify-center bg-gradient-to-br",
+            IMAGE_GRADIENT,
+          )}
+        >
+          <MediaTypeIcon type={item.type} className="size-8 text-foreground/40" />
         </div>
       ) : item.status === "error" ? (
         <div className="flex flex-col items-center gap-1.5 p-3 text-center">
