@@ -214,8 +214,6 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
       loading: false,
       loaded: true,
     });
-
-    get().backfillMissingThumbnails();
   },
 
   // Photos uploaded before thumbnail generation existed have no

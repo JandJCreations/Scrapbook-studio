@@ -3,9 +3,14 @@ import * as React from "react";
 // Phone photos are commonly 3000-4000px+ and several MB each. Decoding them
 // at full resolution just to render them on-screen (often at a few hundred
 // px) is what was crashing the editor on mobile once more than a couple were
-// placed on the canvas at once. createImageBitmap's resize option lets the
-// browser decode directly to a smaller target instead of decoding the full
-// image and then downscaling it, which keeps peak memory far lower.
+// placed on the canvas at once. createImageBitmap's resize option produces a
+// much smaller in-memory bitmap for Konva to hold and redraw from than a
+// full-size <img>, cutting ongoing (not just initial) memory pressure.
+//
+// Loads through a plain <img> first (exactly like before this change) rather
+// than fetch()+blob(), since fetch requires the response to carry CORS
+// headers while an <img> doesn't — this keeps the same loading behavior this
+// app already relied on and only adds the resize step on top of it.
 //
 // Trade-off: export captures whatever is currently drawn on the Konva stage
 // (see capture-frame.ts), so this also caps how much detail an export can
@@ -21,44 +26,35 @@ export function useImageElement(src: string) {
 
     let cancelled = false;
     let bitmap: ImageBitmap | null = null;
-    let img: HTMLImageElement | null = null;
+    const img = new window.Image();
 
-    function loadPlainImage() {
-      img = new window.Image();
-      img.src = src;
-      img.onload = () => {
-        if (!cancelled) setImage(img);
-      };
-    }
+    img.onload = () => {
+      if (cancelled) return;
 
-    async function load() {
       if (typeof createImageBitmap !== "function") {
-        loadPlainImage();
+        setImage(img);
         return;
       }
-      try {
-        const response = await fetch(src);
-        const blob = await response.blob();
-        if (cancelled) return;
-        bitmap = await createImageBitmap(blob, {
-          resizeWidth: MAX_EDIT_DIMENSION,
-          resizeQuality: "medium",
-        });
-        if (cancelled) {
-          bitmap.close();
-          return;
-        }
-        setImage(bitmap);
-      } catch {
-        if (!cancelled) loadPlainImage();
-      }
-    }
 
-    void load();
+      createImageBitmap(img, { resizeWidth: MAX_EDIT_DIMENSION, resizeQuality: "medium" })
+        .then((result) => {
+          if (cancelled) {
+            result.close();
+            return;
+          }
+          bitmap = result;
+          setImage(result);
+        })
+        .catch(() => {
+          if (!cancelled) setImage(img);
+        });
+    };
+
+    img.src = src;
 
     return () => {
       cancelled = true;
-      if (img) img.onload = null;
+      img.onload = null;
       bitmap?.close();
     };
   }, [src]);
