@@ -368,8 +368,8 @@ export function VideoEditPanel({
           objectId={object.id}
           previewSrc={object.src}
           initialCrop={adjustments.crop}
-          naturalWidth={posterEl.naturalWidth}
-          naturalHeight={posterEl.naturalHeight}
+          naturalWidth={posterEl.width}
+          naturalHeight={posterEl.height}
           open={cropOpen}
           onOpenChange={setCropOpen}
           title="Crop video"

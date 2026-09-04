@@ -481,8 +481,8 @@ export function PhotoEditPanel({
           objectId={object.id}
           previewSrc={object.src}
           initialCrop={adjustments.crop}
-          naturalWidth={imageEl.naturalWidth}
-          naturalHeight={imageEl.naturalHeight}
+          naturalWidth={imageEl.width}
+          naturalHeight={imageEl.height}
           open={cropOpen}
           onOpenChange={setCropOpen}
           onApply={(crop) => {
