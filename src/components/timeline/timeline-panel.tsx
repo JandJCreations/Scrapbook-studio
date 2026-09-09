@@ -90,6 +90,7 @@ export function TimelinePanel({ projectId }: { projectId: string }) {
           variant="ghost"
           size="sm"
           className="gap-1.5 text-xs"
+          data-tour="add-audio-track-button"
           onClick={() => addTrack(projectId)}
         >
           <PlusCircle className="size-3.5" />

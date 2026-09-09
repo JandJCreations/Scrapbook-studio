@@ -131,6 +131,7 @@ export function CanvasToolbar({
         size="sm"
         className="shrink-0 gap-1.5 lg:hidden"
         aria-label="Open panels"
+        data-tour="panels-button"
         onClick={() => setSidebarOpen(true)}
       >
         <PanelLeft className="size-4" />
@@ -149,6 +150,7 @@ export function CanvasToolbar({
             variant="ghost"
             size="sm"
             className="shrink-0 gap-2"
+            data-tour="add-text-button"
             onClick={addText}
           >
             <Type className="size-4" />
@@ -274,7 +276,12 @@ export function CanvasToolbar({
           <TooltipContent>Quick tour</TooltipContent>
         </Tooltip>
 
-        <Button size="sm" className="gap-2" onClick={() => setExportOpen(true)}>
+        <Button
+          size="sm"
+          className="gap-2"
+          data-tour="export-button"
+          onClick={() => setExportOpen(true)}
+        >
           <Download className="size-4" />
           <span className="hidden sm:inline">Export</span>
         </Button>

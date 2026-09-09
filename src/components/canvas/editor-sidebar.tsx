@@ -26,7 +26,9 @@ function SidebarTabs({
   return (
     <Tabs defaultValue="media" className="flex min-h-0 flex-1 flex-col gap-0">
       <TabsList className="m-2 mb-0">
-        <TabsTrigger value="media">Media</TabsTrigger>
+        <TabsTrigger value="media" data-tour="media-tab">
+          Media
+        </TabsTrigger>
         <TabsTrigger value="assets">Assets</TabsTrigger>
         <TabsTrigger value="layers">Layers</TabsTrigger>
       </TabsList>

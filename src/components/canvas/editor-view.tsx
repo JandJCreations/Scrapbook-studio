@@ -157,7 +157,11 @@ export function EditorView({ projectId }: { projectId: string }) {
             stageWidth={size.width}
             stageHeight={size.height}
           />
-          <div ref={ref} className="relative min-w-0 flex-1 overflow-hidden">
+          <div
+            ref={ref}
+            data-tour="canvas-area"
+            className="relative min-w-0 flex-1 overflow-hidden"
+          >
             {size.width > 0 && size.height > 0 && (
               <CanvasStage
                 projectId={projectId}
