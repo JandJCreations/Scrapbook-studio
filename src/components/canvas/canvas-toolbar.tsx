@@ -128,12 +128,13 @@ export function CanvasToolbar({
 
       <Button
         variant="ghost"
-        size="icon"
-        className="shrink-0 lg:hidden"
+        size="sm"
+        className="shrink-0 gap-1.5 lg:hidden"
         aria-label="Open panels"
         onClick={() => setSidebarOpen(true)}
       >
         <PanelLeft className="size-4" />
+        Panels
       </Button>
 
       <Logo className="hidden sm:flex" />
@@ -151,7 +152,7 @@ export function CanvasToolbar({
             onClick={addText}
           >
             <Type className="size-4" />
-            <span className="hidden md:inline">Add text</span>
+            <span>Add text</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>Add a text box to the canvas</TooltipContent>
