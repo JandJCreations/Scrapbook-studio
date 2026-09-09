@@ -21,6 +21,7 @@ import { useElementSize } from "@/hooks/use-element-size";
 import { useProjectContentSync } from "@/hooks/use-project-content-sync";
 import { useAudioClips, useAudioStore } from "@/store/use-audio-store";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
+import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import { useProjectStore } from "@/store/use-project-store";
 
 export function EditorView({ projectId }: { projectId: string }) {
@@ -35,6 +36,17 @@ export function EditorView({ projectId }: { projectId: string }) {
   React.useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
+
+  const setTimelineCollapsed = useEditorUiStore((s) => s.setTimelineCollapsed);
+  React.useEffect(() => {
+    // The timeline (layers + audio tracks) defaults to expanded, which eats
+    // a third or more of a phone screen's height before the user has even
+    // touched it — collapse it by default on narrow viewports so the canvas
+    // itself is what you see first. Desktop is unaffected; a single tap on
+    // the chevron still expands it.
+    if (window.innerWidth < 640) setTimelineCollapsed(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const objects = useCanvasObjects(projectId);
   const selectedIds = useCanvasStore((s) => s.selectedIds);

@@ -5,6 +5,7 @@ interface EditorUiStore {
   setSidebarOpen: (open: boolean) => void;
   timelineCollapsed: boolean;
   toggleTimelineCollapsed: () => void;
+  setTimelineCollapsed: (collapsed: boolean) => void;
 }
 
 export const useEditorUiStore = create<EditorUiStore>((set) => ({
@@ -13,4 +14,5 @@ export const useEditorUiStore = create<EditorUiStore>((set) => ({
   timelineCollapsed: false,
   toggleTimelineCollapsed: () =>
     set((state) => ({ timelineCollapsed: !state.timelineCollapsed })),
+  setTimelineCollapsed: (collapsed) => set({ timelineCollapsed: collapsed }),
 }));

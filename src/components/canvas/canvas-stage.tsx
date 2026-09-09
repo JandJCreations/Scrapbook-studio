@@ -12,7 +12,7 @@ import { computeSnap, snapToGrid, type GuideLine } from "@/lib/canvas/alignment"
 import { GRID_SIZE, SNAP_THRESHOLD } from "@/lib/canvas/constants";
 import { getInterpolatedTransform } from "@/lib/canvas/interpolate";
 import { registerStage } from "@/lib/canvas/stage-registry";
-import { zoomAtPoint } from "@/lib/canvas/zoom";
+import { fitViewportToFrame, zoomAtPoint } from "@/lib/canvas/zoom";
 import { useCanvasFrame } from "@/store/use-canvas-frame-store";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 import { useTimelineStore } from "@/store/use-timeline-store";
@@ -50,11 +50,25 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
   const dragStartPositionsRef = React.useRef(new Map<string, { x: number; y: number }>());
   const [guides, setGuides] = React.useState<GuideLine[]>([]);
   const pinchRef = React.useRef<{ distance: number } | null>(null);
+  const fittedProjectRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     registerStage(stageRef.current);
     return () => registerStage(null);
   }, []);
+
+  // The canvas frame (e.g. 1920x1080) is almost always bigger than the
+  // visible stage, especially on mobile, and the viewport isn't saved per
+  // project — every open would otherwise start at 100% zoom pinned to the
+  // frame's top-left corner, making any content outside that small corner
+  // look like a blank canvas. Fit the whole frame into view once per
+  // project open; afterward the user's own pan/zoom is left alone.
+  React.useEffect(() => {
+    if (fittedProjectRef.current === projectId) return;
+    fittedProjectRef.current = projectId;
+    setViewport(fitViewportToFrame(frame, width, height));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, width, height, frame.width, frame.height]);
 
   const registerNode = React.useCallback((id: string, node: Konva.Node | null) => {
     if (node) nodeMapRef.current.set(id, node);
