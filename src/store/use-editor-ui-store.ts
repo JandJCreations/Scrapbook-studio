@@ -6,6 +6,8 @@ interface EditorUiStore {
   timelineCollapsed: boolean;
   toggleTimelineCollapsed: () => void;
   setTimelineCollapsed: (collapsed: boolean) => void;
+  tourOpen: boolean;
+  setTourOpen: (open: boolean) => void;
 }
 
 export const useEditorUiStore = create<EditorUiStore>((set) => ({
@@ -15,4 +17,6 @@ export const useEditorUiStore = create<EditorUiStore>((set) => ({
   toggleTimelineCollapsed: () =>
     set((state) => ({ timelineCollapsed: !state.timelineCollapsed })),
   setTimelineCollapsed: (collapsed) => set({ timelineCollapsed: collapsed }),
+  tourOpen: false,
+  setTourOpen: (open) => set({ tourOpen: open }),
 }));

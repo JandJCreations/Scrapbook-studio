@@ -17,8 +17,10 @@ import { TimelinePanel } from "@/components/timeline/timeline-panel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/empty-state";
+import { WelcomeTourDialog } from "@/components/canvas/welcome-tour-dialog";
 import { useElementSize } from "@/hooks/use-element-size";
 import { useProjectContentSync } from "@/hooks/use-project-content-sync";
+import { TOUR_SEEN_STORAGE_KEY } from "@/lib/onboarding/tour-steps";
 import { useAudioClips, useAudioStore } from "@/store/use-audio-store";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
@@ -38,6 +40,7 @@ export function EditorView({ projectId }: { projectId: string }) {
   }, [fetchProjects]);
 
   const setTimelineCollapsed = useEditorUiStore((s) => s.setTimelineCollapsed);
+  const setTourOpen = useEditorUiStore((s) => s.setTourOpen);
   React.useEffect(() => {
     // The timeline (layers + audio tracks) defaults to expanded, which eats
     // a third or more of a phone screen's height before the user has even
@@ -45,6 +48,16 @@ export function EditorView({ projectId }: { projectId: string }) {
     // itself is what you see first. Desktop is unaffected; a single tap on
     // the chevron still expands it.
     if (window.innerWidth < 640) setTimelineCollapsed(true);
+
+    try {
+      if (!window.localStorage.getItem(TOUR_SEEN_STORAGE_KEY)) {
+        setTourOpen(true);
+        window.localStorage.setItem(TOUR_SEEN_STORAGE_KEY, "1");
+      }
+    } catch {
+      // Private browsing / storage disabled — just skip auto-showing the
+      // tour rather than breaking the editor over a "nice to have".
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -185,6 +198,7 @@ export function EditorView({ projectId }: { projectId: string }) {
         </div>
         <TimelinePanel projectId={projectId} />
       </div>
+      <WelcomeTourDialog />
     </div>
   );
 }

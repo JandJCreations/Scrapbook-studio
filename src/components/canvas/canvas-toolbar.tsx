@@ -3,7 +3,17 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowLeft, Download, History, Magnet, Minus, PanelLeft, Plus, Type } from "lucide-react";
+import {
+  ArrowLeft,
+  CircleHelp,
+  Download,
+  History,
+  Magnet,
+  Minus,
+  PanelLeft,
+  Plus,
+  Type,
+} from "lucide-react";
 
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
@@ -63,6 +73,7 @@ export function CanvasToolbar({
   const [exportOpen, setExportOpen] = React.useState(false);
   const [versionsOpen, setVersionsOpen] = React.useState(false);
   const setSidebarOpen = useEditorUiStore((s) => s.setSidebarOpen);
+  const setTourOpen = useEditorUiStore((s) => s.setTourOpen);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
 
   React.useEffect(() => {
@@ -246,6 +257,20 @@ export function CanvasToolbar({
             </Button>
           </TooltipTrigger>
           <TooltipContent>Version history</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setTourOpen(true)}
+              aria-label="Help / quick tour"
+            >
+              <CircleHelp className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Quick tour</TooltipContent>
         </Tooltip>
 
         <Button size="sm" className="gap-2" onClick={() => setExportOpen(true)}>
