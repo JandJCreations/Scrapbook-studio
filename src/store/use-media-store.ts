@@ -214,17 +214,21 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
       loading: false,
       loaded: true,
     });
+
+    get().backfillMissingThumbnails();
   },
 
   // Photos uploaded before thumbnail generation existed have no
-  // thumbnail_path, so they'd otherwise load at full resolution forever.
-  // Heals them in the background, one at a time with a pause between each
-  // — this is exactly the kind of image-processing work that crashed the
-  // tab when done eagerly/in bulk, so it deliberately stays slow and gentle.
+  // thumbnail_path, so they'd otherwise show a placeholder forever. Heals
+  // them in the background, one at a time with a pause between each so
+  // peak memory never exceeds "one photo's worth" regardless of library
+  // size. Capped per call so a large backlog spreads across a few app
+  // opens instead of front-loading all of it into a single session.
   backfillMissingThumbnails: () => {
-    const targets = get().items.filter(
-      (i) => i.type === "image" && i.status === "ready" && !i.thumbnailUrl && i.url,
-    );
+    const BACKFILL_BATCH_LIMIT = 12;
+    const targets = get()
+      .items.filter((i) => i.type === "image" && i.status === "ready" && !i.thumbnailUrl && i.url)
+      .slice(0, BACKFILL_BATCH_LIMIT);
     if (targets.length === 0) return;
 
     (async () => {
