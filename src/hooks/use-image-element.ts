@@ -31,7 +31,11 @@ export function useImageElement(src: string) {
     img.onload = () => {
       if (cancelled) return;
 
-      if (typeof createImageBitmap !== "function") {
+      // Only worth resizing down if the source is actually bigger than the
+      // cap — stickers, small uploads, and other already-small sources would
+      // otherwise get force-upscaled to 2200px for no benefit (wasted memory
+      // for raster sources, unnecessary work for vector ones).
+      if (typeof createImageBitmap !== "function" || img.naturalWidth <= MAX_EDIT_DIMENSION) {
         setImage(img);
         return;
       }

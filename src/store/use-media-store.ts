@@ -124,11 +124,12 @@ async function processMediaItem(
     }
 
     const url = await getSignedUrl(storagePath);
-    const thumbnailUrl = thumbnailPath
-      ? await getSignedUrl(thumbnailPath)
-      : type === "image"
-        ? url
-        : null;
+    // No full-resolution fallback here either — if thumbnail generation
+    // failed for this upload (rare, but generateImageThumbnail can throw),
+    // showing the original at full size is the same crash risk this was
+    // built to avoid. It shows a placeholder instead and gets picked up by
+    // the next backfill pass like any other item missing a thumbnail.
+    const thumbnailUrl = thumbnailPath ? await getSignedUrl(thumbnailPath) : null;
 
     const { error: insertError } = await supabase.from("media_items").insert({
       id: item.id,
