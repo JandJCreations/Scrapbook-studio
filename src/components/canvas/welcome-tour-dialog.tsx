@@ -15,25 +15,29 @@ const MOBILE_BREAKPOINT = 1024; // matches the sidebar's lg: breakpoint
 export function WelcomeTourDialog() {
   const open = useEditorUiStore((s) => s.tourOpen);
   const setOpen = useEditorUiStore((s) => s.setTourOpen);
-  const setSidebarOpen = useEditorUiStore((s) => s.setSidebarOpen);
   const [stepIndex, setStepIndex] = React.useState(0);
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    function checkWidth() {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    }
+    checkWidth();
+    window.addEventListener("resize", checkWidth);
+    return () => window.removeEventListener("resize", checkWidth);
+  }, []);
 
   const step = open ? TOUR_STEPS[stepIndex] : undefined;
-  const rect = useTourTargetRect(step?.targetSelector);
-
-  // The media-tab target lives inside the mobile panels Sheet, which is
-  // closed by default — open it for that one step so there's actually
-  // something for useTourTargetRect to find and measure.
-  React.useEffect(() => {
-    if (!open) return;
-    const needsSidebar =
-      Boolean(step?.opensMobileSidebar) && window.innerWidth < MOBILE_BREAKPOINT;
-    setSidebarOpen(needsSidebar);
-    return () => {
-      if (needsSidebar) setSidebarOpen(false);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, stepIndex]);
+  // Some targets (e.g. the Media tab) live inside a sheet that's only
+  // rendered on mobile once opened — rather than opening it ourselves
+  // (real animation timing, real state, another thing to get wrong),
+  // point at its always-visible trigger button on mobile instead.
+  const effectiveSelector = step
+    ? isMobile && step.mobileTargetSelector
+      ? step.mobileTargetSelector
+      : step.targetSelector
+    : undefined;
+  const rect = useTourTargetRect(effectiveSelector);
 
   React.useEffect(() => {
     if (!open) return;

@@ -14,8 +14,8 @@ export interface TourStep {
   description: string;
   /** data-tour attribute value of the real element this step should point at. Omit for a centered, untargeted step (e.g. the welcome step). */
   targetSelector?: string;
-  /** On narrow viewports, the target lives inside the mobile panels Sheet, which is closed by default — open it while this step is active. */
-  opensMobileSidebar?: boolean;
+  /** Use this selector instead, on narrow viewports where targetSelector's element is hidden inside a closed sheet/drawer. */
+  mobileTargetSelector?: string;
 }
 
 export const TOUR_STEPS: TourStep[] = [
@@ -29,9 +29,9 @@ export const TOUR_STEPS: TourStep[] = [
     icon: ImagePlus,
     title: "Add your photos and video",
     description:
-      "This opens your Media tab. Tap any photo or video there to drop it onto the canvas.",
+      "Tap here to open your Media tab, then tap any photo or video to drop it onto the canvas.",
     targetSelector: "media-tab",
-    opensMobileSidebar: true,
+    mobileTargetSelector: "panels-button",
   },
   {
     icon: Type,
