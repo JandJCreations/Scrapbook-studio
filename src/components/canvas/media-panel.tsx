@@ -16,6 +16,15 @@ interface MediaPanelProps {
   stageHeight: number;
 }
 
+function loadImageDimensions(src: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = src;
+  });
+}
+
 export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelProps) {
   const items = useMediaStore((s) => s.items);
   const fetchMedia = useMediaStore((s) => s.fetchMedia);
@@ -31,9 +40,30 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
     (i) => i.status === "ready" && (i.type === "image" || i.type === "video"),
   );
 
-  function handleAdd(item: (typeof placeable)[number]) {
+  async function handleAdd(item: (typeof placeable)[number]) {
     const worldCenterX = (-viewport.x + stageWidth / 2) / viewport.scale;
     const worldCenterY = (-viewport.y + stageHeight / 2) / viewport.scale;
+
+    // Without this, every new object defaulted to a fixed square, which
+    // Konva stretches the source image to fill exactly — any non-square
+    // photo (i.e. almost all of them) came in visibly squished/cropped-
+    // looking instead of showing the whole picture undistorted. The
+    // thumbnail (already loaded/cached from being visible in this grid) is
+    // enough to read the real aspect ratio from — no need to wait on the
+    // full-resolution original just to measure it.
+    let width = DEFAULT_OBJECT_SIZE;
+    let height = DEFAULT_OBJECT_SIZE;
+    const dimensionSrc = item.thumbnailUrl ?? item.url;
+    try {
+      const natural = await loadImageDimensions(dimensionSrc);
+      if (natural.width > 0 && natural.height > 0) {
+        const scale = DEFAULT_OBJECT_SIZE / Math.max(natural.width, natural.height);
+        width = Math.round(natural.width * scale);
+        height = Math.round(natural.height * scale);
+      }
+    } catch {
+      // Fall back to the default square if dimensions can't be read.
+    }
 
     const newId = addObject(projectId, {
       type: item.type as "image" | "video",
@@ -42,8 +72,10 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       videoSrc: item.type === "video" ? item.url : undefined,
       duration: item.duration ?? undefined,
       name: item.name,
-      x: worldCenterX - DEFAULT_OBJECT_SIZE / 2,
-      y: worldCenterY - DEFAULT_OBJECT_SIZE / 2,
+      width,
+      height,
+      x: worldCenterX - width / 2,
+      y: worldCenterY - height / 2,
     });
     setSelectedIds([newId]);
   }
