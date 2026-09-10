@@ -109,12 +109,24 @@ export const VisualTimelineClip = React.memo(function VisualTimelineClip({
         };
       }}
     >
-      {object.type === "video" ? (
-        <Film className="size-3 shrink-0 text-white/80" />
-      ) : (
-        <ImageIcon className="size-3 shrink-0 text-white/80" />
+      {object.src && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={object.src}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="pointer-events-none absolute inset-0 size-full object-cover opacity-70"
+        />
       )}
-      <span className="truncate text-[10px] font-medium text-white/90">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+
+      {object.type === "video" ? (
+        <Film className="relative size-3 shrink-0 text-white/90 drop-shadow" />
+      ) : (
+        <ImageIcon className="relative size-3 shrink-0 text-white/90 drop-shadow" />
+      )}
+      <span className="relative truncate text-[10px] font-medium text-white drop-shadow">
         {object.name}
       </span>
 
