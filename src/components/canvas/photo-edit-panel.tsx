@@ -5,9 +5,12 @@ import {
   Crop,
   FlipHorizontal,
   FlipVertical,
+  Paintbrush,
+  Palette,
   RotateCcw,
   RotateCw,
   Sparkles,
+  Sun,
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -107,7 +110,12 @@ export function PhotoEditPanel({
           <ObjectTimingPanel projectId={projectId} object={object} />
 
           <AccordionItem value="transform">
-            <AccordionTrigger>Crop &amp; transform</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Crop className="size-4 text-muted-foreground" />
+                Crop &amp; transform
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-3">
               <Button
                 variant="outline"
@@ -187,7 +195,12 @@ export function PhotoEditPanel({
           </AccordionItem>
 
           <AccordionItem value="light">
-            <AccordionTrigger>Light</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Sun className="size-4 text-muted-foreground" />
+                Light
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-3">
               <AdjustmentSlider
                 label="Brightness"
@@ -228,7 +241,12 @@ export function PhotoEditPanel({
           </AccordionItem>
 
           <AccordionItem value="color">
-            <AccordionTrigger>Color &amp; filters</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Palette className="size-4 text-muted-foreground" />
+                Color &amp; filters
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-3">
               <AdjustmentSlider
                 label="Saturation"
@@ -259,7 +277,12 @@ export function PhotoEditPanel({
           </AccordionItem>
 
           <AccordionItem value="effects">
-            <AccordionTrigger>Effects</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Sparkles className="size-4 text-muted-foreground" />
+                Effects
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-3">
               <AdjustmentSlider
                 label="Blur"
@@ -286,7 +309,12 @@ export function PhotoEditPanel({
           </AccordionItem>
 
           <AccordionItem value="style">
-            <AccordionTrigger>Style</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Paintbrush className="size-4 text-muted-foreground" />
+                Style
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
@@ -445,7 +473,12 @@ export function PhotoEditPanel({
           </AccordionItem>
 
           <AccordionItem value="ai">
-            <AccordionTrigger>AI tools</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Wand2 className="size-4 text-muted-foreground" />
+                AI tools
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-2">
               <Button
                 variant={adjustments.aiBackgroundRemoved ? "secondary" : "outline"}

@@ -3,6 +3,8 @@
 import * as React from "react";
 import {
   Crop,
+  Paintbrush,
+  Palette,
   Pause,
   Play,
   Repeat,
@@ -106,7 +108,12 @@ export function VideoEditPanel({
           <ObjectTimingPanel projectId={projectId} object={object} />
 
           <AccordionItem value="trim">
-            <AccordionTrigger>Trim &amp; split</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Scissors className="size-4 text-muted-foreground" />
+                Trim &amp; split
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
@@ -198,7 +205,12 @@ export function VideoEditPanel({
           </AccordionItem>
 
           <AccordionItem value="playback">
-            <AccordionTrigger>Playback</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Play className="size-4 text-muted-foreground" />
+                Playback
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-3">
               <AdjustmentSlider
                 label="Speed"
@@ -231,7 +243,12 @@ export function VideoEditPanel({
           </AccordionItem>
 
           <AccordionItem value="audio">
-            <AccordionTrigger>Audio</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Volume2 className="size-4 text-muted-foreground" />
+                Audio
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-3">
               <AdjustmentSlider
                 label="Volume"
@@ -258,7 +275,12 @@ export function VideoEditPanel({
           </AccordionItem>
 
           <AccordionItem value="appearance">
-            <AccordionTrigger>Appearance</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Palette className="size-4 text-muted-foreground" />
+                Appearance
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-3">
               <AdjustmentSlider
                 label="Opacity"
@@ -299,7 +321,12 @@ export function VideoEditPanel({
           </AccordionItem>
 
           <AccordionItem value="style">
-            <AccordionTrigger>Style</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Paintbrush className="size-4 text-muted-foreground" />
+                Style
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-2 rounded-lg border border-border p-2.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-medium">Shadow</Label>

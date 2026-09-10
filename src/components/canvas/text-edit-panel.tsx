@@ -5,6 +5,7 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  Paintbrush,
   Type,
   Upload,
 } from "lucide-react";
@@ -89,7 +90,12 @@ export function TextEditPanel({
           className="px-3"
         >
           <AccordionItem value="content">
-            <AccordionTrigger>Content &amp; font</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Type className="size-4 text-muted-foreground" />
+                Content &amp; font
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-normal text-muted-foreground">
@@ -231,7 +237,12 @@ export function TextEditPanel({
           </AccordionItem>
 
           <AccordionItem value="style">
-            <AccordionTrigger>Style</AccordionTrigger>
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Paintbrush className="size-4 text-muted-foreground" />
+                Style
+              </span>
+            </AccordionTrigger>
             <AccordionContent className="flex flex-col gap-4">
               <div className="flex flex-col gap-2 rounded-lg border border-border p-2.5">
                 <div className="flex items-center justify-between">

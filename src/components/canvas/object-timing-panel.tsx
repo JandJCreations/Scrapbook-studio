@@ -1,6 +1,6 @@
 "use client";
 
-import { Diamond, Plus, Trash2 } from "lucide-react";
+import { Clock, Diamond, Plus, Trash2 } from "lucide-react";
 
 import {
   AccordionContent,
@@ -31,7 +31,12 @@ export function ObjectTimingPanel({
 
   return (
     <AccordionItem value="timing">
-      <AccordionTrigger>Timing &amp; animation</AccordionTrigger>
+      <AccordionTrigger>
+        <span className="flex items-center gap-2">
+          <Clock className="size-4 text-muted-foreground" />
+          Timing &amp; animation
+        </span>
+      </AccordionTrigger>
       <AccordionContent className="flex flex-col gap-3">
         <p className="text-xs text-muted-foreground">
           On screen {formatDuration(object.startTime)} – {formatDuration(object.endTime)}
