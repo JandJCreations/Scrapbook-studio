@@ -83,8 +83,9 @@ export function TextEditPanel({
     >
       <ScrollArea className="flex-1">
         <Accordion
-          type="multiple"
-          defaultValue={["content", "timing"]}
+          type="single"
+          collapsible
+          defaultValue="content"
           className="px-3"
         >
           <AccordionItem value="content">

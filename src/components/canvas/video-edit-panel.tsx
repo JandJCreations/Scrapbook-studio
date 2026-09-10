@@ -98,8 +98,9 @@ export function VideoEditPanel({
 
       <ScrollArea className="flex-1">
         <Accordion
-          type="multiple"
-          defaultValue={["timing", "trim", "playback"]}
+          type="single"
+          collapsible
+          defaultValue="trim"
           className="px-3"
         >
           <ObjectTimingPanel projectId={projectId} object={object} />

@@ -99,8 +99,9 @@ export function PhotoEditPanel({
       >
       <ScrollArea className="flex-1">
         <Accordion
-          type="multiple"
-          defaultValue={["timing", "transform", "light", "color"]}
+          type="single"
+          collapsible
+          defaultValue="transform"
           className="px-3"
         >
           <ObjectTimingPanel projectId={projectId} object={object} />
