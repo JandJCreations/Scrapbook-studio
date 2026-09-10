@@ -17,6 +17,7 @@ import { TimelinePanel } from "@/components/timeline/timeline-panel";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/empty-state";
+import { MobileCreateBar } from "@/components/canvas/mobile-create-bar";
 import { WelcomeTourDialog } from "@/components/canvas/welcome-tour-dialog";
 import { useElementSize } from "@/hooks/use-element-size";
 import { useProjectContentSync } from "@/hooks/use-project-content-sync";
@@ -200,6 +201,11 @@ export function EditorView({ projectId }: { projectId: string }) {
             <AudioClipPanel projectId={projectId} clip={selectedClip} />
           )}
         </div>
+        <MobileCreateBar
+          projectId={projectId}
+          stageWidth={size.width}
+          stageHeight={size.height}
+        />
         <TimelinePanel projectId={projectId} />
       </div>
       <WelcomeTourDialog />

@@ -8,6 +8,8 @@ interface EditorUiStore {
   setTimelineCollapsed: (collapsed: boolean) => void;
   tourOpen: boolean;
   setTourOpen: (open: boolean) => void;
+  exportOpen: boolean;
+  setExportOpen: (open: boolean) => void;
 }
 
 export const useEditorUiStore = create<EditorUiStore>((set) => ({
@@ -19,4 +21,6 @@ export const useEditorUiStore = create<EditorUiStore>((set) => ({
   setTimelineCollapsed: (collapsed) => set({ timelineCollapsed: collapsed }),
   tourOpen: false,
   setTourOpen: (open) => set({ tourOpen: open }),
+  exportOpen: false,
+  setExportOpen: (open) => set({ exportOpen: open }),
 }));

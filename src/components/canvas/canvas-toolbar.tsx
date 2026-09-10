@@ -10,7 +10,6 @@ import {
   History,
   Magnet,
   Minus,
-  PanelLeft,
   Plus,
   Type,
 } from "lucide-react";
@@ -31,6 +30,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useAddText } from "@/hooks/use-add-text";
 import { zoomAtPoint } from "@/lib/canvas/zoom";
 import { FRAME_PRESETS } from "@/lib/export/frame-presets";
 import { saveProjectFrame } from "@/lib/sync/project-content-sync";
@@ -38,7 +38,6 @@ import { useCanvasStore } from "@/store/use-canvas-store";
 import { useCanvasFrame, useCanvasFrameStore } from "@/store/use-canvas-frame-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import { useSettingsStore } from "@/store/use-settings-store";
-import { useTextEditingStore } from "@/store/use-text-editing-store";
 
 const ExportDialog = dynamic(() =>
   import("@/components/canvas/export-dialog").then((m) => m.ExportDialog),
@@ -64,17 +63,15 @@ export function CanvasToolbar({
   const setViewport = useCanvasStore((s) => s.setViewport);
   const snapToGrid = useCanvasStore((s) => s.snapToGrid);
   const toggleSnapToGrid = useCanvasStore((s) => s.toggleSnapToGrid);
-  const addObject = useCanvasStore((s) => s.addObject);
-  const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
-  const startEditing = useTextEditingStore((s) => s.startEditing);
 
   const frame = useCanvasFrame(projectId);
   const setFrame = useCanvasFrameStore((s) => s.setFrame);
-  const [exportOpen, setExportOpen] = React.useState(false);
+  const exportOpen = useEditorUiStore((s) => s.exportOpen);
+  const setExportOpen = useEditorUiStore((s) => s.setExportOpen);
   const [versionsOpen, setVersionsOpen] = React.useState(false);
-  const setSidebarOpen = useEditorUiStore((s) => s.setSidebarOpen);
   const setTourOpen = useEditorUiStore((s) => s.setTourOpen);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+  const addText = useAddText({ projectId, stageWidth, stageHeight });
 
   React.useEffect(() => {
     fetchSettings();
@@ -94,23 +91,6 @@ export function CanvasToolbar({
     setViewport({ x: 0, y: 0, scale: 1 });
   }
 
-  function addText() {
-    const worldCenterX = (-viewport.x + stageWidth / 2) / viewport.scale;
-    const worldCenterY = (-viewport.y + stageHeight / 2) / viewport.scale;
-    const width = 260;
-    const height = 80;
-    const newId = addObject(projectId, {
-      type: "text",
-      name: "Text",
-      x: worldCenterX - width / 2,
-      y: worldCenterY - height / 2,
-      width,
-      height,
-    });
-    setSelectedIds([newId]);
-    startEditing(newId);
-  }
-
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 overflow-x-auto border-b border-border bg-background px-3 sm:gap-3">
       <Tooltip>
@@ -126,30 +106,19 @@ export function CanvasToolbar({
 
       <Separator orientation="vertical" className="h-6 shrink-0" />
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className="shrink-0 gap-1.5 lg:hidden"
-        aria-label="Open panels"
-        data-tour="panels-button"
-        onClick={() => setSidebarOpen(true)}
-      >
-        <PanelLeft className="size-4" />
-        Panels
-      </Button>
-
       <Logo className="hidden sm:flex" />
 
       <span className="min-w-0 shrink truncate text-sm font-medium">
         {projectName}
       </span>
 
+      {/* On mobile this lives in the bottom create bar instead, alongside Media/Audio/Export — kept here for desktop, which has no bottom bar. */}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
-            className="shrink-0 gap-2"
+            className="hidden shrink-0 gap-2 lg:flex"
             data-tour="add-text-button"
             onClick={addText}
           >
@@ -278,12 +247,12 @@ export function CanvasToolbar({
 
         <Button
           size="sm"
-          className="gap-2"
+          className="hidden gap-2 lg:flex"
           data-tour="export-button"
           onClick={() => setExportOpen(true)}
         >
           <Download className="size-4" />
-          <span className="hidden sm:inline">Export</span>
+          <span>Export</span>
         </Button>
       </div>
 

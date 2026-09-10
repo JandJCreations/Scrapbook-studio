@@ -39,6 +39,7 @@ export const TOUR_STEPS: TourStep[] = [
     description:
       "Tap this to drop a text box onto the canvas. Double-tap it on the canvas anytime to edit the words.",
     targetSelector: "add-text-button",
+    mobileTargetSelector: "add-text-button-mobile",
   },
   {
     icon: MousePointerClick,
@@ -60,6 +61,7 @@ export const TOUR_STEPS: TourStep[] = [
     description:
       "Tap this to save your scrapbook as an image, GIF, or video, in whatever size fits where you're sharing it.",
     targetSelector: "export-button",
+    mobileTargetSelector: "export-button-mobile",
   },
 ];
 
