@@ -29,6 +29,7 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
   const items = useMediaStore((s) => s.items);
   const fetchMedia = useMediaStore((s) => s.fetchMedia);
   const addObject = useCanvasStore((s) => s.addObject);
+  const updateObject = useCanvasStore((s) => s.updateObject);
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
   const viewport = useCanvasStore((s) => s.viewport);
 
@@ -40,31 +41,14 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
     (i) => i.status === "ready" && (i.type === "image" || i.type === "video"),
   );
 
-  async function handleAdd(item: (typeof placeable)[number]) {
+  function handleAdd(item: (typeof placeable)[number]) {
     const worldCenterX = (-viewport.x + stageWidth / 2) / viewport.scale;
     const worldCenterY = (-viewport.y + stageHeight / 2) / viewport.scale;
+    const width = DEFAULT_OBJECT_SIZE;
+    const height = DEFAULT_OBJECT_SIZE;
 
-    // Without this, every new object defaulted to a fixed square, which
-    // Konva stretches the source image to fill exactly — any non-square
-    // photo (i.e. almost all of them) came in visibly squished/cropped-
-    // looking instead of showing the whole picture undistorted. The
-    // thumbnail (already loaded/cached from being visible in this grid) is
-    // enough to read the real aspect ratio from — no need to wait on the
-    // full-resolution original just to measure it.
-    let width = DEFAULT_OBJECT_SIZE;
-    let height = DEFAULT_OBJECT_SIZE;
-    const dimensionSrc = item.thumbnailUrl ?? item.url;
-    try {
-      const natural = await loadImageDimensions(dimensionSrc);
-      if (natural.width > 0 && natural.height > 0) {
-        const scale = DEFAULT_OBJECT_SIZE / Math.max(natural.width, natural.height);
-        width = Math.round(natural.width * scale);
-        height = Math.round(natural.height * scale);
-      }
-    } catch {
-      // Fall back to the default square if dimensions can't be read.
-    }
-
+    // Placed instantly at the default square — tapping a photo should feel
+    // immediate, not wait on a network/decode round trip first.
     const newId = addObject(projectId, {
       type: item.type as "image" | "video",
       mediaId: item.id,
@@ -78,6 +62,30 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       y: worldCenterY - height / 2,
     });
     setSelectedIds([newId]);
+
+    // Corrected moments later once the real aspect ratio is known — without
+    // this, Konva stretches the square to fill exactly, so any non-square
+    // photo (nearly all of them) looked visibly squished/cropped instead of
+    // showing the whole picture. The thumbnail is already loaded/cached
+    // from being visible in this grid, so this resolves near-instantly in
+    // practice — a brief size correction, not a perceptible delay.
+    const dimensionSrc = item.thumbnailUrl ?? item.url;
+    loadImageDimensions(dimensionSrc)
+      .then((natural) => {
+        if (natural.width <= 0 || natural.height <= 0) return;
+        const scale = DEFAULT_OBJECT_SIZE / Math.max(natural.width, natural.height);
+        const correctedWidth = Math.round(natural.width * scale);
+        const correctedHeight = Math.round(natural.height * scale);
+        updateObject(projectId, newId, {
+          width: correctedWidth,
+          height: correctedHeight,
+          x: worldCenterX - correctedWidth / 2,
+          y: worldCenterY - correctedHeight / 2,
+        });
+      })
+      .catch(() => {
+        // Keep the default square if dimensions can't be read.
+      });
   }
 
   if (placeable.length === 0) {
