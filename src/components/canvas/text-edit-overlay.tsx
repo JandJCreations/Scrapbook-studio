@@ -45,7 +45,13 @@ export function TextEditOverlay({ projectId }: { projectId: string }) {
           commit();
         }
       }}
-      className="absolute resize-none overflow-hidden border-2 border-primary bg-white/90 outline-none"
+      // z-[60]: adding/editing text opens the text edit panel alongside
+      // this (a bottom sheet at z-50 since the CapCut/iMovie-style rework),
+      // and this textarea is positioned wherever the object sits on canvas
+      // — without a higher z-index, typing here could be entirely hidden
+      // behind that sheet whenever the object happens to be in the lower
+      // portion of the canvas.
+      className="absolute z-[60] resize-none overflow-hidden border-2 border-primary bg-white/90 outline-none"
       style={{
         left: viewport.x + object.x * viewport.scale,
         top: viewport.y + object.y * viewport.scale,

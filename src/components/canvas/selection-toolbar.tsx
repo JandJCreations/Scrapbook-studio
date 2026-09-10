@@ -45,7 +45,11 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
   const canUngroup = selectedObjects.some((o) => o.groupId !== null);
 
   return (
-    <div className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-xl border border-border bg-card p-1.5 shadow-lg">
+    // z-[60]: the edit panel that opens alongside this (almost always, since
+    // selecting anything with adjustments opens one) is a bottom sheet at
+    // z-50 since the CapCut/iMovie-style rework — bottom-5 here would
+    // otherwise land this right behind it, hidden and unclickable.
+    <div className="absolute bottom-5 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-1 rounded-xl border border-border bg-card p-1.5 shadow-lg">
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
