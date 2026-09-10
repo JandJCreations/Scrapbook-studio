@@ -39,6 +39,7 @@ import { Switch } from "@/components/ui/switch";
 import { useImageElement } from "@/hooks/use-image-element";
 import { cn } from "@/lib/utils";
 import { useCanvasStore } from "@/store/use-canvas-store";
+import { filterPresetToCss } from "@/types/photo-adjustments";
 import type {
   BlendMode,
   FilterPreset,
@@ -263,13 +264,25 @@ export function PhotoEditPanel({
                     type="button"
                     onClick={() => patch({ filterPreset: preset.value })}
                     className={cn(
-                      "rounded-md border px-1.5 py-1.5 text-[11px] font-medium transition-colors",
+                      "flex flex-col items-center gap-1 rounded-md p-1 transition-colors",
                       adjustments.filterPreset === preset.value
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border text-muted-foreground hover:bg-accent",
+                        ? "text-primary"
+                        : "text-muted-foreground hover:bg-accent",
                     )}
                   >
-                    {preset.label}
+                    <span
+                      className={cn(
+                        "aspect-square w-full overflow-hidden rounded-md border-2 bg-muted bg-cover bg-center",
+                        adjustments.filterPreset === preset.value
+                          ? "border-primary"
+                          : "border-transparent",
+                      )}
+                      style={{
+                        backgroundImage: object.src ? `url(${object.src})` : undefined,
+                        filter: filterPresetToCss(preset.value),
+                      }}
+                    />
+                    <span className="text-[11px] font-medium">{preset.label}</span>
                   </button>
                 ))}
               </div>

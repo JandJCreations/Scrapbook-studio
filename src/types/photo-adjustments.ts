@@ -137,3 +137,18 @@ export const FILTER_PRESETS: Record<
   fade: { contrast: -20, exposure: 10, saturation: -15 },
   noir: { saturation: -100, contrast: 30, exposure: -10 },
 };
+
+/**
+ * A CSS approximation of a preset, for showing a live thumbnail of it next
+ * to its label (CapCut/iMovie-style) instead of just text. Not meant to
+ * match the actual Konva-rendered result pixel-for-pixel — the real filter
+ * math lives in get-active-filters.ts and only runs on the canvas — this
+ * exists purely to give a visual sense of each option before picking it.
+ */
+export function filterPresetToCss(preset: FilterPreset): string {
+  const p = FILTER_PRESETS[preset];
+  const brightness = 1 + ((p.brightness ?? 0) + (p.exposure ?? 0)) / 100;
+  const contrast = 1 + (p.contrast ?? 0) / 100;
+  const saturate = 1 + (p.saturation ?? 0) / 100;
+  return `brightness(${Math.max(0, brightness)}) contrast(${Math.max(0, contrast)}) saturate(${Math.max(0, saturate)})`;
+}
