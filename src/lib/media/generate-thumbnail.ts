@@ -24,22 +24,26 @@ export function generateVideoThumbnail(
     };
 
     video.onseeked = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth || 320;
-      canvas.height = video.videoHeight || 180;
-      const ctx = canvas.getContext("2d");
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 180;
+        const ctx = canvas.getContext("2d");
 
-      if (!ctx) {
+        if (!ctx) {
+          reject(new Error("Canvas context unavailable"));
+          return;
+        }
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const thumbnailUrl = canvas.toDataURL("image/jpeg", 0.8);
+        const duration = video.duration || 0;
+        resolve({ thumbnailUrl, duration });
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error("Failed to generate video thumbnail"));
+      } finally {
         cleanup();
-        reject(new Error("Canvas context unavailable"));
-        return;
       }
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const thumbnailUrl = canvas.toDataURL("image/jpeg", 0.8);
-      const duration = video.duration || 0;
-      cleanup();
-      resolve({ thumbnailUrl, duration });
     };
 
     video.onerror = () => {
@@ -60,23 +64,35 @@ const MAX_THUMBNAIL_DIMENSION = 480;
 export function generateImageThumbnail(objectUrl: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
+    // Required for cross-origin sources (e.g. a Supabase signed URL, as
+    // opposed to a same-origin blob: URL from a local upload) — without
+    // this, drawing the image to canvas taints it and canvas.toDataURL()
+    // below throws. That throw happens inside this onload callback, not in
+    // this Promise executor's own synchronous scope, so without the
+    // try/catch this promise would never resolve OR reject — it would just
+    // hang forever, along with anything awaiting it in a loop.
+    img.crossOrigin = "anonymous";
     img.onload = () => {
-      const scale = Math.min(
-        1,
-        MAX_THUMBNAIL_DIMENSION / Math.max(img.naturalWidth, img.naturalHeight),
-      );
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.naturalWidth * scale);
-      canvas.height = Math.round(img.naturalHeight * scale);
-      const ctx = canvas.getContext("2d");
+      try {
+        const scale = Math.min(
+          1,
+          MAX_THUMBNAIL_DIMENSION / Math.max(img.naturalWidth, img.naturalHeight),
+        );
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.naturalWidth * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        const ctx = canvas.getContext("2d");
 
-      if (!ctx) {
-        reject(new Error("Canvas context unavailable"));
-        return;
+        if (!ctx) {
+          reject(new Error("Canvas context unavailable"));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error("Failed to generate thumbnail"));
       }
-
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/jpeg", 0.82));
     };
     img.onerror = () => reject(new Error("Failed to load image"));
     img.src = objectUrl;

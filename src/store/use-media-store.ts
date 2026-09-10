@@ -26,6 +26,22 @@ function storagePathFor(userId: string, itemId: string, filename: string) {
   return `${userId}/media/${itemId}/${filename}`;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Timed out")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 // Uploading many files (e.g. a big batch picked from a phone's photo
 // library) all at once saturates the connection and floods the UI with
 // simultaneous progress updates, which on mobile shows up as lag/freezing.
@@ -241,7 +257,11 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
 
       for (const item of targets) {
         try {
-          const dataUrl = await generateImageThumbnail(item.url);
+          // A hung promise here (image generation has one confirmed cause
+          // already — see generate-thumbnail.ts — and could plausibly have
+          // others) would otherwise stall this entire sequential loop on
+          // one photo forever, silently blocking every item after it too.
+          const dataUrl = await withTimeout(generateImageThumbnail(item.url), 15000);
           const blob = dataUrlToBlob(dataUrl);
           const thumbnailPath = thumbnailPathFor(user.id, item.id);
 
