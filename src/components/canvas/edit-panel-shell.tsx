@@ -47,8 +47,8 @@ export function EditPanelShell({
 
       <Sheet open onOpenChange={(open) => !open && onClose()}>
         <SheetContent
-          side="right"
-          className="flex w-72 flex-col gap-0 p-0 lg:hidden"
+          side="bottom"
+          className="flex h-[65vh] max-h-[65vh] flex-col gap-0 rounded-t-2xl p-0 lg:hidden"
           overlayClassName="lg:hidden"
         >
           <SheetHeader className="h-12 shrink-0 flex-row items-center justify-between space-y-0 border-b border-border px-3 py-0">
