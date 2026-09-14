@@ -123,7 +123,7 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
               <img
                 src={item.thumbnailUrl}
                 alt={item.name}
-                className="size-full object-cover transition-transform group-hover:scale-105"
+                className="size-full object-contain transition-transform group-hover:scale-105"
               />
             ) : (
               <div className="flex size-full items-center justify-center">

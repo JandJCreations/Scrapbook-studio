@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -18,7 +19,9 @@ import { Input } from "@/components/ui/input";
 import { MediaItemMenu } from "@/components/media/media-item-menu";
 import { MediaThumbnail } from "@/components/media/media-thumbnail";
 import { formatBytes, formatDuration } from "@/lib/media/format";
+import { cn } from "@/lib/utils";
 import { useMediaStore } from "@/store/use-media-store";
+import { useMediaUiStore } from "@/store/use-media-ui-store";
 import type { MediaItem } from "@/types/media";
 
 export function MediaListRow({ item }: { item: MediaItem }) {
@@ -27,6 +30,10 @@ export function MediaListRow({ item }: { item: MediaItem }) {
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const renameItem = useMediaStore((s) => s.renameItem);
   const deleteItem = useMediaStore((s) => s.deleteItem);
+  const selectionMode = useMediaUiStore((s) => s.selectionMode);
+  const selectedIds = useMediaUiStore((s) => s.selectedIds);
+  const toggleSelected = useMediaUiStore((s) => s.toggleSelected);
+  const isSelected = selectedIds.has(item.id);
 
   function commitRename() {
     const trimmed = nameDraft.trim();
@@ -41,8 +48,24 @@ export function MediaListRow({ item }: { item: MediaItem }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
-      className="flex items-center gap-3 border-b border-border px-3 py-2 last:border-b-0 hover:bg-accent/40"
+      className={cn(
+        "flex items-center gap-3 border-b border-border px-3 py-2 last:border-b-0 hover:bg-accent/40",
+        isSelected && "bg-primary/5",
+      )}
+      onClick={() => selectionMode && toggleSelected(item.id)}
     >
+      {selectionMode && (
+        <span
+          className={cn(
+            "flex size-5 shrink-0 items-center justify-center rounded-full border-2",
+            isSelected
+              ? "border-primary bg-primary"
+              : "border-muted-foreground/40 bg-transparent",
+          )}
+        >
+          {isSelected && <Check className="size-3.5 text-primary-foreground" />}
+        </span>
+      )}
       <MediaThumbnail item={item} className="size-11 shrink-0 rounded-md" />
 
       <div className="min-w-0 flex-1">
@@ -78,14 +101,16 @@ export function MediaListRow({ item }: { item: MediaItem }) {
         {formatBytes(item.size)}
       </span>
 
-      <MediaItemMenu
-        item={item}
-        onRename={() => {
-          setNameDraft(item.name);
-          setIsRenaming(true);
-        }}
-        onDelete={() => setConfirmDelete(true)}
-      />
+      {!selectionMode && (
+        <MediaItemMenu
+          item={item}
+          onRename={() => {
+            setNameDraft(item.name);
+            setIsRenaming(true);
+          }}
+          onDelete={() => setConfirmDelete(true)}
+        />
+      )}
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>

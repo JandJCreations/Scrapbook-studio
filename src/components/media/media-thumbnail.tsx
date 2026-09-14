@@ -28,7 +28,7 @@ export function MediaThumbnail({
         <img
           src={item.thumbnailUrl}
           alt={item.name}
-          className="size-full object-cover"
+          className="size-full object-contain"
         />
       ) : item.status === "ready" && item.type === "audio" ? (
         <div

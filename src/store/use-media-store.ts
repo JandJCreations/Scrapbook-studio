@@ -82,8 +82,10 @@ interface MediaStore {
   backfillMissingThumbnails: () => void;
   addFiles: (files: File[], folderId: string | null) => string[];
   deleteItem: (id: string) => void;
+  deleteItems: (ids: string[]) => void;
   renameItem: (id: string, name: string) => void;
   moveItem: (id: string, folderId: string | null) => void;
+  moveItems: (ids: string[], folderId: string | null) => void;
   createFolder: (name: string) => MediaFolder;
   renameFolder: (id: string, name: string) => void;
   deleteFolder: (id: string) => void;
@@ -362,6 +364,28 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     })();
   },
 
+  deleteItems: (itemIds) => {
+    const idSet = new Set(itemIds);
+    const targets = get().items.filter((i) => idSet.has(i.id));
+    set((state) => ({ items: state.items.filter((i) => !idSet.has(i.id)) }));
+    if (targets.length === 0) return;
+
+    (async () => {
+      const supabase = createClient();
+      const { data: rows } = await supabase
+        .from("media_items")
+        .select("storage_path, thumbnail_path")
+        .in("id", itemIds);
+      const objectPaths = (rows ?? []).flatMap((row) =>
+        [row.storage_path, row.thumbnail_path].filter((p): p is string => Boolean(p)),
+      );
+      if (objectPaths.length > 0) {
+        await supabase.storage.from(MEDIA_BUCKET).remove(objectPaths);
+      }
+      await supabase.from("media_items").delete().in("id", itemIds);
+    })();
+  },
+
   renameItem: (itemId, name) => {
     set((state) => ({
       items: state.items.map((i) => (i.id === itemId ? { ...i, name } : i)),
@@ -376,6 +400,15 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     }));
     const supabase = createClient();
     void supabase.from("media_items").update({ folder_id: folderId }).eq("id", itemId);
+  },
+
+  moveItems: (itemIds, folderId) => {
+    const idSet = new Set(itemIds);
+    set((state) => ({
+      items: state.items.map((i) => (idSet.has(i.id) ? { ...i, folderId } : i)),
+    }));
+    const supabase = createClient();
+    void supabase.from("media_items").update({ folder_id: folderId }).in("id", itemIds);
   },
 
   createFolder: (name) => {

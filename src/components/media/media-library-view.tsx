@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FolderSidebar } from "@/components/media/folder-sidebar";
+import { MediaBulkActionBar } from "@/components/media/media-bulk-action-bar";
 import { MediaDropzone } from "@/components/media/media-dropzone";
 import { MediaGrid } from "@/components/media/media-grid";
 import { MediaList } from "@/components/media/media-list";
@@ -23,6 +24,7 @@ export function MediaLibraryView() {
   const search = useMediaUiStore((s) => s.search);
   const viewMode = useMediaUiStore((s) => s.viewMode);
   const activeFolderId = useMediaUiStore((s) => s.activeFolderId);
+  const selectionMode = useMediaUiStore((s) => s.selectionMode);
 
   React.useEffect(() => {
     fetchMedia();
@@ -109,6 +111,10 @@ export function MediaLibraryView() {
             <MediaGrid items={filteredItems} />
           ) : (
             <MediaList items={filteredItems} />
+          )}
+
+          {selectionMode && filteredItems.length > 0 && (
+            <MediaBulkActionBar visibleItemIds={filteredItems.map((i) => i.id)} />
           )}
         </div>
       </div>

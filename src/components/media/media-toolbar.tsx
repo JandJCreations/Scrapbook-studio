@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutGrid, List, Search, Upload } from "lucide-react";
+import { CheckSquare, LayoutGrid, List, Search, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,8 @@ export function MediaToolbar({ onUploadClick }: { onUploadClick: () => void }) {
   const setSearch = useMediaUiStore((s) => s.setSearch);
   const viewMode = useMediaUiStore((s) => s.viewMode);
   const setViewMode = useMediaUiStore((s) => s.setViewMode);
+  const selectionMode = useMediaUiStore((s) => s.selectionMode);
+  const setSelectionMode = useMediaUiStore((s) => s.setSelectionMode);
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -31,6 +33,25 @@ export function MediaToolbar({ onUploadClick }: { onUploadClick: () => void }) {
       </div>
 
       <div className="flex items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn(
+                "size-8",
+                selectionMode && "bg-accent text-accent-foreground",
+              )}
+              onClick={() => setSelectionMode(!selectionMode)}
+              aria-pressed={selectionMode}
+              aria-label="Select items"
+            >
+              <CheckSquare className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Select items</TooltipContent>
+        </Tooltip>
+
         <div className="flex items-center rounded-lg border border-border p-0.5">
           <Tooltip>
             <TooltipTrigger asChild>
