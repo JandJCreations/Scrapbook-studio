@@ -50,7 +50,7 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
   const dragStartPositionsRef = React.useRef(new Map<string, { x: number; y: number }>());
   const [guides, setGuides] = React.useState<GuideLine[]>([]);
   const pinchRef = React.useRef<{ distance: number } | null>(null);
-  const fittedProjectRef = React.useRef<string | null>(null);
+  const fittedKeyRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     registerStage(stageRef.current);
@@ -62,10 +62,20 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
   // project — every open would otherwise start at 100% zoom pinned to the
   // frame's top-left corner, making any content outside that small corner
   // look like a blank canvas. Fit the whole frame into view once per
-  // project open; afterward the user's own pan/zoom is left alone.
+  // project+frame-size; afterward the user's own pan/zoom is left alone.
+  //
+  // Keying on frame size (not just projectId) matters because the frame
+  // store seeds every project with a placeholder DEFAULT_FRAME_PRESET
+  // (1920x1080) before the real saved frame loads from Supabase a moment
+  // later. A key of projectId alone would fit once against that wrong
+  // placeholder size and then never re-fit once the real dimensions came
+  // in, permanently stranding the viewport outside the actual content for
+  // any project not using the default landscape frame — a blank canvas
+  // that never self-corrects.
   React.useEffect(() => {
-    if (fittedProjectRef.current === projectId) return;
-    fittedProjectRef.current = projectId;
+    const key = `${projectId}:${frame.width}x${frame.height}`;
+    if (fittedKeyRef.current === key) return;
+    fittedKeyRef.current = key;
     setViewport(fitViewportToFrame(frame, width, height));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, width, height, frame.width, frame.height]);
