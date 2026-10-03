@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Film, ImagePlus, X } from "lucide-react";
+import { ImagePlus, X } from "lucide-react";
 
 import { EmptyState } from "@/components/common/empty-state";
+import { MediaThumbnail } from "@/components/media/media-thumbnail";
 import { MediaUploadButton } from "@/components/media/media-upload-button";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_OBJECT_SIZE } from "@/lib/canvas/constants";
+import { cn } from "@/lib/utils";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import { useMediaStore } from "@/store/use-media-store";
@@ -48,14 +50,18 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
     ? (objects.find((o) => o.id === fillTargetObjectId) ?? null)
     : null;
 
+  // Includes items still processing (or errored) so uploads show up with a
+  // thumbnail/progress indicator right away instead of vanishing from the
+  // grid until they finish — only "ready" ones are actually clickable below.
   const placeable = items.filter(
     (i) =>
-      i.status === "ready" &&
       (i.type === "image" || i.type === "video") &&
       (!fillTarget || i.type === fillTarget.type),
   );
 
   function handleAdd(item: (typeof placeable)[number]) {
+    if (item.status !== "ready") return;
+
     if (fillTargetObjectId) {
       // Filling an existing template slot keeps its position/size exactly
       // as laid out — unlike a freely-added object, there's no "centered at
@@ -168,25 +174,26 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
           <button
             key={item.id}
             type="button"
+            disabled={item.status !== "ready"}
             onClick={() => handleAdd(item)}
-            className="group relative aspect-square overflow-hidden rounded-md border border-border bg-muted"
-            title={`Add "${item.name}" to canvas`}
+            className={cn(
+              "group relative overflow-hidden rounded-md border border-border",
+              item.status !== "ready" && "cursor-default",
+            )}
+            title={
+              item.status === "ready"
+                ? `Add "${item.name}" to canvas`
+                : item.status === "error"
+                  ? item.error
+                  : "Uploading…"
+            }
           >
-            {item.thumbnailUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={item.thumbnailUrl}
-                alt={item.name}
-                className="size-full object-contain transition-transform group-hover:scale-105"
-              />
-            ) : (
-              <div className="flex size-full items-center justify-center">
-                <Film className="size-5 text-muted-foreground" />
+            <MediaThumbnail item={item} className="aspect-square w-full" />
+            {item.status === "ready" && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100">
+                <ImagePlus className="size-5 text-white" />
               </div>
             )}
-            <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100">
-              <ImagePlus className="size-5 text-white" />
-            </div>
           </button>
         ))}
       </div>
