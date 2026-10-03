@@ -12,10 +12,11 @@ export function useMediaUpload(folderId: string | null) {
     if (!fileList || fileList.length === 0) return;
     const files = Array.from(fileList);
     if (files.length > MAX_FILES_PER_UPLOAD) {
-      toast.info(
-        `Uploading the first ${MAX_FILES_PER_UPLOAD} files — select the rest in a separate batch.`,
+      toast.error(
+        `You selected ${files.length} files — the limit is ${MAX_FILES_PER_UPLOAD} per upload. Select ${MAX_FILES_PER_UPLOAD} or fewer and try again.`,
       );
+      return;
     }
-    addFiles(files.slice(0, MAX_FILES_PER_UPLOAD), folderId);
+    addFiles(files, folderId);
   };
 }
