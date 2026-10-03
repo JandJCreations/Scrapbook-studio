@@ -25,7 +25,7 @@ function id() {
 
 type ReorderDirection = "front" | "back" | "forward" | "backward";
 
-interface AddObjectInput {
+export interface AddObjectInput {
   type: CanvasObjectType;
   mediaId?: string;
   src?: string;

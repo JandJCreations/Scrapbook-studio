@@ -4,9 +4,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { TemplateCard } from "@/components/dashboard/template-card";
-import { markProjectContentLoaded } from "@/hooks/use-project-content-sync";
+import { applyTemplateToProject } from "@/lib/templates/apply-template";
 import { TEMPLATE_CATALOG } from "@/lib/templates/template-catalog";
-import { saveProjectFrame } from "@/lib/sync/project-content-sync";
 import { useCanvasStore } from "@/store/use-canvas-store";
 import { useCanvasFrameStore } from "@/store/use-canvas-frame-store";
 import { useProjectStore } from "@/store/use-project-store";
@@ -23,35 +22,12 @@ export function TemplateGallery() {
   async function handleUse(template: ScrapbookTemplate) {
     try {
       const project = await createProject(template.name);
-      setFrame(project.id, template.frame);
-      saveProjectFrame(project.id, template.frame).catch((error) => {
-        console.error("Failed to save canvas frame:", error);
+      applyTemplateToProject(project.id, template, {
+        setFrame,
+        addObject,
+        updateObject,
+        updateTextAdjustments,
       });
-
-      for (const obj of template.objects) {
-        const newId = addObject(project.id, {
-          type: obj.type,
-          mediaId: obj.placeholder ? undefined : `template-${template.id}-${obj.name}`,
-          src: obj.placeholder ? undefined : obj.src,
-          name: obj.name,
-          x: obj.x,
-          y: obj.y,
-          width: obj.width,
-          height: obj.height,
-          isPlaceholder: obj.placeholder,
-        });
-        if (obj.rotation) {
-          updateObject(project.id, newId, { rotation: obj.rotation });
-        }
-        if (obj.text) {
-          updateTextAdjustments(project.id, newId, obj.text);
-        }
-      }
-
-      // The editor's autosave will persist these objects shortly after mount;
-      // mark content as already "loaded" so it doesn't fetch (still-empty) DB
-      // rows and overwrite what we just built locally.
-      markProjectContentLoaded(project.id);
 
       toast.success(`"${template.name}" created`);
       router.push(`/editor/${project.id}`);
