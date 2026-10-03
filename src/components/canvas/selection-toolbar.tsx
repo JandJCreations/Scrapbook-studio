@@ -49,13 +49,20 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
     // selecting anything with adjustments opens one) is a bottom sheet at
     // z-50 since the CapCut/iMovie-style rework — bottom-5 here would
     // otherwise land this right behind it, hidden and unclickable.
-    <div className="absolute bottom-5 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-1 rounded-xl border border-border bg-card p-1.5 shadow-lg">
+    //
+    // max-w + overflow-x-auto: 9 icon buttons plus 3 separators don't fit a
+    // narrow phone's width (e.g. iPhone SE at 375px) in one fixed-width row.
+    // Centered with no cap, the pill would run off both edges with no way to
+    // reach the clipped buttons. Capping the width and letting it scroll
+    // horizontally — the same pattern already used for the folder sidebars
+    // on mobile — keeps every action reachable instead of just missing.
+    <div className="absolute bottom-5 left-1/2 z-[60] flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5 shadow-lg">
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-8 shrink-0"
             aria-label="Duplicate"
             onClick={() => setSelectedIds(duplicateObjects(projectId, selectedIds))}
           >
@@ -70,7 +77,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-8 shrink-0"
             aria-label={allLocked ? "Unlock" : "Lock"}
             onClick={() => toggleLock(projectId, selectedIds)}
           >
@@ -84,14 +91,14 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
         <TooltipContent>{allLocked ? "Unlock" : "Lock"}</TooltipContent>
       </Tooltip>
 
-      <Separator orientation="vertical" className="h-6" />
+      <Separator orientation="vertical" className="h-6 shrink-0" />
 
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-8 shrink-0"
             aria-label="Bring to front"
             onClick={() => reorder(projectId, selectedIds, "front")}
           >
@@ -105,7 +112,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-8 shrink-0"
             aria-label="Bring forward"
             onClick={() => reorder(projectId, selectedIds, "forward")}
           >
@@ -119,7 +126,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-8 shrink-0"
             aria-label="Send backward"
             onClick={() => reorder(projectId, selectedIds, "backward")}
           >
@@ -133,7 +140,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-8 shrink-0"
             aria-label="Send to back"
             onClick={() => reorder(projectId, selectedIds, "back")}
           >
@@ -143,14 +150,14 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
         <TooltipContent>Send to back</TooltipContent>
       </Tooltip>
 
-      <Separator orientation="vertical" className="h-6" />
+      <Separator orientation="vertical" className="h-6 shrink-0" />
 
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-8 shrink-0"
             aria-label="Group"
             disabled={!canGroup}
             onClick={() => group(projectId, selectedIds)}
@@ -165,7 +172,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="size-8 shrink-0"
             aria-label="Ungroup"
             disabled={!canUngroup}
             onClick={() => ungroup(projectId, selectedIds)}
@@ -176,14 +183,14 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
         <TooltipContent>Ungroup</TooltipContent>
       </Tooltip>
 
-      <Separator orientation="vertical" className="h-6" />
+      <Separator orientation="vertical" className="h-6 shrink-0" />
 
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 text-destructive hover:text-destructive"
+            className="size-8 shrink-0 text-destructive hover:text-destructive"
             aria-label="Delete"
             onClick={() => {
               removeObjects(projectId, selectedIds);
