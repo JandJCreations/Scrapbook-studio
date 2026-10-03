@@ -62,7 +62,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
+            className="size-10 shrink-0 lg:size-8"
             aria-label="Duplicate"
             onClick={() => setSelectedIds(duplicateObjects(projectId, selectedIds))}
           >
@@ -77,7 +77,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
+            className="size-10 shrink-0 lg:size-8"
             aria-label={allLocked ? "Unlock" : "Lock"}
             onClick={() => toggleLock(projectId, selectedIds)}
           >
@@ -98,7 +98,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
+            className="size-10 shrink-0 lg:size-8"
             aria-label="Bring to front"
             onClick={() => reorder(projectId, selectedIds, "front")}
           >
@@ -112,7 +112,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
+            className="size-10 shrink-0 lg:size-8"
             aria-label="Bring forward"
             onClick={() => reorder(projectId, selectedIds, "forward")}
           >
@@ -126,7 +126,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
+            className="size-10 shrink-0 lg:size-8"
             aria-label="Send backward"
             onClick={() => reorder(projectId, selectedIds, "backward")}
           >
@@ -140,7 +140,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
+            className="size-10 shrink-0 lg:size-8"
             aria-label="Send to back"
             onClick={() => reorder(projectId, selectedIds, "back")}
           >
@@ -157,7 +157,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
+            className="size-10 shrink-0 lg:size-8"
             aria-label="Group"
             disabled={!canGroup}
             onClick={() => group(projectId, selectedIds)}
@@ -172,7 +172,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0"
+            className="size-10 shrink-0 lg:size-8"
             aria-label="Ungroup"
             disabled={!canUngroup}
             onClick={() => ungroup(projectId, selectedIds)}
@@ -190,7 +190,7 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 shrink-0 text-destructive hover:text-destructive"
+            className="size-10 shrink-0 text-destructive hover:text-destructive lg:size-8"
             aria-label="Delete"
             onClick={() => {
               removeObjects(projectId, selectedIds);

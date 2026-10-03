@@ -125,7 +125,7 @@ export function CanvasToolbar({
     <header className="flex h-14 shrink-0 items-center gap-2 overflow-x-auto border-b border-border bg-background px-3 sm:gap-3">
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="shrink-0" asChild>
+          <Button variant="ghost" size="icon" className="size-10 shrink-0 lg:size-8" asChild>
             <Link
               href="/dashboard"
               aria-label="Back to dashboard"
@@ -218,6 +218,7 @@ export function CanvasToolbar({
             <Button
               variant="ghost"
               size="icon"
+              className="size-10 lg:size-8"
               onClick={() => zoomBy(1 / 1.2)}
               aria-label="Zoom out"
             >
@@ -240,6 +241,7 @@ export function CanvasToolbar({
             <Button
               variant="ghost"
               size="icon"
+              className="size-10 lg:size-8"
               onClick={() => zoomBy(1.2)}
               aria-label="Zoom in"
             >
@@ -256,6 +258,7 @@ export function CanvasToolbar({
             <Button
               variant="ghost"
               size="icon"
+              className="size-10 lg:size-8"
               onClick={() => setVersionsOpen(true)}
               aria-label="Version history"
             >
@@ -270,6 +273,7 @@ export function CanvasToolbar({
             <Button
               variant="ghost"
               size="icon"
+              className="size-10 lg:size-8"
               onClick={() => setTourOpen(true)}
               aria-label="Help / quick tour"
             >
