@@ -2,11 +2,10 @@
 
 import * as React from "react";
 import { UploadCloud } from "lucide-react";
-import { toast } from "sonner";
 
-import { ACCEPTED_MEDIA_INPUT, MAX_FILES_PER_UPLOAD } from "@/lib/media/file-type";
+import { useMediaUpload } from "@/hooks/use-media-upload";
+import { ACCEPTED_MEDIA_INPUT } from "@/lib/media/file-type";
 import { cn } from "@/lib/utils";
-import { useMediaStore } from "@/store/use-media-store";
 import { useMediaUiStore } from "@/store/use-media-ui-store";
 
 interface MediaDropzoneProps {
@@ -21,23 +20,12 @@ export const MediaDropzone = React.forwardRef<
   const [isDragging, setIsDragging] = React.useState(false);
   const dragCounter = React.useRef(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const addFiles = useMediaStore((s) => s.addFiles);
   const activeFolderId = useMediaUiStore((s) => s.activeFolderId);
+  const handleFiles = useMediaUpload(activeFolderId);
 
   React.useImperativeHandle(ref, () => ({
     openFileDialog: () => inputRef.current?.click(),
   }));
-
-  function handleFiles(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) return;
-    const files = Array.from(fileList);
-    if (files.length > MAX_FILES_PER_UPLOAD) {
-      toast.info(
-        `Uploading the first ${MAX_FILES_PER_UPLOAD} files — select the rest in a separate batch.`,
-      );
-    }
-    addFiles(files.slice(0, MAX_FILES_PER_UPLOAD), activeFolderId);
-  }
 
   return (
     <div

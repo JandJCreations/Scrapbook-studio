@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { Film, ImagePlus } from "lucide-react";
 
 import { EmptyState } from "@/components/common/empty-state";
+import { MediaUploadButton } from "@/components/media/media-upload-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_OBJECT_SIZE } from "@/lib/canvas/constants";
 import { useCanvasStore } from "@/store/use-canvas-store";
@@ -94,21 +94,18 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
         compact
         icon={ImagePlus}
         title="No media yet"
-        description="Upload photos or video to your media library to add them here."
-        action={
-          <Link
-            href="/dashboard/media"
-            className="text-xs font-medium text-primary hover:underline"
-          >
-            Go to Media Library
-          </Link>
-        }
+        description="Upload photos or video to add them here."
+        action={<MediaUploadButton folderId={null} />}
       />
     );
   }
 
   return (
     <ScrollArea className="flex-1">
+      <div className="flex items-center justify-between gap-2 p-2 pb-0">
+        <span className="text-xs font-medium text-muted-foreground">Your media</span>
+        <MediaUploadButton folderId={null} />
+      </div>
       <div className="grid grid-cols-3 gap-2 p-2">
         {placeable.map((item) => (
           <button
