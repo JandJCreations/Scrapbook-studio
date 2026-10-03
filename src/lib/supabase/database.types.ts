@@ -218,6 +218,7 @@ export interface Database {
           adjustments: unknown;
           video_adjustments: unknown;
           text_adjustments: unknown;
+          is_placeholder: boolean;
           start_time: number;
           end_time: number;
           fade_in: number;
@@ -245,6 +246,7 @@ export interface Database {
           adjustments?: unknown;
           video_adjustments?: unknown;
           text_adjustments?: unknown;
+          is_placeholder?: boolean;
           start_time?: number;
           end_time?: number;
           fade_in?: number;
@@ -272,6 +274,7 @@ export interface Database {
           adjustments?: unknown;
           video_adjustments?: unknown;
           text_adjustments?: unknown;
+          is_placeholder?: boolean;
           start_time?: number;
           end_time?: number;
           fade_in?: number;

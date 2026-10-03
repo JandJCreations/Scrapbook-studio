@@ -1,7 +1,7 @@
 import type { TextAdjustments } from "@/types/text-adjustments";
 
 export interface TemplateObjectDef {
-  type: "image" | "text";
+  type: "image" | "video" | "text";
   name: string;
   x: number;
   y: number;
@@ -10,6 +10,9 @@ export interface TemplateObjectDef {
   rotation?: number;
   src?: string;
   text?: Partial<TextAdjustments>;
+  // An empty "tap to add" slot the user fills with their own photo/video,
+  // instead of pre-placed decorative content. Only valid for image/video.
+  placeholder?: boolean;
 }
 
 export interface ScrapbookTemplate {

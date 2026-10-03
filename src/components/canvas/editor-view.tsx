@@ -76,8 +76,14 @@ export function EditorView({ projectId }: { projectId: string }) {
     selectedIds.length === 1
       ? objects.find((o) => o.id === selectedIds[0])
       : undefined;
-  const showPhotoPanel = !selectedClip && selectedObject?.type === "image";
-  const showVideoPanel = !selectedClip && selectedObject?.type === "video";
+  // A selected placeholder is mid-fill (the tap that selected it also opened
+  // the media-fill sheet) — showing an adjustments panel for content that
+  // doesn't exist yet would be nonsensical and would fight the fill sheet
+  // for screen space on mobile.
+  const showPhotoPanel =
+    !selectedClip && selectedObject?.type === "image" && !selectedObject.isPlaceholder;
+  const showVideoPanel =
+    !selectedClip && selectedObject?.type === "video" && !selectedObject.isPlaceholder;
   const showTextPanel = !selectedClip && selectedObject?.type === "text";
 
   React.useEffect(() => {

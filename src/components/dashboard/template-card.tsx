@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Clapperboard, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,8 @@ interface TemplateCardProps {
 
 export function TemplateCard({ template, onUse }: TemplateCardProps) {
   const isPortrait = template.frame.height > template.frame.width;
+  const hasVideo = template.objects.some((o) => o.type === "video");
+  const Icon = hasVideo ? Clapperboard : Sparkles;
 
   return (
     <motion.div
@@ -30,7 +32,7 @@ export function TemplateCard({ template, onUse }: TemplateCardProps) {
           isPortrait ? "aspect-[3/4]" : "aspect-[4/3]",
         )}
       >
-        <Sparkles className="size-8 text-foreground/20" />
+        <Icon className="size-8 text-foreground/20" />
         <Button
           size="sm"
           onClick={() => onUse(template)}

@@ -31,13 +31,14 @@ export function TemplateGallery() {
       for (const obj of template.objects) {
         const newId = addObject(project.id, {
           type: obj.type,
-          mediaId: `template-${template.id}-${obj.name}`,
-          src: obj.src,
+          mediaId: obj.placeholder ? undefined : `template-${template.id}-${obj.name}`,
+          src: obj.placeholder ? undefined : obj.src,
           name: obj.name,
           x: obj.x,
           y: obj.y,
           width: obj.width,
           height: obj.height,
+          isPlaceholder: obj.placeholder,
         });
         if (obj.rotation) {
           updateObject(project.id, newId, { rotation: obj.rotation });

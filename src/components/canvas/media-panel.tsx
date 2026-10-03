@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Film, ImagePlus } from "lucide-react";
+import { Film, ImagePlus, X } from "lucide-react";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { MediaUploadButton } from "@/components/media/media-upload-button";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_OBJECT_SIZE } from "@/lib/canvas/constants";
-import { useCanvasStore } from "@/store/use-canvas-store";
+import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
+import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import { useMediaStore } from "@/store/use-media-store";
 
 interface MediaPanelProps {
@@ -30,18 +32,47 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
   const fetchMedia = useMediaStore((s) => s.fetchMedia);
   const addObject = useCanvasStore((s) => s.addObject);
   const updateObject = useCanvasStore((s) => s.updateObject);
+  const fillPlaceholder = useCanvasStore((s) => s.fillPlaceholder);
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
   const viewport = useCanvasStore((s) => s.viewport);
+  const objects = useCanvasObjects(projectId);
+  const fillTargetObjectId = useEditorUiStore((s) => s.fillTargetObjectId);
+  const clearFillTarget = useEditorUiStore((s) => s.clearFillTarget);
+  const setSidebarOpen = useEditorUiStore((s) => s.setSidebarOpen);
 
   React.useEffect(() => {
     fetchMedia();
   }, [fetchMedia]);
 
+  const fillTarget = fillTargetObjectId
+    ? (objects.find((o) => o.id === fillTargetObjectId) ?? null)
+    : null;
+
   const placeable = items.filter(
-    (i) => i.status === "ready" && (i.type === "image" || i.type === "video"),
+    (i) =>
+      i.status === "ready" &&
+      (i.type === "image" || i.type === "video") &&
+      (!fillTarget || i.type === fillTarget.type),
   );
 
   function handleAdd(item: (typeof placeable)[number]) {
+    if (fillTargetObjectId) {
+      // Filling an existing template slot keeps its position/size exactly
+      // as laid out — unlike a freely-added object, there's no "centered at
+      // default size, corrected to aspect ratio moments later" dance here.
+      fillPlaceholder(projectId, fillTargetObjectId, {
+        mediaId: item.id,
+        src: item.type === "video" ? (item.thumbnailUrl ?? item.url) : item.url,
+        videoSrc: item.type === "video" ? item.url : undefined,
+        duration: item.duration ?? undefined,
+        name: item.name,
+      });
+      setSelectedIds([fillTargetObjectId]);
+      clearFillTarget();
+      setSidebarOpen(false);
+      return;
+    }
+
     const worldCenterX = (-viewport.x + stageWidth / 2) / viewport.scale;
     const worldCenterY = (-viewport.y + stageHeight / 2) / viewport.scale;
     const width = DEFAULT_OBJECT_SIZE;
@@ -88,20 +119,46 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       });
   }
 
+  const fillBanner = fillTarget && (
+    <div className="flex items-center justify-between gap-2 border-b border-primary/30 bg-primary/5 px-3 py-2">
+      <span className="text-xs font-medium text-primary">
+        Choose a {fillTarget.type} for this slot
+      </span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-6 shrink-0"
+        aria-label="Cancel"
+        onClick={() => clearFillTarget()}
+      >
+        <X className="size-3.5" />
+      </Button>
+    </div>
+  );
+
   if (placeable.length === 0) {
     return (
-      <EmptyState
-        compact
-        icon={ImagePlus}
-        title="No media yet"
-        description="Upload photos or video to add them here."
-        action={<MediaUploadButton folderId={null} />}
-      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {fillBanner}
+        <EmptyState
+          compact
+          icon={ImagePlus}
+          title={fillTarget ? `No ${fillTarget.type}s yet` : "No media yet"}
+          description={
+            fillTarget
+              ? `Upload a ${fillTarget.type} to fill this slot.`
+              : "Upload photos or video to add them here."
+          }
+          action={<MediaUploadButton folderId={null} />}
+        />
+      </div>
     );
   }
 
   return (
-    <ScrollArea className="flex-1">
+    <div className="flex min-h-0 flex-1 flex-col">
+      {fillBanner}
+      <ScrollArea className="flex-1">
       <div className="flex items-center justify-between gap-2 p-2 pb-0">
         <span className="text-xs font-medium text-muted-foreground">Your media</span>
         <MediaUploadButton folderId={null} />
@@ -133,6 +190,7 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
           </button>
         ))}
       </div>
-    </ScrollArea>
+      </ScrollArea>
+    </div>
   );
 }

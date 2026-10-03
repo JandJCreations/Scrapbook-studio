@@ -36,6 +36,15 @@ interface AddObjectInput {
   y: number;
   width?: number;
   height?: number;
+  isPlaceholder?: boolean;
+}
+
+interface FillPlaceholderInput {
+  mediaId: string;
+  src: string;
+  videoSrc?: string;
+  duration?: number;
+  name: string;
 }
 
 interface CanvasStore {
@@ -45,6 +54,11 @@ interface CanvasStore {
   viewport: { x: number; y: number; scale: number };
 
   addObject: (projectId: string, input: AddObjectInput) => string;
+  fillPlaceholder: (
+    projectId: string,
+    objectId: string,
+    input: FillPlaceholderInput,
+  ) => void;
   updateObject: (
     projectId: string,
     objectId: string,
@@ -148,6 +162,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           : null,
       textAdjustments:
         input.type === "text" ? { ...DEFAULT_TEXT_ADJUSTMENTS } : null,
+      isPlaceholder: input.isPlaceholder ?? false,
       startTime: 0,
       endTime:
         input.type === "video"
@@ -165,6 +180,37 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     }));
     return newId;
   },
+
+  // Fills an existing placeholder slot with real media in place — keeps the
+  // slot's position/size/rotation (that's the whole point of a template
+  // layout) while rebuilding its content-dependent fields the same way
+  // addObject defaults them for a brand new object of that type.
+  fillPlaceholder: (projectId, objectId, input) =>
+    set((state) => ({
+      objectsByProject: {
+        ...state.objectsByProject,
+        [projectId]: (state.objectsByProject[projectId] ?? []).map((o) => {
+          if (o.id !== objectId) return o;
+          return {
+            ...o,
+            mediaId: input.mediaId,
+            src: input.src,
+            videoSrc: o.type === "video" ? (input.videoSrc ?? null) : null,
+            name: input.name,
+            isPlaceholder: false,
+            adjustments: o.type === "image" ? { ...DEFAULT_PHOTO_ADJUSTMENTS } : o.adjustments,
+            videoAdjustments:
+              o.type === "video"
+                ? createDefaultVideoAdjustments(input.duration ?? 0)
+                : o.videoAdjustments,
+            endTime:
+              o.type === "video"
+                ? (input.duration ?? DEFAULT_TIMELINE_DURATION)
+                : o.endTime,
+          };
+        }),
+      },
+    })),
 
   updateObject: (projectId, objectId, patch) =>
     set((state) => ({

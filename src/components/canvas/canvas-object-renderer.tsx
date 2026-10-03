@@ -1,6 +1,6 @@
 import * as React from "react";
 import Konva from "konva";
-import { Group, Image as KonvaImage, Rect } from "react-konva";
+import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
 
 import { applyFilterAttrs, getActiveFilters } from "@/lib/canvas/get-active-filters";
 import { getInterpolatedTransform, isObjectVisibleAt } from "@/lib/canvas/interpolate";
@@ -68,6 +68,52 @@ export const CanvasObjectRenderer = React.memo(function CanvasObjectRenderer({
     onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) =>
       onDragEnd(object, e.target),
   };
+
+  // An unfilled template slot — rendered as a dashed "tap to add" box
+  // instead of attempting to draw real image/video content that doesn't
+  // exist yet. Checked before the video/text branches below since a
+  // placeholder video object still carries default videoAdjustments from
+  // addObject (every video object gets them, filled or not).
+  if (object.isPlaceholder) {
+    const iconSize = Math.min(object.width, object.height) * 0.22;
+    const labelSize = Math.max(12, Math.min(object.width, object.height) * 0.06);
+    return (
+      <Group {...commonProps}>
+        <Rect
+          width={object.width}
+          height={object.height}
+          cornerRadius={Math.min(12, object.width / 2, object.height / 2)}
+          fill="rgba(139, 92, 246, 0.08)"
+          stroke="#8b5cf6"
+          strokeWidth={2}
+          dash={[10, 8]}
+          strokeScaleEnabled={false}
+        />
+        <Text
+          text="+"
+          fontSize={iconSize}
+          fontStyle="bold"
+          fill="#8b5cf6"
+          width={object.width}
+          height={object.height * 0.62}
+          align="center"
+          verticalAlign="middle"
+          listening={false}
+        />
+        <Text
+          text={object.type === "video" ? "Tap to add video" : "Tap to add photo"}
+          fontSize={labelSize}
+          fill="#8b5cf6"
+          width={object.width}
+          y={object.height * 0.64}
+          height={object.height * 0.3}
+          align="center"
+          verticalAlign="top"
+          listening={false}
+        />
+      </Group>
+    );
+  }
 
   if (object.type === "video" && object.videoAdjustments) {
     return (

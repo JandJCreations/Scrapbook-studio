@@ -10,7 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useEditorUiStore } from "@/store/use-editor-ui-store";
+import { useEditorUiStore, type SidebarTab } from "@/store/use-editor-ui-store";
 
 interface EditorSidebarProps {
   projectId: string;
@@ -23,8 +23,15 @@ function SidebarTabs({
   stageWidth,
   stageHeight,
 }: EditorSidebarProps) {
+  const sidebarTab = useEditorUiStore((s) => s.sidebarTab);
+  const setSidebarTab = useEditorUiStore((s) => s.setSidebarTab);
+
   return (
-    <Tabs defaultValue="media" className="flex min-h-0 flex-1 flex-col gap-0">
+    <Tabs
+      value={sidebarTab}
+      onValueChange={(value) => setSidebarTab(value as SidebarTab)}
+      className="flex min-h-0 flex-1 flex-col gap-0"
+    >
       <TabsList className="m-2 mb-0">
         <TabsTrigger value="media" data-tour="media-tab">
           Media

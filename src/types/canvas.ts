@@ -23,6 +23,11 @@ export interface CanvasObject {
   videoAdjustments: VideoAdjustments | null;
   textAdjustments: TextAdjustments | null;
 
+  // True for an unfilled template slot (image or video) — rendered as a
+  // dashed "tap to add" placeholder instead of real content, until filled
+  // via fillPlaceholder.
+  isPlaceholder: boolean;
+
   startTime: number;
   endTime: number;
   fadeIn: number;

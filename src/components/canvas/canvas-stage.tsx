@@ -15,6 +15,7 @@ import { registerStage } from "@/lib/canvas/stage-registry";
 import { fitViewportToFrame, zoomAtPoint } from "@/lib/canvas/zoom";
 import { useCanvasFrame } from "@/store/use-canvas-frame-store";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
+import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import { useTimelineStore } from "@/store/use-timeline-store";
 import type { CanvasObject } from "@/types/canvas";
 
@@ -42,6 +43,7 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
   const snapToGridEnabled = useCanvasStore((s) => s.snapToGrid);
   const updateObjectsBulk = useCanvasStore((s) => s.updateObjectsBulk);
   const setKeyframeTransform = useCanvasStore((s) => s.setKeyframeTransform);
+  const openMediaFillFor = useEditorUiStore((s) => s.openMediaFillFor);
   const playheadTime = useTimelineStore((s) => s.playheadTime);
 
   const stageRef = React.useRef<Konva.Stage>(null);
@@ -110,9 +112,16 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
         }
       } else {
         setSelectedIds(groupMembers);
+        // A plain tap on an empty template slot jumps straight to picking
+        // media for it — that's the whole point of a "tap to fill" slot.
+        // Skipped during shift-click multi-select so the fill sheet doesn't
+        // interrupt building up a selection.
+        if (object.isPlaceholder) {
+          openMediaFillFor(object.id);
+        }
       }
     },
-    [objects, selectedIds, setSelectedIds],
+    [objects, selectedIds, setSelectedIds, openMediaFillFor],
   );
 
   const handleStageClick = React.useCallback(
