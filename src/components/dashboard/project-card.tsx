@@ -80,13 +80,22 @@ export function ProjectCard({ project }: { project: Project }) {
       >
         <div
           className={cn(
-            "relative aspect-[4/3] w-full bg-gradient-to-br",
+            "relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br",
             gradientFor(project.id),
           )}
         >
-          <div className="absolute inset-0 flex items-center justify-center text-4xl font-semibold text-foreground/10">
-            {project.name.slice(0, 1).toUpperCase()}
-          </div>
+          {project.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={project.thumbnailUrl}
+              alt=""
+              className="size-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-4xl font-semibold text-foreground/10">
+              {project.name.slice(0, 1).toUpperCase()}
+            </div>
+          )}
         </div>
       </Link>
 

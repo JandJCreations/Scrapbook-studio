@@ -51,7 +51,7 @@ export interface Database {
           id: string;
           owner_id: string;
           name: string;
-          thumbnail_url: string | null;
+          thumbnail_path: string | null;
           favorite: boolean;
           deleted_at: string | null;
           frame_width: number;
@@ -64,7 +64,7 @@ export interface Database {
           id?: string;
           owner_id: string;
           name: string;
-          thumbnail_url?: string | null;
+          thumbnail_path?: string | null;
           favorite?: boolean;
           deleted_at?: string | null;
           frame_width?: number;
@@ -77,7 +77,7 @@ export interface Database {
           id?: string;
           owner_id?: string;
           name?: string;
-          thumbnail_url?: string | null;
+          thumbnail_path?: string | null;
           favorite?: boolean;
           deleted_at?: string | null;
           frame_width?: number;

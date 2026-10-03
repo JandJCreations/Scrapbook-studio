@@ -7,16 +7,20 @@ import {
   saveProjectContent,
   saveProjectFrame,
 } from "@/lib/sync/project-content-sync";
+import { dataUrlToBlob, getSignedUrl, getSignedUrls, MEDIA_BUCKET } from "@/lib/supabase/storage";
 import type { Project, ProjectFolder, ProjectId } from "@/types/project";
 
 type ProjectRow = Database["public"]["Tables"]["projects"]["Row"];
 type ProjectFolderRow = Database["public"]["Tables"]["project_folders"]["Row"];
 
-function rowToProject(row: ProjectRow): Project {
+// thumbnailUrl here is always a resolved signed URL, never the raw
+// storage path — same split as MediaItem.thumbnailUrl vs. the
+// thumbnail_path column it's resolved from.
+function rowToProject(row: ProjectRow, thumbnailUrl: string | null): Project {
   return {
     id: row.id,
     name: row.name,
-    thumbnailUrl: row.thumbnail_url,
+    thumbnailUrl,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     favorite: row.favorite,
@@ -43,6 +47,7 @@ interface ProjectStore {
   permanentlyDeleteProject: (id: ProjectId) => Promise<void>;
   emptyTrash: () => Promise<void>;
   duplicateProject: (id: ProjectId) => Promise<void>;
+  saveProjectThumbnail: (id: ProjectId, dataUrl: string) => Promise<void>;
   toggleFavorite: (id: ProjectId) => Promise<void>;
   moveProject: (id: ProjectId, folderId: string | null) => Promise<void>;
   createFolder: (name: string) => Promise<ProjectFolder | null>;
@@ -76,8 +81,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       return;
     }
 
+    const rows = projectsRes.data ?? [];
+    const paths = rows
+      .map((r) => r.thumbnail_path)
+      .filter((p): p is string => Boolean(p));
+    const signedUrls = await getSignedUrls(paths);
+
     set({
-      projects: (projectsRes.data ?? []).map(rowToProject),
+      projects: rows.map((row) =>
+        rowToProject(row, row.thumbnail_path ? (signedUrls.get(row.thumbnail_path) ?? null) : null),
+      ),
       folders: (foldersRes.data ?? []).map(rowToFolder),
       loading: false,
       loaded: true,
@@ -103,7 +116,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     if (error || !data) throw new Error(error?.message ?? "Failed to create project.");
 
-    const project = rowToProject(data);
+    const project = rowToProject(data, null);
     set((state) => ({ projects: [project, ...state.projects] }));
     return project;
   },
@@ -164,19 +177,28 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     } = await supabase.auth.getUser();
     if (!user) return;
 
+    // source.thumbnailUrl is a resolved signed URL (expires in 24h), not the
+    // raw storage path — copying it directly would go stale. Read the real
+    // path straight from the row instead; storage paths don't expire.
+    const { data: sourceRow } = await supabase
+      .from("projects")
+      .select("thumbnail_path")
+      .eq("id", source.id)
+      .single();
+
     const { data, error } = await supabase
       .from("projects")
       .insert({
         owner_id: user.id,
         name: `${source.name} (Copy)`,
-        thumbnail_url: source.thumbnailUrl,
+        thumbnail_path: sourceRow?.thumbnail_path ?? null,
         folder_id: source.folderId,
       })
       .select()
       .single();
 
     if (error || !data) return;
-    const project = rowToProject(data);
+    const project = rowToProject(data, source.thumbnailUrl);
     set((state) => ({ projects: [project, ...state.projects] }));
 
     const content = await loadProjectContent(source.id);
@@ -191,6 +213,30 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     await saveProjectContent(project.id, objects, tracks, clips);
     if (content.frame) await saveProjectFrame(project.id, content.frame);
+  },
+
+  saveProjectThumbnail: async (id, dataUrl) => {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const path = `${user.id}/projects/${id}/thumb.jpg`;
+    const blob = dataUrlToBlob(dataUrl);
+    const { error: uploadError } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(path, blob, { contentType: "image/jpeg", upsert: true });
+    if (uploadError) return;
+
+    await supabase.from("projects").update({ thumbnail_path: path }).eq("id", id);
+
+    const thumbnailUrl = await getSignedUrl(path);
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === id ? { ...p, thumbnailUrl: thumbnailUrl ?? p.thumbnailUrl } : p,
+      ),
+    }));
   },
 
   toggleFavorite: async (id) => {

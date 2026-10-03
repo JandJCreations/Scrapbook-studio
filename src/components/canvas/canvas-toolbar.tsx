@@ -31,13 +31,18 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useAddText } from "@/hooks/use-add-text";
+import { getRegisteredStage } from "@/lib/canvas/stage-registry";
 import { zoomAtPoint } from "@/lib/canvas/zoom";
+import { captureStageFrame } from "@/lib/export/capture-frame";
 import { FRAME_PRESETS } from "@/lib/export/frame-presets";
 import { saveProjectFrame } from "@/lib/sync/project-content-sync";
-import { useCanvasStore } from "@/store/use-canvas-store";
+import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 import { useCanvasFrame, useCanvasFrameStore } from "@/store/use-canvas-frame-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
+import { useProjectStore } from "@/store/use-project-store";
 import { useSettingsStore } from "@/store/use-settings-store";
+
+const THUMBNAIL_WIDTH = 480;
 
 const ExportDialog = dynamic(() =>
   import("@/components/canvas/export-dialog").then((m) => m.ExportDialog),
@@ -72,6 +77,31 @@ export function CanvasToolbar({
   const setTourOpen = useEditorUiStore((s) => s.setTourOpen);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const addText = useAddText({ projectId, stageWidth, stageHeight });
+  const objects = useCanvasObjects(projectId);
+  const saveProjectThumbnail = useProjectStore((s) => s.saveProjectThumbnail);
+
+  // Fire-and-forget: capture what the dashboard card should show on the way
+  // out, same instant-feel philosophy as the rest of the editor — this
+  // should never make leaving the editor feel slower. Skipped for an empty
+  // canvas so a project nobody touched doesn't overwrite a real thumbnail
+  // with a blank frame.
+  function captureThumbnailOnExit() {
+    if (objects.length === 0) return;
+    const stage = getRegisteredStage();
+    if (!stage) return;
+    try {
+      const dataUrl = captureStageFrame(stage, {
+        frameWidth: frame.width,
+        frameHeight: frame.height,
+        targetWidth: THUMBNAIL_WIDTH,
+        mimeType: "image/jpeg",
+        quality: 0.8,
+      });
+      void saveProjectThumbnail(projectId, dataUrl);
+    } catch {
+      // Best-effort — the dashboard just falls back to its placeholder.
+    }
+  }
 
   React.useEffect(() => {
     fetchSettings();
@@ -96,7 +126,11 @@ export function CanvasToolbar({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="shrink-0" asChild>
-            <Link href="/dashboard" aria-label="Back to dashboard">
+            <Link
+              href="/dashboard"
+              aria-label="Back to dashboard"
+              onClick={captureThumbnailOnExit}
+            >
               <ArrowLeft className="size-4" />
             </Link>
           </Button>
