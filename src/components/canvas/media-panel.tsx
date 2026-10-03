@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ImagePlus, X } from "lucide-react";
+import { Check, CheckSquare, ImagePlus, X } from "lucide-react";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { MediaThumbnail } from "@/components/media/media-thumbnail";
@@ -13,12 +13,17 @@ import { cn } from "@/lib/utils";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import { useMediaStore } from "@/store/use-media-store";
+import type { MediaItem } from "@/types/media";
 
 interface MediaPanelProps {
   projectId: string;
   stageWidth: number;
   stageHeight: number;
 }
+
+// Screen pixels between each item in a staggered multi-add, converted to
+// world units so the cascade looks the same size regardless of zoom level.
+const STAGGER_SCREEN_PX = 28;
 
 function loadImageDimensions(src: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
@@ -42,6 +47,9 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
   const clearFillTarget = useEditorUiStore((s) => s.clearFillTarget);
   const setSidebarOpen = useEditorUiStore((s) => s.setSidebarOpen);
 
+  const [selectMode, setSelectMode] = React.useState(false);
+  const [selectedMediaIds, setSelectedMediaIds] = React.useState<Set<string>>(new Set());
+
   React.useEffect(() => {
     fetchMedia();
   }, [fetchMedia]);
@@ -59,28 +67,28 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       (!fillTarget || i.type === fillTarget.type),
   );
 
-  function handleAdd(item: (typeof placeable)[number]) {
-    if (item.status !== "ready") return;
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedMediaIds(new Set());
+  }
 
-    if (fillTargetObjectId) {
-      // Filling an existing template slot keeps its position/size exactly
-      // as laid out — unlike a freely-added object, there's no "centered at
-      // default size, corrected to aspect ratio moments later" dance here.
-      fillPlaceholder(projectId, fillTargetObjectId, {
-        mediaId: item.id,
-        src: item.type === "video" ? (item.thumbnailUrl ?? item.url) : item.url,
-        videoSrc: item.type === "video" ? item.url : undefined,
-        duration: item.duration ?? undefined,
-        name: item.name,
-      });
-      setSelectedIds([fillTargetObjectId]);
-      clearFillTarget();
-      setSidebarOpen(false);
-      return;
-    }
+  function toggleMediaSelected(id: string) {
+    setSelectedMediaIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
-    const worldCenterX = (-viewport.x + stageWidth / 2) / viewport.scale;
-    const worldCenterY = (-viewport.y + stageHeight / 2) / viewport.scale;
+  // Places one item at the viewport center, offset by `index` steps so a
+  // batch add fans items out diagonally instead of stacking them exactly on
+  // top of each other. Returns the new object's id so callers can select
+  // everything they just placed together.
+  function addItemToCanvas(item: MediaItem, index: number): string {
+    const stagger = (STAGGER_SCREEN_PX * index) / viewport.scale;
+    const worldCenterX = (-viewport.x + stageWidth / 2) / viewport.scale + stagger;
+    const worldCenterY = (-viewport.y + stageHeight / 2) / viewport.scale + stagger;
     const width = DEFAULT_OBJECT_SIZE;
     const height = DEFAULT_OBJECT_SIZE;
 
@@ -98,7 +106,6 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       x: worldCenterX - width / 2,
       y: worldCenterY - height / 2,
     });
-    setSelectedIds([newId]);
 
     // Corrected moments later once the real aspect ratio is known — without
     // this, Konva stretches the square to fill exactly, so any non-square
@@ -123,6 +130,49 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       .catch(() => {
         // Keep the default square if dimensions can't be read.
       });
+
+    return newId;
+  }
+
+  function handleAdd(item: MediaItem) {
+    if (item.status !== "ready") return;
+
+    if (selectMode) {
+      toggleMediaSelected(item.id);
+      return;
+    }
+
+    if (fillTargetObjectId) {
+      // Filling an existing template slot keeps its position/size exactly
+      // as laid out — unlike a freely-added object, there's no "centered at
+      // default size, corrected to aspect ratio moments later" dance here.
+      fillPlaceholder(projectId, fillTargetObjectId, {
+        mediaId: item.id,
+        src: item.type === "video" ? (item.thumbnailUrl ?? item.url) : item.url,
+        videoSrc: item.type === "video" ? item.url : undefined,
+        duration: item.duration ?? undefined,
+        name: item.name,
+      });
+      setSelectedIds([fillTargetObjectId]);
+      clearFillTarget();
+      setSidebarOpen(false);
+      return;
+    }
+
+    const newId = addItemToCanvas(item, 0);
+    setSelectedIds([newId]);
+  }
+
+  function handleAddSelected() {
+    const toAdd = placeable.filter((i) => i.status === "ready" && selectedMediaIds.has(i.id));
+    if (toAdd.length === 0) return;
+    const newIds = toAdd.map((item, index) => addItemToCanvas(item, index));
+    // Selecting everything just placed lets you immediately drag, nudge, or
+    // batch-edit the whole group together via the selection toolbar —
+    // picking several media items should let you work with them as a set,
+    // not just drop them one by one.
+    setSelectedIds(newIds);
+    exitSelectMode();
   }
 
   const fillBanner = fillTarget && (
@@ -139,6 +189,35 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       >
         <X className="size-3.5" />
       </Button>
+    </div>
+  );
+
+  const selectBar = selectMode && (
+    <div className="flex items-center justify-between gap-2 border-b border-primary/30 bg-primary/5 px-3 py-2">
+      <span className="text-xs font-medium text-primary">
+        {selectedMediaIds.size === 0
+          ? "Select media to add"
+          : `${selectedMediaIds.size} selected`}
+      </span>
+      <div className="flex items-center gap-1">
+        <Button
+          size="sm"
+          className="h-7 px-2.5 text-xs"
+          disabled={selectedMediaIds.size === 0}
+          onClick={handleAddSelected}
+        >
+          Add to canvas
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-6 shrink-0"
+          aria-label="Cancel"
+          onClick={exitSelectMode}
+        >
+          <X className="size-3.5" />
+        </Button>
+      </div>
     </div>
   );
 
@@ -164,38 +243,69 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {fillBanner}
+      {selectBar}
       <ScrollArea className="flex-1">
       <div className="flex items-center justify-between gap-2 p-2 pb-0">
         <span className="text-xs font-medium text-muted-foreground">Your media</span>
-        <MediaUploadButton folderId={null} />
+        <div className="flex items-center gap-1">
+          {!fillTarget && (
+            <Button
+              variant={selectMode ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs"
+              aria-pressed={selectMode}
+              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            >
+              <CheckSquare className="size-3.5" />
+              Select
+            </Button>
+          )}
+          <MediaUploadButton folderId={null} />
+        </div>
       </div>
       <div className="grid grid-cols-3 gap-2 p-2">
-        {placeable.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            disabled={item.status !== "ready"}
-            onClick={() => handleAdd(item)}
-            className={cn(
-              "group relative overflow-hidden rounded-md border border-border",
-              item.status !== "ready" && "cursor-default",
-            )}
-            title={
-              item.status === "ready"
-                ? `Add "${item.name}" to canvas`
-                : item.status === "error"
-                  ? item.error
-                  : "Uploading…"
-            }
-          >
-            <MediaThumbnail item={item} className="aspect-square w-full" />
-            {item.status === "ready" && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100">
-                <ImagePlus className="size-5 text-white" />
-              </div>
-            )}
-          </button>
-        ))}
+        {placeable.map((item) => {
+          const isSelected = selectedMediaIds.has(item.id);
+          return (
+            <button
+              key={item.id}
+              type="button"
+              disabled={item.status !== "ready"}
+              onClick={() => handleAdd(item)}
+              className={cn(
+                "group relative overflow-hidden rounded-md border",
+                isSelected ? "border-primary ring-2 ring-primary" : "border-border",
+                item.status !== "ready" && "cursor-default",
+              )}
+              title={
+                item.status === "ready"
+                  ? selectMode
+                    ? `Select "${item.name}"`
+                    : `Add "${item.name}" to canvas`
+                  : item.status === "error"
+                    ? item.error
+                    : "Uploading…"
+              }
+            >
+              <MediaThumbnail item={item} className="aspect-square w-full" />
+              {selectMode && item.status === "ready" && (
+                <span
+                  className={cn(
+                    "absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded-full border-2 border-white shadow",
+                    isSelected ? "bg-primary" : "bg-black/30",
+                  )}
+                >
+                  {isSelected && <Check className="size-3.5 text-primary-foreground" />}
+                </span>
+              )}
+              {!selectMode && item.status === "ready" && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100">
+                  <ImagePlus className="size-5 text-white" />
+                </div>
+              )}
+            </button>
+          );
+        })}
       </div>
       </ScrollArea>
     </div>
