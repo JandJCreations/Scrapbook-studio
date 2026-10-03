@@ -45,8 +45,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 // Uploading many files (e.g. a big batch picked from a phone's photo
 // library) all at once saturates the connection and floods the UI with
 // simultaneous progress updates, which on mobile shows up as lag/freezing.
-// Capping concurrency keeps memory and re-render pressure bounded.
-const UPLOAD_CONCURRENCY = 3;
+// Capping concurrency keeps memory and re-render pressure bounded — 5 still
+// only ever has a handful of items updating at once (each update() is one
+// lightweight patch to one array entry, not a heavy re-render), while
+// finishing a large batch noticeably faster than 3 did.
+const UPLOAD_CONCURRENCY = 5;
 
 async function runWithConcurrency<T>(
   items: T[],
@@ -108,46 +111,63 @@ async function processMediaItem(
   const localUrl = URL.createObjectURL(file);
 
   try {
-    let duration: number | null = null;
-    let thumbnailBlob: Blob | null = null;
-
-    if (type === "video") {
-      const result = await generateVideoThumbnail(localUrl);
-      duration = result.duration;
-      thumbnailBlob = dataUrlToBlob(result.thumbnailUrl);
-    } else if (type === "audio") {
-      duration = await getAudioDuration(localUrl).catch(() => 0);
-    } else if (type === "image") {
-      thumbnailBlob = await generateImageThumbnail(localUrl)
-        .then(dataUrlToBlob)
-        .catch(() => null);
-    }
-
-    update(item.id, { progress: 30 });
-
     const storagePath = storagePathFor(userId, item.id, file.name);
-    const { error: uploadError } = await supabase.storage
+
+    // The original file upload doesn't need the thumbnail, and thumbnail
+    // generation (canvas work, or for video a currentTime seek + onseeked
+    // round trip) doesn't need the original uploaded first — these used to
+    // run strictly one after another, serializing a seek/decode wait in
+    // front of what's usually the slowest step (the actual file transfer).
+    // Running them together cuts real wall-clock time per item, which
+    // matters most exactly when uploading several files at once.
+    const originalUploadPromise = supabase.storage
       .from(MEDIA_BUCKET)
       .upload(storagePath, file, { contentType: file.type, upsert: true });
-    if (uploadError) throw uploadError;
+
+    const thumbnailPromise: Promise<{ thumbnailPath: string | null; duration: number | null }> =
+      (async () => {
+        let duration: number | null = null;
+        let thumbnailBlob: Blob | null = null;
+
+        if (type === "video") {
+          const result = await generateVideoThumbnail(localUrl);
+          duration = result.duration;
+          thumbnailBlob = dataUrlToBlob(result.thumbnailUrl);
+        } else if (type === "audio") {
+          duration = await getAudioDuration(localUrl).catch(() => 0);
+        } else if (type === "image") {
+          thumbnailBlob = await generateImageThumbnail(localUrl)
+            .then(dataUrlToBlob)
+            .catch(() => null);
+        }
+
+        if (!thumbnailBlob) return { thumbnailPath: null, duration };
+
+        const thumbnailPath = thumbnailPathFor(userId, item.id);
+        const { error: thumbError } = await supabase.storage
+          .from(MEDIA_BUCKET)
+          .upload(thumbnailPath, thumbnailBlob, { contentType: "image/jpeg", upsert: true });
+        if (thumbError) throw thumbError;
+
+        return { thumbnailPath, duration };
+      })();
+
+    const [originalResult, { thumbnailPath, duration }] = await Promise.all([
+      originalUploadPromise,
+      thumbnailPromise,
+    ]);
+    if (originalResult.error) throw originalResult.error;
     update(item.id, { progress: 70 });
 
-    let thumbnailPath: string | null = null;
-    if (thumbnailBlob) {
-      thumbnailPath = thumbnailPathFor(userId, item.id);
-      const { error: thumbError } = await supabase.storage
-        .from(MEDIA_BUCKET)
-        .upload(thumbnailPath, thumbnailBlob, { contentType: "image/jpeg", upsert: true });
-      if (thumbError) throw thumbError;
-    }
-
-    const url = await getSignedUrl(storagePath);
     // No full-resolution fallback here either — if thumbnail generation
     // failed for this upload (rare, but generateImageThumbnail can throw),
     // showing the original at full size is the same crash risk this was
     // built to avoid. It shows a placeholder instead and gets picked up by
     // the next backfill pass like any other item missing a thumbnail.
-    const thumbnailUrl = thumbnailPath ? await getSignedUrl(thumbnailPath) : null;
+    const [url, thumbnailUrl] = await Promise.all([
+      getSignedUrl(storagePath),
+      thumbnailPath ? getSignedUrl(thumbnailPath) : Promise.resolve(null),
+    ]);
 
     const { error: insertError } = await supabase.from("media_items").insert({
       id: item.id,
