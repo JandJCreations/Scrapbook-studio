@@ -145,15 +145,45 @@ timeline controls only when they appear.
 
 ## 7. Persistence
 
-- New tables `tracks` and `clips`. `transform`, `adjustments` and `keyframes`
-  are JSON columns on `clips`. Row-level security follows the existing tables'
-  pattern (rows belong to the project owner).
-- Drop `canvas_objects`, `audio_tracks`, `audio_clips`. No data migration.
-- Rewrite `src/lib/sync/project-content-sync.ts`: same debounced autosave, new
-  tables, and signed URLs still re-resolved from `mediaId` on every load.
-- Update `project_versions` (version history) and the template system
-  (`apply-template.ts`, `template-catalog.ts`) to produce and consume clips.
-- Regenerate `src/lib/supabase/database.types.ts`.
+*Revised 2026-10-15: the earlier draft stored tracks and clips as separate
+tables. The existing save layer (upsert everything, then delete whatever is
+missing, one request per table) has already caused a project wipe after a
+failed load, so the timeline is now stored as one JSON document per project,
+saved with a single atomic update.*
+
+- **Storage.** Migration `0006_project_timeline.sql` is additive: it adds
+  `projects.timeline jsonb` (null, or an object) and
+  `projects.timeline_rev integer not null default 0`. The existing row-level
+  security on `projects` already covers both columns.
+- **Document.** `{ schemaVersion: 1, tracks, clips }`, holding `mediaId` only,
+  never signed URLs. A null column means a new project and loads as a default
+  timeline: one main video track and one audio track.
+- **Validation.** The document is parsed with Zod on load. A malformed
+  document is a load error: it is never silently repaired and never
+  overwritten.
+- **Concurrent edits.** A save succeeds only if the row's `timeline_rev` still
+  matches the revision the editor loaded, and it then increments it. A
+  mismatch returns a conflict result instead of overwriting; what the user
+  sees is decided in the timeline UI plan.
+- **Autosave.** Same rules as today: debounced 1.5 s, never save before a
+  successful load, flush when the tab hides or the editor unmounts, retry
+  loading a few times. Only the last committed project is saved, never a
+  mid-drag preview.
+- **Media URLs.** Resolved from `mediaId` after load into a separate
+  `mediaId -> url` map that is never part of the saved document. Non-UUID ids
+  (bundled stickers and template images) are resolved by the port plan.
+- **Version history.** `project_versions.snapshot` becomes
+  `{ schemaVersion: 1, timeline, frame }`. Old-shape snapshots (test data)
+  fail with an "unsupported version" error instead of crashing.
+- **Old tables.** `canvas_objects`, `audio_tracks` and `audio_clips` stay in
+  place and keep working until the final cleanup plan drops them. No data
+  migration.
+- **Deferred.** Converting templates (`apply-template.ts`,
+  `template-catalog.ts`) to clips belongs to the port plan, because it depends
+  on the ported scrapbook features.
+- **Applying the migration.** Migrations in this repo are pasted into the
+  Supabase SQL Editor by hand; the plan ships the SQL file, and the user runs
+  it.
 
 ## 8. Export
 
@@ -179,7 +209,7 @@ Each step is testable before the next starts. Work happens on
 `feature/clip-timeline`; `main` stays working until the branch is ready.
 
 1. Model, editing operations, history store, unit tests.
-2. Supabase schema and sync.
+2. Supabase column, document format and sync (section 7).
 3. Playback engine, Web Audio graph, compositor.
 4. Timeline UI.
 5. Port scrapbook features (text, photos, stickers, templates) onto clips.
