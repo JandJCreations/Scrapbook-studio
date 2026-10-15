@@ -92,9 +92,34 @@ describe("gestures", () => {
     expect(getClip(selectProject(state()), "o").start).toBe(2);
     expect(state().history.gestureBase).toBeNull();
     expect(selectCanUndo(state())).toBe(false);
+    expect(selectCanRedo(state())).toBe(false);
 
     state().redo();
-    expect(getClip(selectProject(state()), "o").start).toBe(5);
+    expect(getClip(selectProject(state()), "o").start).toBe(2);
+  });
+
+  it("keeps the existing redo stack when a drag is cancelled", () => {
+    state().apply((p) => moveClip(p, "o", { start: 8 }));
+    state().undo();
+    state().previewApply((p) => moveClip(p, "o", { start: 5 }));
+    state().undo();
+    expect(getClip(selectProject(state()), "o").start).toBe(2);
+    state().redo();
+    expect(getClip(selectProject(state()), "o").start).toBe(8);
+  });
+
+  it("cancelGesture drops the drag without adding history", () => {
+    state().previewApply((p) => moveClip(p, "o", { start: 5 }));
+    state().cancelGesture();
+    expect(getClip(selectProject(state()), "o").start).toBe(2);
+    expect(selectCanUndo(state())).toBe(false);
+    expect(selectCanRedo(state())).toBe(false);
+  });
+
+  it("adds no undo step when a drag ends where it began", () => {
+    state().previewApply((p) => moveClip(p, "o", { start: 2 }));
+    state().endGesture();
+    expect(selectCanUndo(state())).toBe(false);
   });
 });
 

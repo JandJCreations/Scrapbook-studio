@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { activeClipsAt } from "@/lib/timeline/active-clips";
 import { clipEnd } from "@/lib/timeline/clip-math";
+import { clipsOnTrack } from "@/lib/timeline/lookup";
+import { packMagneticTracks } from "@/lib/timeline/pack";
 import { splitClip } from "@/lib/timeline/split";
 import {
   getClip,
@@ -38,7 +41,8 @@ describe("splitClip", () => {
 
   it("accounts for speed when computing the source cut point", () => {
     const project = makeProject(makeStandardTracks(), [
-      makeClip({ id: "a", start: 5, sourceIn: 0, sourceOut: 10, speed: 2 }),
+      // On a free (overlay) track: a main-track clip must start at 0.
+      makeClip({ id: "a", trackId: "t2", start: 5, sourceIn: 0, sourceOut: 10, speed: 2 }),
     ]);
     const result = splitClip(project, "a", 7, seqIds());
     expect(getClip(result, "a")).toMatchObject({ start: 5, sourceIn: 0, sourceOut: 4 });
@@ -87,9 +91,29 @@ describe("splitClip", () => {
       makeClip({ id: "b", start: 10, sourceOut: 5 }),
     ]);
     const result = splitClip(project, "a", 4, seqIds());
-    expect(clipEnd(getClip(result, "a"))).toBeCloseTo(getClip(result, "id-1").start, 9);
-    expect(clipEnd(getClip(result, "id-1"))).toBeCloseTo(getClip(result, "b").start, 9);
+    expect(clipEnd(getClip(result, "a"))).toBe(getClip(result, "id-1").start);
+    expect(clipEnd(getClip(result, "id-1"))).toBe(getClip(result, "b").start);
   });
+
+  it.each([false, true])(
+    "leaves exactly one active main-track clip at every cut with fractional times (reversed=%s)",
+    (reversed) => {
+      const packed = packMagneticTracks(
+        makeProject(makeStandardTracks(), [
+          makeClip({ id: "a", start: 0, sourceIn: 0.1, sourceOut: 3.1, reversed }),
+          makeClip({ id: "b", start: 3, sourceIn: 0, sourceOut: 2 }),
+        ]),
+      );
+      const result = splitClip(packed, "a", 0.3, seqIds());
+      const main = clipsOnTrack(result, "t1");
+      expect(main).toHaveLength(3);
+      for (const clip of main) {
+        expect(activeClipsAt(result, clip.start).map((a) => a.clip.id)).toEqual([clip.id]);
+      }
+      expect(clipEnd(getClip(result, "a"))).toBe(getClip(result, "id-1").start);
+      expect(clipEnd(getClip(result, "id-1"))).toBe(getClip(result, "b").start);
+    },
+  );
 
   it("allows a split exactly the minimum duration from the start edge", () => {
     const project = makeProject(makeStandardTracks(), [makeClip({ id: "a" })]);

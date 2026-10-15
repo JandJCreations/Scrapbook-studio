@@ -96,5 +96,8 @@ export function updateClip(
   const updated: Clip = { ...clip, ...patch };
   if (patch.fadeIn !== undefined) updated.fadeIn = clamp(patch.fadeIn, 0, duration);
   if (patch.fadeOut !== undefined) updated.fadeOut = clamp(patch.fadeOut, 0, duration);
-  return replaceClip(project, updated);
+
+  const keys = Object.keys(patch) as (keyof ClipPatch)[];
+  const changed = keys.some((key) => !Object.is(updated[key], clip[key]));
+  return changed ? replaceClip(project, updated) : project;
 }

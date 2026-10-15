@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cancelGesture,
   commit,
   createHistory,
   endGesture,
@@ -86,7 +87,7 @@ describe("gestures", () => {
     expect(endGesture(h)).toBe(h);
   });
 
-  it("cancels the drag when undo is pressed mid-gesture", () => {
+  it("cancels the drag when undo is pressed mid-gesture, leaving nothing to redo", () => {
     let h = createHistory(0);
     h = preview(h, 1);
     h = preview(h, 2);
@@ -94,7 +95,35 @@ describe("gestures", () => {
     expect(h.present).toBe(0);
     expect(h.gestureBase).toBeNull();
     expect(h.past).toEqual([]);
-    expect(redo(h).present).toBe(2);
+    expect(h.future).toEqual([]);
+    expect(redo(h)).toBe(h);
+  });
+
+  it("keeps earlier undo and redo history when a drag is cancelled", () => {
+    let h = commit(commit(createHistory(0), 1), 2);
+    h = undo(h); // present 1, past [0], future [2]
+    h = preview(h, 5);
+    h = undo(h);
+    expect(h).toEqual({ past: [0], present: 1, future: [2], gestureBase: null });
+  });
+
+  it("treats redo mid-gesture as a cancel only", () => {
+    let h = commit(commit(createHistory(0), 1), 2);
+    h = undo(h);
+    h = preview(h, 5);
+    h = redo(h);
+    expect(h).toEqual({ past: [0], present: 1, future: [2], gestureBase: null });
+  });
+
+  it("cancelGesture restores the pre-drag state and touches no history", () => {
+    let h = commit(createHistory(0), 1);
+    h = preview(h, 9);
+    expect(cancelGesture(h)).toEqual({ past: [0], present: 1, future: [], gestureBase: null });
+  });
+
+  it("cancelGesture returns the same history when no gesture is open", () => {
+    const h = createHistory(0);
+    expect(cancelGesture(h)).toBe(h);
   });
 
   it("closes an open gesture before committing", () => {

@@ -46,24 +46,35 @@ export function preview<T>(h: HistoryState<T>, next: T): HistoryState<T> {
   return { ...h, present: next, gestureBase: h.gestureBase ?? h.present };
 }
 
+/**
+ * Abandons an open gesture: the present returns to the pre-drag state and
+ * neither past nor future is touched.
+ */
+export function cancelGesture<T>(h: HistoryState<T>): HistoryState<T> {
+  if (h.gestureBase === null) return h;
+  return { ...h, present: h.gestureBase, gestureBase: null };
+}
+
+/** Undo while a drag is open only cancels the drag; it does not undo a step. */
 export function undo<T>(h: HistoryState<T>): HistoryState<T> {
-  const base = endGesture(h);
-  if (base.past.length === 0) return base;
+  if (h.gestureBase !== null) return cancelGesture(h);
+  if (h.past.length === 0) return h;
   return {
-    past: base.past.slice(0, -1),
-    present: base.past[base.past.length - 1],
-    future: [base.present, ...base.future],
+    past: h.past.slice(0, -1),
+    present: h.past[h.past.length - 1],
+    future: [h.present, ...h.future],
     gestureBase: null,
   };
 }
 
+/** Redo while a drag is open only cancels the drag. */
 export function redo<T>(h: HistoryState<T>): HistoryState<T> {
-  const base = endGesture(h);
-  if (base.future.length === 0) return base;
+  if (h.gestureBase !== null) return cancelGesture(h);
+  if (h.future.length === 0) return h;
   return {
-    past: pushPast(base.past, base.present),
-    present: base.future[0],
-    future: base.future.slice(1),
+    past: pushPast(h.past, h.present),
+    present: h.future[0],
+    future: h.future.slice(1),
     gestureBase: null,
   };
 }

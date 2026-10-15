@@ -37,19 +37,22 @@ export function trimClip(
     ? (clip.sourceDuration ?? Infinity) - clip.sourceIn
     : clip.sourceOut;
   let maxDuration = sourceAvailable / clip.speed;
-  // The start edge cannot move before timeline time 0.
-  if (edge === "start") maxDuration = Math.min(maxDuration, end);
+  // On a free track the start edge cannot move before timeline time 0. A
+  // magnetic clip keeps its start (packing places it), so no such cap applies.
+  if (edge === "start" && !isMagnetic(track)) maxDuration = Math.min(maxDuration, end);
 
   const requested = edge === "end" ? to - clip.start : end - to;
   const newDuration = clamp(requested, MIN_CLIP_DURATION, maxDuration);
   if (Math.abs(newDuration - duration) < EPS) return project;
 
   const span = newDuration * clip.speed;
+  // (available / speed) * speed does not always round-trip, so clamp the moved
+  // bound back into the source file instead of trusting the arithmetic.
   const updated: Clip = {
     ...clip,
     ...(movesSourceOut
-      ? { sourceOut: clip.sourceIn + span }
-      : { sourceIn: clip.sourceOut - span }),
+      ? { sourceOut: Math.min(clip.sourceIn + span, clip.sourceDuration ?? Infinity) }
+      : { sourceIn: Math.max(clip.sourceOut - span, 0) }),
   };
 
   if (edge === "start") {

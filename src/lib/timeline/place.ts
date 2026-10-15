@@ -50,7 +50,21 @@ export function moveClip(
   if (!target || target.locked || !canHostClip(target, clip)) return project;
 
   const without = { ...project, clips: project.clips.filter((c) => c.id !== clipId) };
-  return packMagneticTracks(placeClip(without, { ...clip, trackId: target.id, start: to.start }));
+  const moved = packMagneticTracks(
+    placeClip(without, { ...clip, trackId: target.id, start: to.start }),
+  );
+  // A move that lands every clip where it already was is a no-op, so it must
+  // not create an empty undo step.
+  return sameLayout(project, moved) ? project : moved;
+}
+
+function sameLayout(a: TimelineProject, b: TimelineProject): boolean {
+  if (a.clips.length !== b.clips.length) return false;
+  const before = new Map(a.clips.map((clip) => [clip.id, clip]));
+  return b.clips.every((clip) => {
+    const old = before.get(clip.id);
+    return old !== undefined && old.trackId === clip.trackId && old.start === clip.start;
+  });
 }
 
 /** Adds a new clip. Same rejection rules as moveClip, plus duplicate ids. */

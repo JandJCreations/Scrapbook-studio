@@ -181,3 +181,49 @@ describe("trimClip: invariants", () => {
     }
   });
 });
+
+describe("trimClip: exact source bounds", () => {
+  it("lands exactly on the source end when clamped (speed 0.3)", () => {
+    const project = freeProject({ speed: 0.3, sourceIn: 0.2, sourceOut: 0.7, sourceDuration: 3.7 });
+    expect(getClip(trimClip(project, "a", "end", 100), "a").sourceOut).toBeLessThanOrEqual(3.7);
+  });
+
+  it("never leaves a negative sourceIn when a reversed clip is clamped", () => {
+    const project = freeProject({
+      speed: 0.3, sourceIn: 0.2, sourceOut: 0.7, sourceDuration: 3.7, reversed: true,
+    });
+    expect(getClip(trimClip(project, "a", "end", 100), "a").sourceIn).toBeGreaterThanOrEqual(0);
+  });
+
+  it("keeps source bounds exact across awkward speeds, edges and targets", () => {
+    for (const speed of [0.3, 0.7, 3, 7]) {
+      for (const reversed of [false, true]) {
+        for (const edge of ["start", "end"] as const) {
+          for (const to of [-100, -3, 0, 2, 100]) {
+            const project = freeProject({
+              start: 0.9, sourceIn: 0.2, sourceOut: 0.7, sourceDuration: 3.7, speed, reversed,
+            });
+            const clip = getClip(trimClip(project, "a", edge, to), "a");
+            const label = `speed=${speed} reversed=${reversed} edge=${edge} to=${to}`;
+            expect(clip.sourceIn, label).toBeGreaterThanOrEqual(0);
+            expect(clip.sourceOut, label).toBeLessThanOrEqual(3.7);
+            expect(clip.sourceIn, label).toBeLessThan(clip.sourceOut);
+            expect(clip.start, label).toBeGreaterThanOrEqual(0);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe("trimClip: re-extending a head on the main track", () => {
+  it("lets the first main-track clip regain its head after a head trim", () => {
+    const project = makeProject([main], [
+      makeClip({ id: "a", start: 0, sourceIn: 0, sourceOut: 10 }),
+    ]);
+    const trimmed = trimClip(project, "a", "start", 4);
+    expect(getClip(trimmed, "a").sourceIn).toBe(4);
+    const restored = trimClip(trimmed, "a", "start", -4);
+    expect(getClip(restored, "a")).toMatchObject({ start: 0, sourceIn: 0, sourceOut: 10 });
+  });
+});

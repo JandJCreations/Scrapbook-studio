@@ -146,3 +146,15 @@ describe("insertClip", () => {
     expect(insertClip(locked, makeClip({ id: "n" }))).toBe(locked);
   });
 });
+
+describe("moveClip no-ops", () => {
+  it("returns the same project when an overlay clip is moved to where it already is", () => {
+    const project = makeProject(makeStandardTracks(), [still({ id: "o", trackId: "t2", start: 2 })]);
+    expect(moveClip(project, "o", { start: 2 })).toBe(project);
+  });
+
+  it("returns the same project when a main-track clip is dropped back in its own slot", () => {
+    const project = mainProject();
+    expect(moveClip(project, "B", { start: 4 })).toBe(project);
+  });
+});

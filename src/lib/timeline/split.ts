@@ -1,6 +1,7 @@
-import { clipDuration, MIN_CLIP_DURATION } from "@/lib/timeline/clip-math";
+import { clipDuration, clipEnd, MIN_CLIP_DURATION } from "@/lib/timeline/clip-math";
 import { createId, type IdFn } from "@/lib/timeline/ids";
 import { findClip, isClipLocked } from "@/lib/timeline/lookup";
+import { packMagneticTracks } from "@/lib/timeline/pack";
 import type { Clip, TimelineProject } from "@/types/timeline";
 
 /**
@@ -37,7 +38,9 @@ export function splitClip(
   const right: Clip = {
     ...clip,
     id: newId(),
-    start: at,
+    // Start exactly where the left half ends: `at` can differ from
+    // clipEnd(left) by a float ulp, which would leave a sliver at the cut.
+    start: clipEnd(left),
     fadeIn: 0,
     keyframes: clip.keyframes
       .filter((k) => k.time >= offset)
@@ -49,5 +52,6 @@ export function splitClip(
 
   const clips = [...project.clips];
   clips.splice(clips.indexOf(clip), 1, left, right);
-  return { ...project, clips };
+  // Re-pack magnetic tracks so following clips stay exactly contiguous.
+  return packMagneticTracks({ ...project, clips });
 }

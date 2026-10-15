@@ -122,3 +122,15 @@ describe("updateClip", () => {
     expect(updateClip(project, "nope", { volume: 1 })).toBe(project);
   });
 });
+
+describe("updateClip no-ops", () => {
+  const project = makeProject(makeStandardTracks(), [makeClip({ id: "A", sourceOut: 10 })]);
+
+  it("returns the same project for an empty patch", () => {
+    expect(updateClip(project, "A", {})).toBe(project);
+  });
+
+  it("returns the same project when the patch re-states current values", () => {
+    expect(updateClip(project, "A", { volume: 100, muted: false, fadeIn: 0 })).toBe(project);
+  });
+});

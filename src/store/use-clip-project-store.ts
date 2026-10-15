@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import {
+  cancelGesture,
   commit,
   createHistory,
   endGesture,
@@ -24,6 +25,9 @@ interface ClipProjectStore {
   /** Live drag feedback; `op` always runs against the pre-drag project. */
   previewApply: (op: ProjectOp) => void;
   endGesture: () => void;
+  /** Abandons the open drag without adding history (for Escape). */
+  cancelGesture: () => void;
+  /** Mid-drag, undo and redo only cancel the drag. */
   undo: () => void;
   redo: () => void;
   setSelectedClipIds: (ids: string[]) => void;
@@ -52,6 +56,7 @@ export const useClipProjectStore = create<ClipProjectStore>((set) => ({
       return withHistory(s, preview(s.history, op(base)));
     }),
   endGesture: () => set((s) => ({ history: endGesture(s.history) })),
+  cancelGesture: () => set((s) => withHistory(s, cancelGesture(s.history))),
   undo: () => set((s) => withHistory(s, undo(s.history))),
   redo: () => set((s) => withHistory(s, redo(s.history))),
   setSelectedClipIds: (ids) => set({ selectedClipIds: ids }),
