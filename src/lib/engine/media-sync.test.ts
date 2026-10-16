@@ -19,29 +19,42 @@ const slot = (id: string, overrides: Partial<SlotState> = {}): SlotState => ({
 });
 
 describe("needsSeek", () => {
-  const playing = { active: true, reversed: false, shouldPlay: true };
-  const paused = { active: true, reversed: false, shouldPlay: false };
-  const reversed = { active: true, reversed: true, shouldPlay: false };
-  const preload = { active: false, reversed: false, shouldPlay: false };
+  const forward = { active: true, reversed: false, playbackRate: 1 };
+  const reversed = { active: true, reversed: true, playbackRate: 1 };
+  const preload = { active: false, reversed: false, playbackRate: 1 };
 
-  it("tolerates drift up to 0.25 s while playing", () => {
-    expect(needsSeek(5.2, playing, 5)).toBe(false);
-    expect(needsSeek(5.3, playing, 5)).toBe(true);
+  it("tolerates 0.25 s of timeline drift while playing", () => {
+    expect(needsSeek(5.2, forward, 5, true)).toBe(false);
+    expect(needsSeek(5.3, forward, 5, true)).toBe(true);
   });
 
-  it("is strict (0.02 s) while paused or scrubbing", () => {
-    expect(needsSeek(5.01, paused, 5)).toBe(false);
-    expect(needsSeek(5.03, paused, 5)).toBe(true);
+  it("measures playing drift in timeline seconds, so speed does not matter", () => {
+    const fast = { ...forward, playbackRate: 8 };
+    expect(needsSeek(5 + 1.9, fast, 5, true)).toBe(false); // 1.9 / 8 = 0.24 s of timeline
+    expect(needsSeek(5 + 2.5, fast, 5, true)).toBe(true); // 2.5 / 8 = 0.31 s
+    const slow = { ...forward, playbackRate: 0.1 };
+    expect(needsSeek(5.02, slow, 5, true)).toBe(false); // 0.02 / 0.1 = 0.2 s
+    expect(needsSeek(5.05, slow, 5, true)).toBe(true); // 0.05 / 0.1 = 0.5 s
   });
 
-  it("steps reversed clips every 0.04 s", () => {
-    expect(needsSeek(6.03, reversed, 6)).toBe(false);
-    expect(needsSeek(6.05, reversed, 6)).toBe(true);
+  it("moves to any new position while paused, including a single frame step", () => {
+    expect(needsSeek(5.0005, forward, 5, false)).toBe(false);
+    expect(needsSeek(5 + 1 / 60, forward, 5, false)).toBe(true);
+    expect(needsSeek(5 + 1 / 30, { ...forward, playbackRate: 0.5 }, 5, false)).toBe(true);
   });
 
-  it("positions a preload precisely", () => {
-    expect(needsSeek(0.01, preload, 0)).toBe(false);
-    expect(needsSeek(0.5, preload, 0)).toBe(true);
+  it("steps reversed clips every 0.04 s of timeline while playing", () => {
+    expect(needsSeek(6.03, reversed, 6, true)).toBe(false);
+    expect(needsSeek(6.05, reversed, 6, true)).toBe(true);
+  });
+
+  it("follows a paused reversed clip frame by frame", () => {
+    expect(needsSeek(6.01, reversed, 6, false)).toBe(true);
+  });
+
+  it("positions a preload precisely, playing or not", () => {
+    expect(needsSeek(0.0005, preload, 0, true)).toBe(false);
+    expect(needsSeek(0.5, preload, 0, true)).toBe(true);
   });
 });
 
@@ -110,9 +123,24 @@ describe("planMediaSync: seeking and loading", () => {
 
   it("leaves a paused element that is on target", () => {
     const [command] = planMediaSync(single(), 2, false, [
-      slot("s1", { clipId: "a", currentTime: 2.01 }),
+      slot("s1", { clipId: "a", currentTime: 2.0005 }),
     ]).commands;
     expect(command.seekTo).toBeNull();
+  });
+
+  it("follows a single-frame step at 60 fps and at half speed", () => {
+    const sixty = planMediaSync(single(), 2 + 1 / 60, false, [
+      slot("s1", { clipId: "a", currentTime: 2 }),
+    ]);
+    expect(sixty.commands[0].seekTo).toBeCloseTo(2 + 1 / 60, 9);
+
+    const halfSpeed = makeProject(makeStandardTracks(), [
+      clip("a", { start: 0, sourceIn: 0, sourceOut: 10, speed: 0.5 }),
+    ]);
+    const half = planMediaSync(halfSpeed, 4 + 1 / 30, false, [
+      slot("s1", { clipId: "a", currentTime: 2 }),
+    ]);
+    expect(half.commands[0].seekTo).toBeCloseTo(2 + 1 / 60, 9);
   });
 
   it("reloads a slot that holds a different file and seeks it", () => {

@@ -147,11 +147,18 @@ Konva compositor, and a small dev-only test page, checked in a real browser
   seeked to the clip's `sourceIn`), unless they are a continuation.
 - At most 6 video elements exist at once. Active clips win over upcoming ones.
 - A seek is issued only when the element is off target by more than 0.25 s
-  while playing, or more than 0.02 s while paused or scrubbing.
+  of **timeline** time while playing (source drift divided by playback rate, so
+  fast clips are not seeked in a loop and slow ones do not drift out of sync),
+  or by more than 0.001 s while paused or scrubbing. *(Revised 2026-10-16: the
+  paused value was 0.02 s, which is larger than one frame at 60 fps or in slow
+  motion, so stepping a frame left the picture unchanged.)*
+- A reversed clip is silent live, so its sound never justifies a media element:
+  a reversed audio clip, or a hidden reversed video, gets none.
 
 **Decisions**
 - **Reversed clips in the live preview** are silent and shown as stepped
-  frames (seek every 0.04 s), because browsers cannot play video backwards.
+  frames (seek every 0.04 s of timeline time while playing), because browsers
+  cannot play video backwards.
   Export renders them correctly, with their audio reversed.
 - **Video clips' own sound** is part of the live mix and of the export mixdown,
   honouring volume, fades, clip mute, track mute and solo. Today's export

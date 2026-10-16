@@ -58,7 +58,8 @@ export function planWanted(
   const chain: Clip[] = [];
 
   for (const a of activeClipsAt(project, t)) {
-    if (!needsElement(a.clip, a.visible, a.audible)) continue;
+    // A reversed clip is silent live, so its sound never justifies an element.
+    if (!needsElement(a.clip, a.visible, a.audible && !a.clip.reversed)) continue;
     chain.push(a.clip);
     wanted.push({
       clipId: a.clip.id,
@@ -85,7 +86,8 @@ export function planWanted(
   for (const clip of upcoming) {
     const track = trackById.get(clip.trackId);
     if (!track) continue;
-    if (!needsElement(clip, !track.hidden, isAudible(clip, track, anySolo))) continue;
+    const audible = isAudible(clip, track, anySolo) && !clip.reversed;
+    if (!needsElement(clip, !track.hidden, audible)) continue;
 
     const continues = chain.some((earlier) => isContinuation(earlier, clip));
     chain.push(clip);

@@ -82,6 +82,34 @@ describe("planWanted: active clips", () => {
     expect(planWanted(project, 1, true)).toEqual([]);
   });
 
+  it("does not give a decoder to a hidden reversed video: it is silent live and unseen", () => {
+    const hidden = [makeTrack({ id: "t1", type: "video", hidden: true })];
+    expect(planWanted(makeProject(hidden, [clip("v", { reversed: true })]), 1, true)).toEqual([]);
+  });
+
+  it("does not give an element to a reversed audio clip: it is silent live", () => {
+    const project = makeProject(makeStandardTracks(), [
+      clip("s", { kind: "audio", trackId: "t3", reversed: true }),
+    ]);
+    expect(planWanted(project, 1, true)).toEqual([]);
+  });
+
+  it("still shows a visible reversed video, silent", () => {
+    const project = makeProject(makeStandardTracks(), [clip("v", { reversed: true })]);
+    expect(planWanted(project, 1, true)[0]).toMatchObject({ active: true, gain: 0 });
+  });
+
+  it("does not prepare an upcoming hidden reversed video", () => {
+    const hidden = makeProject(
+      [makeTrack({ id: "t1", type: "video", hidden: true })],
+      [
+        clip("a", { mediaId: "m1", start: 0, sourceIn: 0, sourceOut: 4 }),
+        clip("b", { mediaId: "m2", start: 4, sourceIn: 0, sourceOut: 6, reversed: true }),
+      ],
+    );
+    expect(planWanted(hidden, 3.5, true).map((w) => w.clipId)).toEqual(["a"]);
+  });
+
   it("gives a visible but muted video a zero gain", () => {
     const project = makeProject(makeStandardTracks(), [clip("v", { muted: true })]);
     expect(planWanted(project, 1, true)[0]).toMatchObject({ active: true, gain: 0 });
