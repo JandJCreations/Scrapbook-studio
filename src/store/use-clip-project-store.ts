@@ -63,6 +63,9 @@ export const useClipProjectStore = create<ClipProjectStore>((set) => ({
 }));
 
 export const selectProject = (s: ClipProjectStore) => s.history.present;
+/** The last committed project: a drag in progress is never saved. */
+export const selectSavableProject = (s: ClipProjectStore) =>
+  s.history.gestureBase ?? s.history.present;
 export const selectCanUndo = (s: ClipProjectStore) =>
   s.history.past.length > 0 || s.history.gestureBase !== null;
 export const selectCanRedo = (s: ClipProjectStore) => s.history.future.length > 0;

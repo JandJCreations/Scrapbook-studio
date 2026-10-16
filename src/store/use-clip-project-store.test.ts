@@ -14,6 +14,7 @@ import {
   selectCanRedo,
   selectCanUndo,
   selectProject,
+  selectSavableProject,
   useClipProjectStore,
 } from "@/store/use-clip-project-store";
 
@@ -114,6 +115,16 @@ describe("gestures", () => {
     expect(getClip(selectProject(state()), "o").start).toBe(2);
     expect(selectCanUndo(state())).toBe(false);
     expect(selectCanRedo(state())).toBe(false);
+  });
+
+  it("saves only committed state: mid-drag the savable project is the pre-drag one", () => {
+    const before = selectProject(state());
+    state().previewApply((p) => moveClip(p, "o", { start: 5 }));
+    expect(selectSavableProject(state())).toBe(before);
+
+    state().endGesture();
+    expect(selectSavableProject(state())).toBe(selectProject(state()));
+    expect(getClip(selectSavableProject(state()), "o").start).toBe(5);
   });
 
   it("adds no undo step when a drag ends where it began", () => {
