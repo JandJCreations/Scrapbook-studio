@@ -95,9 +95,9 @@ panels, Konva rendering, and the dashboard.
 
 ## 5. Playback and rendering
 
-**One clock.** A single master playhead in the store, advanced by one loop.
-While audio plays it follows the Web Audio clock, the only clock that stays in
-sync with sound.
+**One clock.** A single master playhead in the store, advanced by one loop. It
+is driven by `performance.now()` (see 5.2: media elements play on their own
+clocks, so drift correction, not a shared audio clock, keeps them in sync).
 
 **`activeClipsAt(project, t)`** is a pure function returning the clip playing on
 each track at time `t` and its source position:
@@ -133,9 +133,9 @@ fully unit-tested:
 - **Live audio planner.** Per-clip gain from volume, fades, mute and solo.
 - **Mixdown planner.** The schedule an offline renderer needs for export.
 
-**Plan 3b, browser glue.** The real `<video>` pool, the Web Audio graph, the
-Konva compositor, and a small dev-only test page, checked in a real browser
-(Claude in Chrome if connected, otherwise manually).
+**Plans 3b and 3c, browser glue.** Split again in 5.2: 3b is the testable glue
+(media pool, audio graph, engine runner, draw state, transport store) and 3c is
+the Konva picture and the dev-only test page, checked in a real browser.
 
 **Media sync rules**
 - One element per active clip, but elements are pooled by media file and
@@ -149,7 +149,7 @@ Konva compositor, and a small dev-only test page, checked in a real browser
 - A seek is issued only when the element is off target by more than 0.25 s
   of **timeline** time while playing (source drift divided by playback rate, so
   fast clips are not seeked in a loop and slow ones do not drift out of sync),
-  or by more than 0.001 s while paused or scrubbing. *(Revised 2026-10-16: the
+  or by more than 0.001 s while paused or scrubbing. *(Revised 2026-10-15: the
   paused value was 0.02 s, which is larger than one frame at 60 fps or in slow
   motion, so stepping a frame left the picture unchanged.)*
 - A reversed clip is silent live, so its sound never justifies a media element:
@@ -170,6 +170,61 @@ Konva compositor, and a small dev-only test page, checked in a real browser
 - The existing `use-timeline-store` and `use-video-playback-store` stay until
   the final cleanup plan; the new transport state lives in its own store
   introduced in plan 3b.
+
+### 5.2 Browser glue design (added 2026-10-15)
+
+**Plan 3b: testable glue**, in `src/lib/playback/`. The browser parts (media
+elements, `AudioContext`, the frame scheduler) are passed in as small
+interfaces, so everything is unit-tested with fakes.
+- **Media pool.** `apply(plan)` carries out a `MediaSyncPlan` on real elements.
+  It creates an element when a command has no slot; sets `src` only when the
+  command says `load`; seeks only when `seekTo` is set; sets playback rate and
+  gain; and plays or pauses to match `play`. It sets `slot.clipId` to the
+  command's clip, including for freshly created elements. It reports the
+  state of every element back as `SlotState[]` (file, owning clip,
+  `element.currentTime`) for the next plan, and tells the picture which element
+  serves which clip. A clip whose file URL is unknown shows nothing and is
+  reported; a browser that refuses to start playback is reported.
+- **Released elements** (those in `releasedSlotIds`) **must** be paused,
+  silenced and unassigned; they are kept for reuse.
+- **Order of work each frame:** the plan is applied before the picture asks
+  which element serves a clip, otherwise a continuation cut shows one blank
+  frame.
+- **SlotState** is built from `element.currentTime`, never from a decoded-frame
+  time, or paused seeks would repeat every tick.
+- **Audio graph.** Each element is connected once to
+  `MediaElementAudioSourceNode -> GainNode -> master -> destination`.
+  Gain changes are smoothed over about 10 ms to avoid clicks. This is what allows
+  volume above 100% and exact fades. The context is resumed on the first Play
+  click (browser autoplay rule), so sound starts only after that click.
+- **Engine runner.** One frame is: tick the transport, `planMediaSync`, apply
+  the plan, notify the picture. Frames repeat while the transport is playing;
+  pause, seek, frame-step and edits each request one more frame. The frame
+  scheduler is injected.
+- **Clock.** The transport uses `performance.now()`. A media element plays on
+  its own clock, not the `AudioContext` clock, so using the audio clock would
+  not keep video in sync; the 0.25 s drift rule does.
+- **Draw state.** A pure `clipDrawState(clip, localTime)` gives x, y, width,
+  height, rotation and opacity. Keyframes are relative to the clip start and,
+  when present, replace x, y, rotation and opacity (before the first keyframe
+  the first applies; after the last, the last; between, linear). Fade-in and
+  fade-out multiply into opacity. The fade ramp is shared with `clipGainAt`.
+- **Transport store.** A small zustand store mirroring `time` and `playing` for
+  the UI.
+- **End-to-end test.** The real runner and pool with fake elements that advance
+  at their playback rate, over a clip split into several pieces: one element,
+  one load, and no seek at any cut.
+
+**Plan 3c: picture and test page.** The Konva compositor draws the active
+clips in paint order from the elements the pool reports (video), loaded images
+(image), and a labelled placeholder for text and stickers until the port plan.
+A test page at `/dev/playback` (public; it needs no login or Supabase, and is
+hidden in production) lets the user pick local video, image and audio files and
+play, pause, scrub, step frames, split at the playhead, and change speed,
+reverse and volume. It is checked in a real browser through Claude in Chrome
+(the user enables the extension before 3c is executed). Next.js here differs from
+common knowledge, so the Next docs under `node_modules/next/dist/docs/` are read
+before any route or client-component code is written.
 
 ## 6. Timeline UI
 
