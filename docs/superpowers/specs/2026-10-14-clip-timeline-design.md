@@ -117,6 +117,53 @@ then the master output. The export mixdown reuses the same graph.
 frame is a pure function of `(project, t)`; export calls the same function, so
 preview and export cannot diverge.
 
+### 5.1 Build split and engine decisions (added 2026-10-15)
+
+Section 5 is built in two plans, because the browser-only part cannot be
+verified in the in-app browser pane (it does not paint frames or run
+animation frames).
+
+**Plan 3a, engine core.** Pure logic with injectable time and fake media,
+fully unit-tested:
+- **Transport clock.** Play, pause, seek, stop at the end, step one frame. The
+  time source is injected, so the glue can later supply the Web Audio clock.
+- **Media sync planner.** Given the project and a time, it lists which media
+  elements are wanted, what time each should be at, and whether a seek is
+  needed.
+- **Live audio planner.** Per-clip gain from volume, fades, mute and solo.
+- **Mixdown planner.** The schedule an offline renderer needs for export.
+
+**Plan 3b, browser glue.** The real `<video>` pool, the Web Audio graph, the
+Konva compositor, and a small dev-only test page, checked in a real browser
+(Claude in Chrome if connected, otherwise manually).
+
+**Media sync rules**
+- One element per active clip, but elements are pooled by media file and
+  reused. Clip B continues clip A's element, with no seek, when the clips read
+  the same file at the same speed and direction and B starts where A ends
+  (for example the two halves of a split). Splitting one video into ten clips
+  therefore still uses one decoder.
+- Clips that start within 1.0 s ahead are prepared early (element assigned and
+  seeked to the clip's `sourceIn`), unless they are a continuation.
+- At most 6 video elements exist at once. Active clips win over upcoming ones.
+- A seek is issued only when the element is off target by more than 0.25 s
+  while playing, or more than 0.02 s while paused or scrubbing.
+
+**Decisions**
+- **Reversed clips in the live preview** are silent and shown as stepped
+  frames (seek every 0.04 s), because browsers cannot play video backwards.
+  Export renders them correctly, with their audio reversed.
+- **Video clips' own sound** is part of the live mix and of the export mixdown,
+  honouring volume, fades, clip mute, track mute and solo. Today's export
+  omits it.
+- **Playing past the end** stops at the project end. Pressing play again
+  restarts from 0.
+- Image, text and sticker clips have no sound and are never given a media
+  element for audio.
+- The existing `use-timeline-store` and `use-video-playback-store` stay until
+  the final cleanup plan; the new transport state lives in its own store
+  introduced in plan 3b.
+
 ## 6. Timeline UI
 
 **Layout.** Preview on top, Media panel on the left, inspector on the right
