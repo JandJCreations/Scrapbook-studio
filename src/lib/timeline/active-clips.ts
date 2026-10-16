@@ -13,6 +13,15 @@ export interface ActiveClip {
 }
 
 /**
+ * Whether a clip contributes sound: only video and audio clips, not muted, on
+ * a track that is not muted and, if any track is soloed, is itself soloed.
+ */
+export function isAudible(clip: Clip, track: Track, anySolo: boolean): boolean {
+  const hasSound = clip.kind === "video" || clip.kind === "audio";
+  return hasSound && !clip.muted && !track.muted && (!anySolo || track.solo);
+}
+
+/**
  * Every clip playing at timeline time `t`, in paint order: highest track
  * `order` first, so the top overlay is painted last. A clip covers
  * [start, end), so at an exact cut the next clip owns the instant.
@@ -31,7 +40,6 @@ export function activeClipsAt(project: TimelineProject, t: number): ActiveClip[]
     const sourceTime = clip.reversed
       ? clip.sourceOut - localTime * clip.speed
       : clip.sourceIn + localTime * clip.speed;
-    const hasSound = clip.kind === "video" || clip.kind === "audio";
 
     active.push({
       clip,
@@ -39,7 +47,7 @@ export function activeClipsAt(project: TimelineProject, t: number): ActiveClip[]
       localTime,
       sourceTime,
       visible: !track.hidden,
-      audible: hasSound && !clip.muted && !track.muted && (!anySolo || track.solo),
+      audible: isAudible(clip, track, anySolo),
     });
   }
 

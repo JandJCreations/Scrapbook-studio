@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { activeClipsAt, clipGainAt } from "@/lib/timeline/active-clips";
+import { activeClipsAt, clipGainAt, isAudible } from "@/lib/timeline/active-clips";
 import { clipsOnTrack } from "@/lib/timeline/lookup";
 import { packMagneticTracks } from "@/lib/timeline/pack";
 import {
@@ -163,5 +163,31 @@ describe("clipGainAt", () => {
   it("never goes negative", () => {
     expect(clipGainAt(clip({ fadeIn: 2 }), -1)).toBe(0);
     expect(clipGainAt(clip({ fadeOut: 2 }), 11)).toBe(0);
+  });
+});
+
+describe("isAudible", () => {
+  const track = makeTrack({ id: "t1" });
+
+  it("is true for an unmuted video clip on an unmuted track", () => {
+    expect(isAudible(makeClip({ kind: "video" }), track, false)).toBe(true);
+  });
+
+  it("is true for an audio clip", () => {
+    expect(isAudible(makeClip({ kind: "audio" }), track, false)).toBe(true);
+  });
+
+  it.each(["image", "text", "sticker"] as const)("is false for %s clips", (kind) => {
+    expect(isAudible(makeClip({ kind }), track, false)).toBe(false);
+  });
+
+  it("is false for a muted clip or a muted track", () => {
+    expect(isAudible(makeClip({ muted: true }), track, false)).toBe(false);
+    expect(isAudible(makeClip(), makeTrack({ muted: true }), false)).toBe(false);
+  });
+
+  it("when any track is soloed, only soloed tracks are audible", () => {
+    expect(isAudible(makeClip(), makeTrack({ solo: false }), true)).toBe(false);
+    expect(isAudible(makeClip(), makeTrack({ solo: true }), true)).toBe(true);
   });
 });
