@@ -292,3 +292,105 @@ describe("stop and flush", () => {
     expect(phases(statuses)).toEqual(["loading"]);
   });
 });
+
+describe("project switches and reloads (review fixes)", () => {
+  it("a save queued when stop() is called writes this project's final state, not whatever the store holds later", async () => {
+    const storage = new MemoryTimelineStorage();
+    let open: () => void = () => {};
+    storage.saveGate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const { sync } = await start(storage);
+
+    store().apply((p) => moveClip(p, "o", { start: 5 }));
+    await vi.advanceTimersByTimeAsync(DELAY); // save #1 in flight
+    store().apply((p) => moveClip(p, "o", { start: 9 }));
+    await vi.advanceTimersByTimeAsync(DELAY); // follow-up queued behind it
+
+    const stopping = sync.stop();
+    store().load({ id: "B", tracks: [], clips: [] }); // the next project's editor takes the store
+    open();
+    await stopping;
+
+    expect(storage.project.tracks.length).toBeGreaterThan(0);
+    expect(getClip(storage.project, "o").start).toBe(9);
+  });
+
+  it("ignores the outcome of a save that was in flight when the project was reloaded", async () => {
+    const storage = new MemoryTimelineStorage();
+    let open: () => void = () => {};
+    storage.saveGate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const { sync, statuses } = await start(storage);
+
+    store().apply((p) => moveClip(p, "o", { start: 5 }));
+    await vi.advanceTimersByTimeAsync(DELAY); // save in flight
+    sync.load(); // reload while it is still running
+    await vi.advanceTimersByTimeAsync(0);
+
+    open(); // the old save lands on the server
+    await vi.advanceTimersByTimeAsync(0);
+
+    touch();
+    await vi.advanceTimersByTimeAsync(DELAY);
+
+    // The reloaded editor is stale, so it must conflict, never overwrite.
+    expect(statuses[statuses.length - 1].phase).toBe("conflict");
+    expect(getClip(storage.project, "o").start).toBe(5);
+  });
+
+  it("a stopped controller never reports a status", async () => {
+    const storage = new MemoryTimelineStorage();
+    let open: () => void = () => {};
+    storage.saveGate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const { sync, statuses } = await start(storage);
+
+    store().apply((p) => moveClip(p, "o", { start: 5 }));
+    await vi.advanceTimersByTimeAsync(DELAY);
+    storage.rev = 7; // this save will hit a conflict
+
+    const stopping = sync.stop();
+    open();
+    await stopping;
+
+    expect(phases(statuses)).not.toContain("conflict");
+  });
+});
+
+describe("save failures are reported (review fixes)", () => {
+  it("reports a save that keeps failing, and clears the report on the next success", async () => {
+    const storage = new MemoryTimelineStorage();
+    storage.saveFailures = Infinity;
+    const { statuses } = await start(storage);
+
+    touch();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(statuses[statuses.length - 1]).toMatchObject({
+      phase: "ready",
+      error: expect.stringContaining("save"),
+    });
+
+    storage.saveFailures = 0;
+    touch();
+    await vi.advanceTimersByTimeAsync(DELAY);
+    expect(statuses[statuses.length - 1]).toEqual({ phase: "ready", error: null });
+  });
+
+  it("treats an unwritable document as permanent: reports it and does not retry", async () => {
+    const storage = new MemoryTimelineStorage();
+    storage.saveError = new TimelineDocumentError("clips.0.start must be a number");
+    const { statuses } = await start(storage);
+
+    touch();
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(storage.saveAttempts).toBe(1);
+    expect(statuses[statuses.length - 1]).toMatchObject({
+      phase: "ready",
+      error: expect.stringContaining("clips.0.start"),
+    });
+  });
+});

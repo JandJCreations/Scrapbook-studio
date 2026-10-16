@@ -49,10 +49,18 @@ export function createTimelineSync(options: TimelineSyncOptions): TimelineSync {
   let unsubscribe: (() => void) | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let loadToken = 0; // bumped to abandon in-flight loads
+  let epoch = 0; // bumped by load(): results of saves started earlier are stale
   let stopped = false;
+  // The project as it was when stop() ran. A save still queued then must write
+  // this, not whatever the shared store holds once another project loads.
+  let finalProject: TimelineProject | null = null;
   let saveFailures = 0;
+  let saveErrorShown = false;
 
+  // A stopped controller must never report: its editor may already show a
+  // different project.
   function setStatus(next: SyncPhase, error: string | null = null) {
+    if (stopped) return;
     phase = next;
     onStatus({ phase: next, error });
   }
@@ -61,10 +69,21 @@ export function createTimelineSync(options: TimelineSyncOptions): TimelineSync {
   // unfinished load can never overwrite the stored project.
   async function saveNow() {
     if (phase !== "ready" || lastSaved === null) return;
-    const project = getSavable();
+    const project = finalProject ?? getSavable();
     if (project === lastSaved) return;
 
-    const result = await storage.save(projectId, project, rev);
+    const savedEpoch = epoch;
+    let result;
+    try {
+      result = await storage.save(projectId, project, rev);
+    } catch (error) {
+      if (savedEpoch !== epoch) return; // a reload already replaced our state
+      throw error;
+    }
+    // A reload while this save was in flight reset rev and lastSaved from a
+    // fresh read; applying this outcome would roll them back.
+    if (savedEpoch !== epoch) return;
+
     if (!result.ok) {
       autosaver.cancel();
       setStatus("conflict", "This project was changed somewhere else.");
@@ -73,6 +92,10 @@ export function createTimelineSync(options: TimelineSyncOptions): TimelineSync {
     rev = result.rev;
     lastSaved = project;
     saveFailures = 0;
+    if (saveErrorShown) {
+      saveErrorShown = false;
+      setStatus("ready");
+    }
   }
 
   const autosaver = createAutosaver({
@@ -80,8 +103,22 @@ export function createTimelineSync(options: TimelineSyncOptions): TimelineSync {
     delayMs,
     onError(error) {
       console.error("Failed to autosave timeline:", error);
+      if (stopped) return;
+
+      // An unwritable document will not fix itself: report it, don't retry.
+      if (error instanceof TimelineDocumentError) {
+        saveErrorShown = true;
+        setStatus("ready", `Can't save this project: ${error.message}`);
+        return;
+      }
+
       saveFailures += 1;
-      if (saveFailures <= MAX_SAVE_RETRIES && !stopped) autosaver.schedule();
+      if (saveFailures <= MAX_SAVE_RETRIES) {
+        autosaver.schedule();
+        return;
+      }
+      saveErrorShown = true;
+      setStatus("ready", "Couldn't save your changes. Will retry on your next edit.");
     },
   });
 
@@ -126,6 +163,9 @@ export function createTimelineSync(options: TimelineSyncOptions): TimelineSync {
   return {
     load() {
       stopped = false;
+      finalProject = null;
+      saveErrorShown = false;
+      epoch += 1;
       loadToken += 1;
       clearRetryTimer();
       autosaver.cancel();
@@ -140,6 +180,8 @@ export function createTimelineSync(options: TimelineSyncOptions): TimelineSync {
     },
 
     async stop() {
+      // Snapshot before anything else can swap the store's contents.
+      if (phase === "ready") finalProject = getSavable();
       stopped = true;
       loadToken += 1;
       clearRetryTimer();

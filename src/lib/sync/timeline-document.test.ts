@@ -151,3 +151,19 @@ describe("snapshots", () => {
     expect(() => parseSnapshot("p1", raw)).toThrow(TimelineDocumentError);
   });
 });
+
+describe("serializeTimeline: refuses to write what cannot be loaded back", () => {
+  it.each([
+    ["a NaN start", { start: NaN }],
+    ["an Infinity start", { start: Infinity }],
+    ["a zero speed", { speed: 0 }],
+    ["a zero sourceDuration", { sourceDuration: 0 }],
+  ])("throws for %s", (_label, overrides) => {
+    const project = makeProject(makeStandardTracks(), [makeClip(overrides)]);
+    expect(() => serializeTimeline(project)).toThrow(TimelineDocumentError);
+  });
+
+  it("still serializes a valid project", () => {
+    expect(() => serializeTimeline(sample())).not.toThrow();
+  });
+});

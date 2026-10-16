@@ -109,12 +109,19 @@ const frameSchema = z.object({
   height: z.number().positive(),
 });
 
+/**
+ * The document to store. Throws TimelineDocumentError if the project would not
+ * load back: JSON turns NaN and Infinity into null, so without this check one
+ * bad value would save fine and then make the project permanently unloadable.
+ */
 export function serializeTimeline(project: TimelineProject): TimelineDocument {
-  return {
+  const doc: TimelineDocument = {
     schemaVersion: TIMELINE_SCHEMA_VERSION,
     tracks: project.tracks,
     clips: project.clips,
   };
+  parseTimeline(project.id, JSON.parse(JSON.stringify(doc)));
+  return doc;
 }
 
 /** Validates a stored document. Throws TimelineDocumentError; never repairs. */

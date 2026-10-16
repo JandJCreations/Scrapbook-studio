@@ -232,3 +232,14 @@ describe("versions", () => {
     });
   });
 });
+
+describe("save: refuses an unloadable document", () => {
+  it("rejects with TimelineDocumentError without touching the database", async () => {
+    const { client, calls } = fakeClient(() => ok([{ timeline_rev: 1 }]));
+    const bad = makeProject(makeStandardTracks(), [makeClip({ id: "a", start: NaN })]);
+    await expect(createSupabaseTimelineStorage(client).save("p1", bad, 0)).rejects.toBeInstanceOf(
+      TimelineDocumentError,
+    );
+    expect(calls).toHaveLength(0);
+  });
+});

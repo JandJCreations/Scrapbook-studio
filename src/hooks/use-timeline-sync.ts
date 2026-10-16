@@ -45,6 +45,7 @@ export function useTimelineSync(projectId: string) {
       document.removeEventListener("visibilitychange", flushWhenHidden);
       window.removeEventListener("pagehide", flushNow);
       syncRef.current = null;
+      setFrame(null);
       void sync.stop();
     };
   }, [projectId]);

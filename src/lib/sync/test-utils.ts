@@ -37,6 +37,8 @@ export class MemoryTimelineStorage implements TimelineStorage {
   saveFailures = 0;
   /** Saves wait for this promise. */
   saveGate: Promise<void> | null = null;
+  /** Fail every save with this error (e.g. a TimelineDocumentError). */
+  saveError: Error | null = null;
 
   private inFlightSaves = 0;
   versions = new Map<
@@ -75,6 +77,7 @@ export class MemoryTimelineStorage implements TimelineStorage {
     this.maxInFlightSaves = Math.max(this.maxInFlightSaves, this.inFlightSaves);
     try {
       if (this.saveGate) await this.saveGate;
+      if (this.saveError) throw this.saveError;
       if (this.saveFailures > 0) {
         this.saveFailures -= 1;
         throw new Error("offline");
