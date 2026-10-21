@@ -197,3 +197,53 @@ describe("createMediaPool: dispose", () => {
     expect(pool.elementForClip("c1")).toBeUndefined();
   });
 });
+
+describe("createMediaPool: real play() behaviour", () => {
+  it("does not report an interrupted play (AbortError) as blocked", async () => {
+    const abort = Object.assign(new Error("interrupted by pause"), { name: "AbortError" });
+    const { deps, problems } = makeFakePoolDeps({ playError: abort });
+    const pool = createMediaPool(deps);
+    pool.apply(plan([command()]));
+    await flush();
+    expect(problems).toEqual([]);
+  });
+
+  it("ignores a rejection that arrives after the slot moved on", async () => {
+    const { deps, problems } = makeFakePoolDeps({ playError: new Error("late") });
+    const pool = createMediaPool(deps);
+    pool.apply(plan([command()]));
+    pool.apply(plan([], ["slot-1"]));
+    await flush();
+    expect(problems).toEqual([]);
+  });
+
+  it("does not restart an element that has played to its end", () => {
+    const { deps, created } = makeFakePoolDeps();
+    const pool = createMediaPool(deps);
+    pool.apply(plan([command({ seekTo: 0 })]));
+    const { element } = created[0];
+    element.duration = 5;
+    element.advance(10);
+    expect(element.ended).toBe(true);
+
+    pool.apply(plan([command({ slotId: "slot-1", load: false, seekTo: null, play: true })]));
+    expect(element.restarts).toBe(0);
+    expect(element.playCalls).toBe(1);
+    expect(element.currentTime).toBe(5);
+  });
+
+  it("plays again once the element is moved away from its end", () => {
+    const { deps, created } = makeFakePoolDeps();
+    const pool = createMediaPool(deps);
+    pool.apply(plan([command({ seekTo: 0 })]));
+    const { element } = created[0];
+    element.duration = 5;
+    element.advance(10);
+
+    pool.apply(plan([command({ slotId: "slot-1", load: false, seekTo: 1, play: true })]));
+    expect(element.playCalls).toBe(2);
+    expect(element.paused).toBe(false);
+    expect(element.restarts).toBe(0);
+    expect(element.currentTime).toBe(1);
+  });
+});

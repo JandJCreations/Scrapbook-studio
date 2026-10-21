@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { MediaSyncPlan } from "@/lib/engine/media-sync";
 import type { SlotState } from "@/lib/engine/slots";
 import { createTransport } from "@/lib/engine/transport";
-import { createPlaybackEngine, type FrameInfo } from "@/lib/playback/engine";
+import { createPlaybackEngine, type FrameInfo, type PlaybackEngine } from "@/lib/playback/engine";
 import type { MediaPool } from "@/lib/playback/media-pool";
 import { projectDuration } from "@/lib/timeline/clip-math";
 import { makeClip, makeProject, makeStandardTracks } from "@/lib/timeline/test-utils";
@@ -14,16 +14,24 @@ const projectWith = (id = "a") =>
     makeClip({ id, mediaId: "m", sourceIn: 0, sourceOut: 10, sourceDuration: 100 }),
   ]);
 
-function setup(initial: TimelineProject = projectWith()) {
+function setup(
+  initial: TimelineProject = projectWith(),
+  hooks: { onFrame?: (frame: FrameInfo, engine: PlaybackEngine) => void } = {},
+) {
   let project = initial;
   const clock = { now: 0 };
   const transport = createTransport({ now: () => clock.now, duration: () => projectDuration(project) });
 
   const applied: MediaSyncPlan[] = [];
-  const poolState = { slots: [] as SlotState[], disposed: 0 };
+  const poolState = { slots: [] as SlotState[], disposed: 0, applyError: null as Error | null };
   const pool: MediaPool = {
     slots: () => poolState.slots,
     apply: (plan) => {
+      if (poolState.applyError) {
+        const error = poolState.applyError;
+        poolState.applyError = null;
+        throw error;
+      }
       applied.push(plan);
     },
     elementForClip: () => undefined,
@@ -44,13 +52,18 @@ function setup(initial: TimelineProject = projectWith()) {
   };
 
   const frames: FrameInfo[] = [];
+  const holder: { engine?: PlaybackEngine } = {};
   const engine = createPlaybackEngine({
     transport,
     getProject: () => project,
     pool,
     schedule,
-    onFrame: (frame) => frames.push(frame),
+    onFrame: (frame) => {
+      frames.push(frame);
+      if (holder.engine) hooks.onFrame?.(frame, holder.engine);
+    },
   });
+  holder.engine = engine;
 
   return {
     clock,
@@ -153,5 +166,55 @@ describe("createPlaybackEngine", () => {
     const framesBefore = s.frames.length;
     s.engine.wake();
     expect(s.frames).toHaveLength(framesBefore);
+  });
+});
+
+describe("createPlaybackEngine: resilience", () => {
+  it("keeps the loop alive when drawing throws", () => {
+    let throwOnce = true;
+    const s = setup(projectWith(), {
+      onFrame: () => {
+        if (throwOnce) {
+          throwOnce = false;
+          throw new Error("draw failed");
+        }
+      },
+    });
+    s.transport.play();
+
+    expect(() => s.engine.wake()).toThrow("draw failed");
+    expect(s.pending()).toBe(1);
+    expect(() => s.runNext()).not.toThrow();
+    expect(s.frames).toHaveLength(2);
+  });
+
+  it("keeps the loop alive when applying the plan throws", () => {
+    const s = setup();
+    s.transport.play();
+    s.poolState.applyError = new Error("apply failed");
+
+    expect(() => s.engine.wake()).toThrow("apply failed");
+    expect(s.pending()).toBe(1);
+    s.runNext();
+    expect(s.applied).toHaveLength(1);
+  });
+
+  it("leaves a single loop when wake is called from inside onFrame", () => {
+    let rewoke = false;
+    const s = setup(projectWith(), {
+      onFrame: (_frame, engine) => {
+        if (!rewoke) {
+          rewoke = true;
+          engine.wake();
+        }
+      },
+    });
+    s.transport.play();
+    s.engine.wake();
+    expect(s.pending()).toBe(1);
+
+    s.transport.pause();
+    s.engine.wake();
+    expect(s.pending()).toBe(0);
   });
 });

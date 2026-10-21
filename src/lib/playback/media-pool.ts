@@ -7,6 +7,8 @@ export interface PoolElement {
   currentTime: number;
   playbackRate: number;
   readonly paused: boolean;
+  /** True once playback reached the end; calling play() then would restart from 0. */
+  readonly ended: boolean;
   src: string;
   play(): Promise<void> | void;
   pause(): void;
@@ -34,6 +36,14 @@ export interface MediaPool {
   /** The element serving a clip, or undefined if it has none or no loaded file. */
   elementForClip(clipId: string): PoolElement | undefined;
   dispose(): void;
+}
+
+function isAbort(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { name?: unknown }).name === "AbortError"
+  );
 }
 
 interface Slot {
@@ -102,12 +112,18 @@ export function createMediaPool(deps: MediaPoolDeps): MediaPool {
     slot.gain.set(command.gain);
 
     if (command.play) {
-      if (slot.element.paused) {
+      // An element that has played to its end stays put: play() would restart it from 0.
+      if (slot.element.paused && !slot.element.ended) {
         Promise.resolve(slot.element.play()).then(
           () => {
             blocked.delete(command.clipId);
           },
-          () => report({ clipId: command.clipId, kind: "play-blocked" }, blocked),
+          (error: unknown) => {
+            // A play() interrupted by pause() or a new load is not a problem,
+            // and neither is a rejection for a clip this slot no longer serves.
+            if (isAbort(error) || slot.clipId !== command.clipId) return;
+            report({ clipId: command.clipId, kind: "play-blocked" }, blocked);
+          },
         );
       }
     } else if (!slot.element.paused) {

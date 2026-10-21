@@ -18,6 +18,12 @@ export class FakeElement implements PoolElement {
   seeks: number[] = [];
   /** When set, play() rejects the way a browser blocking autoplay does. */
   playError: Error | null = null;
+  /** Length of the media; advance() stops (ended, paused) when it is reached. */
+  duration = Infinity;
+  /** True once playback reached the end, until the element is seeked away from it. */
+  ended = false;
+  /** How many times play() restarted an ended element from 0, as browsers do. */
+  restarts = 0;
 
   private time = 0;
   private source = "";
@@ -28,6 +34,7 @@ export class FakeElement implements PoolElement {
   set currentTime(value: number) {
     this.seeks.push(value);
     this.time = value;
+    this.ended = value >= this.duration;
   }
 
   get src(): string {
@@ -41,6 +48,12 @@ export class FakeElement implements PoolElement {
   play(): Promise<void> {
     this.playCalls += 1;
     if (this.playError) return Promise.reject(this.playError);
+    if (this.ended) {
+      // Per the HTML spec, play() on an ended element starts again from 0.
+      this.time = 0;
+      this.ended = false;
+      this.restarts += 1;
+    }
     this.paused = false;
     return Promise.resolve();
   }
@@ -52,7 +65,13 @@ export class FakeElement implements PoolElement {
 
   /** Simulates the browser playing for `seconds` of wall-clock time (not a seek). */
   advance(seconds: number): void {
-    if (!this.paused) this.time += seconds * this.playbackRate;
+    if (this.paused) return;
+    this.time += seconds * this.playbackRate;
+    if (this.time >= this.duration) {
+      this.time = this.duration;
+      this.paused = true;
+      this.ended = true;
+    }
   }
 }
 

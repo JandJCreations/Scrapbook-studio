@@ -33,33 +33,47 @@ export function createPlaybackEngine(deps: PlaybackEngineDeps): PlaybackEngine {
   let cancel: (() => void) | null = null;
   let disposed = false;
 
+  // A function (not inline code) because a re-entrant frame can set `cancel`
+  // while another frame is running, which control-flow analysis cannot see.
+  function cancelPending() {
+    cancel?.();
+    cancel = null;
+  }
+
   function frame() {
     cancel = null;
     if (disposed) return;
 
-    const { time, ended } = transport.tick();
-    const playing = transport.isPlaying();
+    let playing = false;
+    try {
+      const { time, ended } = transport.tick();
+      playing = transport.isPlaying();
 
-    // Apply the plan before notifying, so the picture only ever asks for an
-    // element that has already been assigned to its clip.
-    pool.apply(planMediaSync(getProject(), time, playing, pool.slots()));
-    onFrame({ time, playing, ended });
-
-    if (playing) cancel = schedule(frame);
+      // Apply the plan before notifying, so the picture only ever asks for an
+      // element that has already been assigned to its clip.
+      pool.apply(planMediaSync(getProject(), time, playing, pool.slots()));
+      onFrame({ time, playing, ended });
+    } finally {
+      // Always keep the loop going while playing, even if drawing threw:
+      // otherwise the elements keep playing with nothing driving the transport.
+      // Cancel first, so a wake() made from inside onFrame cannot leave two loops.
+      if (playing && !disposed) {
+        cancelPending();
+        cancel = schedule(frame);
+      }
+    }
   }
 
   return {
     wake() {
       if (disposed) return;
-      cancel?.();
-      cancel = null;
+      cancelPending();
       frame();
     },
 
     dispose() {
       disposed = true;
-      cancel?.();
-      cancel = null;
+      cancelPending();
       pool.dispose();
     },
   };
