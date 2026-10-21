@@ -56,15 +56,20 @@ export function activeClipsAt(project: TimelineProject, t: number): ActiveClip[]
   );
 }
 
-/** Linear gain for a clip at `localTime`: volume times the fade ramps, never below 0. */
-export function clipGainAt(clip: Clip, localTime: number): number {
-  let gain = clip.volume / 100;
+/** The fade-in and fade-out ramps multiplied together: 1 outside the fades, never below 0. */
+export function fadeFactor(clip: Clip, localTime: number): number {
+  let factor = 1;
   if (clip.fadeIn > 0 && localTime < clip.fadeIn) {
-    gain *= Math.max(0, localTime) / clip.fadeIn;
+    factor *= Math.max(0, localTime) / clip.fadeIn;
   }
   const remaining = clipDuration(clip) - localTime;
   if (clip.fadeOut > 0 && remaining < clip.fadeOut) {
-    gain *= Math.max(0, remaining) / clip.fadeOut;
+    factor *= Math.max(0, remaining) / clip.fadeOut;
   }
-  return Math.max(0, gain);
+  return factor;
+}
+
+/** Linear gain for a clip at `localTime`: volume times the fade ramps, never below 0. */
+export function clipGainAt(clip: Clip, localTime: number): number {
+  return Math.max(0, (clip.volume / 100) * fadeFactor(clip, localTime));
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { activeClipsAt, clipGainAt, isAudible } from "@/lib/timeline/active-clips";
+import { activeClipsAt, clipGainAt, fadeFactor, isAudible } from "@/lib/timeline/active-clips";
 import { clipsOnTrack } from "@/lib/timeline/lookup";
 import { packMagneticTracks } from "@/lib/timeline/pack";
 import {
@@ -189,5 +189,39 @@ describe("isAudible", () => {
   it("when any track is soloed, only soloed tracks are audible", () => {
     expect(isAudible(makeClip(), makeTrack({ solo: false }), true)).toBe(false);
     expect(isAudible(makeClip(), makeTrack({ solo: true }), true)).toBe(true);
+  });
+});
+
+describe("fadeFactor", () => {
+  const clip = (overrides = {}) => makeClip({ start: 0, sourceIn: 0, sourceOut: 10, ...overrides });
+
+  it("is 1 without fades, whatever the volume", () => {
+    expect(fadeFactor(clip({ volume: 30 }), 5)).toBe(1);
+  });
+
+  it("ramps up over the fade-in", () => {
+    const c = clip({ fadeIn: 2 });
+    expect(fadeFactor(c, 0)).toBe(0);
+    expect(fadeFactor(c, 1)).toBe(0.5);
+    expect(fadeFactor(c, 2)).toBe(1);
+  });
+
+  it("ramps down over the fade-out", () => {
+    const c = clip({ fadeOut: 2 });
+    expect(fadeFactor(c, 8)).toBe(1);
+    expect(fadeFactor(c, 9)).toBe(0.5);
+    expect(fadeFactor(c, 10)).toBe(0);
+  });
+
+  it("multiplies overlapping fades and never goes negative", () => {
+    expect(fadeFactor(clip({ fadeIn: 10, fadeOut: 10 }), 5)).toBe(0.25);
+    expect(fadeFactor(clip({ fadeIn: 2 }), -1)).toBe(0);
+    expect(fadeFactor(clip({ fadeOut: 2 }), 11)).toBe(0);
+  });
+
+  it("does not depend on volume, while clipGainAt does", () => {
+    const c = clip({ fadeIn: 2, volume: 50 });
+    expect(fadeFactor(c, 1)).toBe(0.5);
+    expect(clipGainAt(c, 1)).toBe(0.25);
   });
 });
