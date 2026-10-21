@@ -226,6 +226,72 @@ reverse and volume. It is checked in a real browser through Claude in Chrome
 common knowledge, so the Next docs under `node_modules/next/dist/docs/` are read
 before any route or client-component code is written.
 
+### 5.3 Picture and test page design, plan 3c (added 2026-10-21)
+
+Refines the 3c paragraph of 5.2 and carries in the obligations found by the 3b
+review. Everything here that touches the browser is verified in a real Chrome
+(Claude in Chrome); only the scene builder is unit-tested.
+
+**Scene builder (pure, unit-tested), `src/lib/playback/scene.ts`.**
+`buildScene(project, time, elementFor)` returns the draw list for one frame:
+for each clip active at `time` on a visible track, in paint order, its
+`clipDrawState`, and what to draw: the pool's element (video), an image to be
+loaded by media id (image), a labelled placeholder (text, sticker), or nothing
+(audio). A video clip whose element is not ready or not assigned yields a
+placeholder-free empty item, never a stale frame from another clip.
+
+**Konva painter (thin, imperative), `src/components/playback/`.** One Konva node
+per clip, kept in a map and updated each frame by the engine's `onFrame`
+(no per-frame React render), then one `batchDraw`. Z-order is paint order.
+Nodes are created when a clip first appears and destroyed when it leaves.
+Video clips use the pool's element as the node's image. Image clips use a
+cache of loaded images keyed by media id; an image that has not loaded yet
+draws nothing and triggers a redraw when it does.
+
+**Browser wiring, `src/lib/playback/browser.ts`.** The only module under
+`src/lib/playback/` allowed to touch the browser.
+- Frame loop: `requestAnimationFrame` as the scheduler and `performance.now()`
+  (seconds) as the transport clock.
+- Elements: created with `playsInline`, `preload = "auto"` and
+  `crossOrigin = "anonymous"` set before `src`, so remote media still reaches
+  the audio graph instead of being silenced.
+- Events: `seeked` and `loadeddata` wake the engine (a paused scrub or
+  frame step redraws once the frame has decoded); `error` is reported as a
+  problem; `error` events fired while disposing are ignored.
+- Audio: the context is created at page load (suspended) and resumed from the
+  first Play click; the first `play()` happens synchronously inside that click.
+- Ownership: the session disposes the engine, the pool and the audio graph
+  (`graph.close()`), and revokes object URLs it created.
+- The engine is woken when media appears or changes while paused.
+
+**Test page `/dev/playback`.** A public route (it needs no login or Supabase)
+that is a 404 in production. It follows the repo's pattern: a server page
+that calls `notFound()` in production, a client wrapper, and the view loaded
+with `dynamic(..., { ssr: false })`. The Next docs under
+`node_modules/next/dist/docs/` are read before any route code is written.
+- Adding media: file pickers for video, image and audio; an "add from URL" box
+  (to exercise cross-origin loading); and "generate sample clips".
+- Generated clips: two short clips made with the existing FFmpeg WASM
+  (`getFfmpeg`), using the `testsrc` pattern, which burns a running timecode
+  into the picture, plus a sine tone at a different pitch per clip. Different
+  colours or patterns let a cut between files be seen. The FFmpeg core is a
+  one-time download of about 30 MB from unpkg. If the core cannot produce the
+  pattern, generation fails with a clear message and the file pickers remain.
+- Controls: play, pause, scrub slider, frame step either way, split at the
+  playhead, delete, speed, reverse, volume, clip and track mute, track hide,
+  undo and redo. All edits go through the clip store and the pure operations.
+- Debug panel: elements created, loads and seeks (so the "one element across
+  a split" property is visible in a real browser), each element's file and
+  position, the current time, and the problems reported by the pool.
+
+**Verification in Chrome** (the user enables the Claude in Chrome extension
+before 3c is executed). Compare the picture's burned-in timecode with the
+playhead (frame accuracy); play across a split and read the debug counters;
+reverse and frame step; scrub while paused; cut between two generated files;
+load a clip from a cross-origin URL served with CORS headers by a throwaway
+local server outside the repo and confirm its audio graph is connected; and
+read the console for errors.
+
 ## 6. Timeline UI
 
 **Layout.** Preview on top, Media panel on the left, inspector on the right
