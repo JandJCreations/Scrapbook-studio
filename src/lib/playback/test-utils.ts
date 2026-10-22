@@ -1,3 +1,4 @@
+import type { AudioContextLike } from "@/lib/playback/audio-graph";
 import type { MediaElementKind } from "@/lib/engine/wanted";
 import type {
   GainControl,
@@ -134,4 +135,53 @@ export function makeFakePoolDeps(
   };
 
   return { deps, urls, created, gains, problems, ready };
+}
+
+export class FakeParam {
+  value = 1;
+  calls: Array<[number, number, number]> = [];
+  setTargetAtTime(value: number, startTime: number, timeConstant: number) {
+    this.calls.push([value, startTime, timeConstant]);
+    return this;
+  }
+}
+
+export class FakeNode {
+  connections: unknown[] = [];
+  connect(destination: unknown) {
+    this.connections.push(destination);
+    return destination;
+  }
+}
+
+export class FakeGainNode extends FakeNode {
+  gain = new FakeParam();
+}
+
+export class FakeAudioContext implements AudioContextLike {
+  currentTime = 0;
+  state = "running";
+  destination = { name: "destination" };
+  gains: FakeGainNode[] = [];
+  sources: Array<{ element: unknown; node: FakeNode }> = [];
+  resumed = 0;
+  closed = 0;
+
+  createGain() {
+    const node = new FakeGainNode();
+    this.gains.push(node);
+    return node;
+  }
+  createMediaElementSource(element: unknown) {
+    const node = new FakeNode();
+    this.sources.push({ element, node });
+    return node;
+  }
+  async resume() {
+    this.resumed += 1;
+    this.state = "running";
+  }
+  async close() {
+    this.closed += 1;
+  }
 }

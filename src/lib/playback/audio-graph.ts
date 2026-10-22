@@ -28,6 +28,8 @@ export interface AudioContextLike {
 }
 
 export interface AudioGraph {
+  /** The node connected to the destination; tap it to meter the output. */
+  readonly master: AudioNodeLike;
   /** Routes an element's sound through its own gain; the same control on repeat calls. */
   attach(element: PoolElement): GainControl;
   /** Call from a user gesture (the first Play click): browsers start the context suspended. */
@@ -44,6 +46,7 @@ export function createAudioGraph(ctx: AudioContextLike): AudioGraph {
   const controls = new WeakMap<PoolElement, GainControl>();
 
   return {
+    master,
     attach(element) {
       const existing = controls.get(element);
       if (existing) return existing;

@@ -5,71 +5,23 @@ import {
   GAIN_TIME_CONSTANT,
   type AudioContextLike,
 } from "@/lib/playback/audio-graph";
-import { FakeElement } from "@/lib/playback/test-utils";
+import { FakeAudioContext, FakeElement } from "@/lib/playback/test-utils";
 
 // Compile-time check: a real AudioContext satisfies AudioContextLike.
 const realContextFits = (ctx: AudioContext): AudioContextLike => ctx;
 void realContextFits;
 
-class FakeParam {
-  value = 1;
-  calls: Array<[number, number, number]> = [];
-  setTargetAtTime(value: number, startTime: number, timeConstant: number) {
-    this.calls.push([value, startTime, timeConstant]);
-    return this;
-  }
-}
-
-class FakeNode {
-  connections: unknown[] = [];
-  connect(destination: unknown) {
-    this.connections.push(destination);
-    return destination;
-  }
-}
-
-class FakeGainNode extends FakeNode {
-  gain = new FakeParam();
-}
-
-class FakeContext implements AudioContextLike {
-  currentTime = 0;
-  state = "running";
-  destination = { name: "destination" };
-  gains: FakeGainNode[] = [];
-  sources: Array<{ element: unknown; node: FakeNode }> = [];
-  resumed = 0;
-  closed = 0;
-
-  createGain() {
-    const node = new FakeGainNode();
-    this.gains.push(node);
-    return node;
-  }
-  createMediaElementSource(element: unknown) {
-    const node = new FakeNode();
-    this.sources.push({ element, node });
-    return node;
-  }
-  async resume() {
-    this.resumed += 1;
-    this.state = "running";
-  }
-  async close() {
-    this.closed += 1;
-  }
-}
-
 describe("createAudioGraph", () => {
+it("exposes the master node so a meter can tap it", () => {    const ctx = new FakeAudioContext();    const graph = createAudioGraph(ctx);    expect(graph.master).toBe(ctx.gains[0]);  });
   it("connects a master gain to the destination", () => {
-    const ctx = new FakeContext();
+    const ctx = new FakeAudioContext();
     createAudioGraph(ctx);
     expect(ctx.gains).toHaveLength(1);
     expect(ctx.gains[0].connections).toEqual([ctx.destination]);
   });
 
   it("routes an attached element through its own silent gain into the master", () => {
-    const ctx = new FakeContext();
+    const ctx = new FakeAudioContext();
     const graph = createAudioGraph(ctx);
     const element = new FakeElement();
     graph.attach(element);
@@ -82,7 +34,7 @@ describe("createAudioGraph", () => {
   });
 
   it("connects an element only once", () => {
-    const ctx = new FakeContext();
+    const ctx = new FakeAudioContext();
     const graph = createAudioGraph(ctx);
     const element = new FakeElement();
     const first = graph.attach(element);
@@ -92,7 +44,7 @@ describe("createAudioGraph", () => {
   });
 
   it("gives each element its own gain node", () => {
-    const ctx = new FakeContext();
+    const ctx = new FakeAudioContext();
     const graph = createAudioGraph(ctx);
     graph.attach(new FakeElement());
     graph.attach(new FakeElement());
@@ -100,7 +52,7 @@ describe("createAudioGraph", () => {
   });
 
   it("smooths gain changes from the current time", () => {
-    const ctx = new FakeContext();
+    const ctx = new FakeAudioContext();
     const graph = createAudioGraph(ctx);
     const control = graph.attach(new FakeElement());
     ctx.currentTime = 5;
@@ -109,7 +61,7 @@ describe("createAudioGraph", () => {
   });
 
   it("allows gains above 1 and clamps negative and non-finite gains to 0", () => {
-    const ctx = new FakeContext();
+    const ctx = new FakeAudioContext();
     const graph = createAudioGraph(ctx);
     const control = graph.attach(new FakeElement());
     for (const value of [1.5, -1, NaN, Infinity]) control.set(value);
@@ -117,7 +69,7 @@ describe("createAudioGraph", () => {
   });
 
   it("resumes only a suspended context and reports whether it is running", async () => {
-    const ctx = new FakeContext();
+    const ctx = new FakeAudioContext();
     const graph = createAudioGraph(ctx);
     await graph.resume();
     expect(ctx.resumed).toBe(0);
@@ -130,7 +82,7 @@ describe("createAudioGraph", () => {
   });
 
   it("closes the context", async () => {
-    const ctx = new FakeContext();
+    const ctx = new FakeAudioContext();
     await createAudioGraph(ctx).close();
     expect(ctx.closed).toBe(1);
   });
