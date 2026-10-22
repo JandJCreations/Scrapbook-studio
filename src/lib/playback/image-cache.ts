@@ -1,7 +1,7 @@
 /** The part of an HTMLImageElement the cache uses. */
 export interface ImageLike {
-  onload: (() => void) | null;
-  onerror: (() => void) | null;
+  onload: ((event: Event) => void) | null;
+  onerror: ((event: Event | string) => void) | null;
   crossOrigin: string | null;
   src: string;
 }
