@@ -12,13 +12,18 @@ export interface PoolElement {
   src: string;
   play(): Promise<void> | void;
   pause(): void;
+  /** Optional: when present the pool listens for load errors and decoded frames. */
+  addEventListener?(type: "error" | "seeked" | "loadeddata", listener: () => void): void;
 }
 
 export interface GainControl {
   set(gain: number): void;
 }
 
-export type PoolProblem = { clipId: string; kind: "missing-media" | "play-blocked" };
+export type PoolProblem = {
+  clipId: string;
+  kind: "missing-media" | "play-blocked" | "load-error";
+};
 
 export interface MediaPoolDeps {
   createElement(kind: MediaElementKind): PoolElement;
@@ -27,6 +32,8 @@ export interface MediaPoolDeps {
   /** Routes the element's sound through the audio graph; returns its volume control. */
   attachGain(element: PoolElement): GainControl;
   onProblem?(problem: PoolProblem): void;
+  /** A frame became available (an element finished seeking or loading); the owner should redraw. */
+  onElementReady?(): void;
 }
 
 export interface MediaPool {
@@ -59,6 +66,8 @@ export function createMediaPool(deps: MediaPoolDeps): MediaPool {
   const slots = new Map<string, Slot>();
   const missing = new Set<string>(); // clips already reported as missing media
   const blocked = new Set<string>(); // clips already reported as blocked
+  const failed = new Set<string>(); // clips already reported as load errors
+  let disposed = false;
   let counter = 0;
 
   function report(problem: PoolProblem, seen: Set<string>) {
@@ -84,6 +93,21 @@ export function createMediaPool(deps: MediaPoolDeps): MediaPool {
       clipId: null,
     };
     slots.set(slot.id, slot);
+
+    element.addEventListener?.("error", () => {
+      // Ignore errors caused by emptying the element on dispose, and errors from a
+      // slot that serves no clip or holds no loaded file.
+      if (disposed || slot.clipId === null || slot.mediaId === null) return;
+      report({ clipId: slot.clipId, kind: "load-error" }, failed);
+    });
+    element.addEventListener?.("loadeddata", () => {
+      if (disposed) return;
+      if (slot.clipId !== null) failed.delete(slot.clipId);
+      deps.onElementReady?.();
+    });
+    element.addEventListener?.("seeked", () => {
+      if (!disposed) deps.onElementReady?.();
+    });
     return slot;
   }
 
@@ -103,6 +127,7 @@ export function createMediaPool(deps: MediaPoolDeps): MediaPool {
       slot.element.src = url;
       slot.mediaId = command.mediaId;
       missing.delete(command.clipId);
+      failed.delete(command.clipId);
     }
 
     if (command.seekTo !== null) slot.element.currentTime = command.seekTo;
@@ -152,6 +177,7 @@ export function createMediaPool(deps: MediaPoolDeps): MediaPool {
         if (slot.clipId !== null) {
           missing.delete(slot.clipId);
           blocked.delete(slot.clipId);
+          failed.delete(slot.clipId);
         }
         slot.clipId = null;
       }
@@ -166,6 +192,7 @@ export function createMediaPool(deps: MediaPoolDeps): MediaPool {
     },
 
     dispose() {
+      disposed = true;
       for (const slot of slots.values()) {
         silence(slot);
         slot.element.src = "";
@@ -173,6 +200,7 @@ export function createMediaPool(deps: MediaPoolDeps): MediaPool {
       slots.clear();
       missing.clear();
       blocked.clear();
+      failed.clear();
     },
   };
 }

@@ -247,3 +247,72 @@ describe("createMediaPool: real play() behaviour", () => {
     expect(element.currentTime).toBe(1);
   });
 });
+
+describe("createMediaPool: element events", () => {
+  it("reports an element load error once for the clip it serves", () => {
+    const { deps, created, problems } = makeFakePoolDeps();
+    createMediaPool(deps).apply(plan([command()]));
+    created[0].element.emit("error");
+    created[0].element.emit("error");
+    expect(problems).toEqual([{ clipId: "c1", kind: "load-error" }]);
+  });
+
+  it("reports again after the file loads successfully and then fails", () => {
+    const { deps, created, problems } = makeFakePoolDeps();
+    createMediaPool(deps).apply(plan([command()]));
+    created[0].element.emit("error");
+    created[0].element.emit("loadeddata");
+    created[0].element.emit("error");
+    expect(problems).toHaveLength(2);
+  });
+
+  it("ignores errors from a slot that serves no clip or has no loaded file", () => {
+    const released = makeFakePoolDeps();
+    const releasedPool = createMediaPool(released.deps);
+    releasedPool.apply(plan([command()]));
+    releasedPool.apply(plan([], ["slot-1"]));
+    released.created[0].element.emit("error");
+    expect(released.problems).toEqual([]);
+
+    const missing = makeFakePoolDeps({ urls: { m: null } });
+    createMediaPool(missing.deps).apply(plan([command()]));
+    missing.created[0].element.emit("error");
+    expect(missing.problems).toEqual([{ clipId: "c1", kind: "missing-media" }]);
+  });
+
+  it("ignores every event once the pool is disposed", () => {
+    const { deps, created, problems, ready } = makeFakePoolDeps();
+    const pool = createMediaPool(deps);
+    pool.apply(plan([command()]));
+    pool.dispose();
+    created[0].element.emit("error"); // Chrome fires this when src is emptied
+    created[0].element.emit("loadeddata");
+    created[0].element.emit("seeked");
+    expect(problems).toEqual([]);
+    expect(ready.count).toBe(0);
+  });
+
+  it("tells the owner when a frame becomes available", () => {
+    const { deps, created, ready } = makeFakePoolDeps();
+    createMediaPool(deps).apply(plan([command()]));
+    created[0].element.emit("seeked");
+    created[0].element.emit("loadeddata");
+    expect(ready.count).toBe(2);
+  });
+
+  it("works with elements that cannot report events", () => {
+    const { deps } = makeFakePoolDeps();
+    const bare = {
+      currentTime: 0,
+      playbackRate: 1,
+      paused: true,
+      ended: false,
+      src: "",
+      play: () => {},
+      pause: () => {},
+    };
+    const pool = createMediaPool({ ...deps, createElement: () => bare });
+    expect(() => pool.apply(plan([command()]))).not.toThrow();
+    expect(bare.src).toBe("blob:m");
+  });
+});

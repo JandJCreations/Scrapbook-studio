@@ -25,6 +25,18 @@ export class FakeElement implements PoolElement {
   /** How many times play() restarted an ended element from 0, as browsers do. */
   restarts = 0;
 
+  private listeners = new Map<string, Array<() => void>>();
+
+  addEventListener(type: string, listener: () => void): void {
+    const existing = this.listeners.get(type) ?? [];
+    this.listeners.set(type, [...existing, listener]);
+  }
+
+  /** Fires the listeners registered for an event, the way the browser would. */
+  emit(type: string): void {
+    for (const listener of this.listeners.get(type) ?? []) listener();
+  }
+
   private time = 0;
   private source = "";
 
@@ -98,6 +110,7 @@ export function makeFakePoolDeps(
   const created: Array<{ kind: MediaElementKind; element: FakeElement }> = [];
   const gains = new Map<PoolElement, FakeGain>();
   const problems: PoolProblem[] = [];
+  const ready = { count: 0 };
 
   const deps: MediaPoolDeps = {
     createElement(kind) {
@@ -115,7 +128,10 @@ export function makeFakePoolDeps(
     onProblem: (problem) => {
       problems.push(problem);
     },
+    onElementReady: () => {
+      ready.count += 1;
+    },
   };
 
-  return { deps, urls, created, gains, problems };
+  return { deps, urls, created, gains, problems, ready };
 }
