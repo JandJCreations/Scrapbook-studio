@@ -19,6 +19,8 @@ export interface ThumbnailService {
 
 const DEFAULT_MAX_ENTRIES = 400;
 const GIVE_UP_AFTER_FAILURES = 2;
+/** More waiting requests than this are tiles the user has already scrolled or zoomed past. */
+const MAX_QUEUE = 48;
 
 interface Job {
   key: string;
@@ -96,6 +98,8 @@ export function createThumbnailService(options: {
       if (running?.key === key) return null;
       queue = queue.filter((job) => job.key !== key); // asked again: move to the front
       queue.push({ key, mediaId, time: q });
+      // The end of the queue is the newest request; drop the oldest ones first.
+      if (queue.length > MAX_QUEUE) queue.splice(0, queue.length - MAX_QUEUE);
       pump();
       return null;
     },

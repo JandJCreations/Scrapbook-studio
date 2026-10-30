@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   MAX_TILES_PER_CLIP,
+  peakBucketCount,
   quantizeTime,
   sourceTimeAt,
   thumbnailTiles,
@@ -138,12 +139,29 @@ describe("waveformBars", () => {
 });
 
 describe("waveformPath", () => {
-  it("draws one centred vertical stroke per bar", () => {
-    expect(waveformPath([1, 0.5], 100)).toBe("M0.5 0V100M1.5 25V75");
+  it("draws a closed envelope: the top edge forward, then the bottom edge back", () => {
+    expect(waveformPath([1, 0.5], 100)).toBe("M0.5 0L1.5 25L1.5 75L0.5 100Z");
   });
 
-  it("keeps silence visible as a thin line and is empty for no bars", () => {
-    expect(waveformPath([0], 100)).toBe("M0.5 49V51");
+  it("stays connected however far apart the bars are drawn", () => {
+    const path = waveformPath([0.2, 0.9, 0.4], 100);
+    // Three points on the top edge and three on the bottom: a single outline, no gaps.
+    expect(path.match(/M/g)).toHaveLength(1);
+    expect(path.match(/L/g)).toHaveLength(5);
+    expect(path.endsWith("Z")).toBe(true);
+  });
+
+  it("keeps silence visible as a thin shape and is empty for no bars", () => {
+    expect(waveformPath([0], 100)).toBe("M0.5 49L0.5 51Z");
     expect(waveformPath([])).toBe("");
+  });
+});
+
+describe("peakBucketCount", () => {
+  it("gives short files the minimum and long ones more, up to a cap", () => {
+    expect(peakBucketCount(6)).toBe(2000);
+    expect(peakBucketCount(240)).toBe(12000);
+    expect(peakBucketCount(100000)).toBe(20000);
+    expect(peakBucketCount(0)).toBe(2000);
   });
 });

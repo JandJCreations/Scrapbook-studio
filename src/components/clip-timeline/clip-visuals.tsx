@@ -98,10 +98,10 @@ function Waveform({ clip, width, visuals }: ClipVisualsProps) {
     >
       <path
         d={path}
-        stroke="rgba(255,255,255,0.8)"
+        fill="rgba(255,255,255,0.55)"
+        stroke="rgba(255,255,255,0.9)"
         strokeWidth={1}
         vectorEffect="non-scaling-stroke"
-        fill="none"
       />
     </svg>
   );

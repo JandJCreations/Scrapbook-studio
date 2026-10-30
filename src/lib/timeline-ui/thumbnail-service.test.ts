@@ -162,6 +162,21 @@ describe("createThumbnailService", () => {
     expect(service.get("m", 1)).toBeNull();
   });
 
+  it("keeps only the newest requests when far more are asked for than can be shown", async () => {
+    const { service, calls } = setup();
+    for (let t = 1; t <= 100; t++) service.get("m", t); // tiles that scrolled past, then scrolled on
+    expect(calls).toHaveLength(1); // the first started at once
+    for (let i = 0; i < 200 && calls.length > i; i++) {
+      calls[i].resolve(`f${i}`);
+      await flush();
+    }
+    // The running one plus a bounded backlog, and the backlog is the newest part.
+    expect(calls).toHaveLength(1 + 48);
+    expect(calls[1].time).toBe(100); // newest first
+    expect(calls[calls.length - 1].time).toBe(53); // the 48 newest were kept: 100 down to 53
+    expect(calls.map((c) => c.time)).not.toContain(10);
+  });
+
   it("stops notifying an unsubscribed listener", async () => {
     const fake = fakeExtractor();
     const service = createThumbnailService({ urlFor: () => "blob:x", extractor: fake.extractor });

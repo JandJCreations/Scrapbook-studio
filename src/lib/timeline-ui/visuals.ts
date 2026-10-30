@@ -95,13 +95,31 @@ export function waveformBars(peaks: number[], clip: Clip, barCount: number): num
   return clip.reversed ? bars.reverse() : bars;
 }
 
-/** One vertical stroke per bar, centred; silence stays a thin visible line. */
+/**
+ * A closed envelope outline: the top edge left to right, then the bottom edge
+ * back. Joining the points keeps the waveform solid however far apart the bars
+ * land (a long song's bars are many pixels apart); silence stays a thin shape.
+ */
 export function waveformPath(bars: number[], height = 100): string {
+  if (bars.length === 0) return "";
   const mid = height / 2;
-  return bars
-    .map((bar, i) => {
-      const half = Math.max(1, (bar * height) / 2);
-      return `M${round2(i + 0.5)} ${round2(mid - half)}V${round2(mid + half)}`;
-    })
-    .join("");
+  const half = (bar: number) => Math.max(1, (bar * height) / 2);
+  const top = bars.map((bar, i) => `${round2(i + 0.5)} ${round2(mid - half(bar))}`);
+  const bottom = bars.map((bar, i) => `${round2(i + 0.5)} ${round2(mid + half(bar))}`).reverse();
+  return (
+    `M${top[0]}` +
+    top.slice(1).map((point) => `L${point}`).join("") +
+    bottom.map((point) => `L${point}`).join("") +
+    "Z"
+  );
+}
+
+const MIN_PEAK_BUCKETS = 2000;
+const MAX_PEAK_BUCKETS = 20000;
+const PEAKS_PER_SECOND = 50;
+
+/** How many peaks to keep for a file: more for long ones, so a trimmed part still has detail. */
+export function peakBucketCount(durationSeconds: number): number {
+  const wanted = Math.ceil(Math.max(0, durationSeconds) * PEAKS_PER_SECOND);
+  return Math.min(MAX_PEAK_BUCKETS, Math.max(MIN_PEAK_BUCKETS, wanted));
 }
