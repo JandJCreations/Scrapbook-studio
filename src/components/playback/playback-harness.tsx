@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import type { MediaVisuals } from "@/components/clip-timeline/clip-visuals";
 import { TimelineView } from "@/components/clip-timeline/timeline-view";
 import { createScenePainter } from "@/components/playback/scene-painter";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,10 @@ import { generateSampleClip, SAMPLE_CLIPS } from "@/lib/playback/sample-clips";
 import { buildScene } from "@/lib/playback/scene";
 import { createPlaybackSession, type PlaybackSession } from "@/lib/playback/session";
 import { emptyTimeline } from "@/lib/sync/timeline-document";
+import { createVideoFrameExtractor, loadPeaksFromUrl } from "@/lib/timeline-ui/browser-media";
+import { createThumbnailService } from "@/lib/timeline-ui/thumbnail-service";
+import { makeToneWav } from "@/lib/timeline-ui/tone-wav";
+import { createWaveformService } from "@/lib/timeline-ui/waveform-service";
 import { setSpeed, updateClip } from "@/lib/timeline/clip-edits";
 import { projectDuration } from "@/lib/timeline/clip-math";
 import { deleteClips } from "@/lib/timeline/delete";
@@ -130,6 +135,7 @@ export function PlaybackHarness() {
   const [urlText, setUrlText] = React.useState("");
   const [urlKind, setUrlKind] = React.useState<MediaItem["kind"]>("video");
   const [debug, setDebug] = React.useState<DebugSnapshot | null>(null);
+  const [visuals, setVisuals] = React.useState<MediaVisuals | null>(null);
 
   const project = useClipProjectStore(selectProject);
   const selectedIds = useClipProjectStore((s) => s.selectedClipIds);
@@ -148,6 +154,17 @@ export function PlaybackHarness() {
     const registry = createObjectUrlRegistry();
     registryRef.current = registry;
     aliveRef.current = true;
+
+    // Thumbnails and waveforms for the timeline chips, tied to this mount.
+    const thumbnails = createThumbnailService({
+      urlFor: (mediaId) => registry.urlFor(mediaId),
+      extractor: createVideoFrameExtractor(),
+    });
+    const waveforms = createWaveformService({
+      urlFor: (mediaId) => registry.urlFor(mediaId),
+      loadPeaks: loadPeaksFromUrl,
+    });
+    setVisuals({ thumbnails, waveforms, urlFor: (mediaId) => registry.urlFor(mediaId) });
 
     useClipProjectStore.getState().load(emptyTimeline(PROJECT_ID));
     useTransportStore.getState().reset();
@@ -234,6 +251,9 @@ export function PlaybackHarness() {
       observer.disconnect();
       delete window.__playbackHarness;
       sessionRef.current = null;
+      thumbnails.dispose();
+      waveforms.dispose();
+      setVisuals(null);
       painter.destroy();
       void session.dispose();
     };
@@ -356,6 +376,20 @@ export function PlaybackHarness() {
             </label>
             <Button disabled={busy} variant="secondary" onClick={generateSamples}>
               Generate sample clips
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                const bytes = makeToneWav({ seconds: 6, hz: 330 });
+                const result = await add(
+                  { blob: new Blob([new Uint8Array(bytes)], { type: "audio/wav" }) },
+                  "Sample tone",
+                  "audio",
+                );
+                say(summarizeErrors([result]));
+              }}
+            >
+              Add sample tone
             </Button>
             <div className="flex items-center gap-2">
               <input
@@ -522,6 +556,7 @@ export function PlaybackHarness() {
         onSeek={(t) => sessionRef.current?.seek(t)}
         onToggle={() => sessionRef.current?.toggle()}
         onStep={(direction) => sessionRef.current?.step(direction, FPS)}
+        visuals={visuals ?? undefined}
       />
     </main>
   );
