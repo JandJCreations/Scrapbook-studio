@@ -6,6 +6,7 @@ import {
   keepPlayheadVisible,
   MIN_CLIP_WIDTH,
   pointerToTime,
+  scrollAfterTimeChange,
   trackLayout,
 } from "@/lib/timeline-ui/layout";
 import { makeClip, makeProject, makeStandardTracks } from "@/lib/timeline/test-utils";
@@ -90,5 +91,17 @@ describe("keepPlayheadVisible", () => {
 
   it("never scrolls below zero", () => {
     expect(keepPlayheadVisible({ scrollLeft: 400, viewportWidth: 500, playheadX: 10 })).toBe(0);
+  });
+});
+
+describe("scrollAfterTimeChange", () => {
+  const off = { scrollLeft: 0, viewportWidth: 500, playheadX: 900 };
+
+  it("follows the playhead like keepPlayheadVisible when not scrubbing", () => {
+    expect(scrollAfterTimeChange({ ...off, scrubbing: false })).toBe(keepPlayheadVisible(off));
+  });
+
+  it("leaves the view alone while the user is scrubbing", () => {
+    expect(scrollAfterTimeChange({ ...off, scrubbing: true })).toBe(0);
   });
 });

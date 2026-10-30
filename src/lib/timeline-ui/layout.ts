@@ -71,3 +71,17 @@ export function keepPlayheadVisible(args: {
   }
   return Math.max(0, playheadX - viewportWidth * PAGE_LEAD);
 }
+
+/**
+ * Where to scroll after the playhead moved. While the user is scrubbing the
+ * view stays put: following the pointer would move the click target out from
+ * under it and page the view repeatedly near the edges.
+ */
+export function scrollAfterTimeChange(args: {
+  scrubbing: boolean;
+  scrollLeft: number;
+  viewportWidth: number;
+  playheadX: number;
+}): number {
+  return args.scrubbing ? args.scrollLeft : keepPlayheadVisible(args);
+}

@@ -8,6 +8,7 @@ import { TrackHeader } from "@/components/clip-timeline/track-header";
 import {
   timelineWidth,
   timeToX,
+  wheelZoomFactor,
   ZOOM_DEFAULT,
   zoomAround,
 } from "@/lib/timeline-ui/geometry";
@@ -15,7 +16,7 @@ import { commandForKey, nextSelection } from "@/lib/timeline-ui/interactions";
 import {
   clipRect,
   HEADER_WIDTH,
-  keepPlayheadVisible,
+  scrollAfterTimeChange,
   pointerToTime,
   RULER_HEIGHT,
   trackLayout,
@@ -37,6 +38,14 @@ function isEditable(target: EventTarget | null, key: string): boolean {
   if (["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return true;
   // A focused button handles Space itself; do not also toggle playback.
   return target.tagName === "BUTTON" && key === " ";
+}
+
+// Widgets that use the arrow keys, Space and Home/End themselves.
+const WIDGET_SELECTOR =
+  '[role="menu"],[role="menuitem"],[role="listbox"],[role="option"],[role="slider"],[role="tab"],[role="dialog"],[aria-modal="true"]';
+
+function insideWidget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(WIDGET_SELECTOR) !== null;
 }
 
 export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
@@ -66,10 +75,14 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
   );
   const selectedSet = React.useMemo(() => new Set(selectedIds), [selectedIds]);
 
-  // The latest values for listeners that are registered once.
-  const latest = React.useRef({ pps, duration, onSeek, onToggle, onStep });
+  // The latest values for listeners that are registered once. The zoom level
+  // lives in its own ref, written synchronously by the wheel handler: a burst
+  // of pinch events arrives faster than React renders, and each step must
+  // build on the one before it.
+  const ppsRef = React.useRef(ZOOM_DEFAULT);
+  const latest = React.useRef({ duration, onSeek, onToggle, onStep });
   React.useEffect(() => {
-    latest.current = { pps, duration, onSeek, onToggle, onStep };
+    latest.current = { duration, onSeek, onToggle, onStep };
   });
 
   // Track the visible width.
@@ -92,13 +105,13 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
       if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
       const rect = container.getBoundingClientRect();
-      const anchorX = Math.max(0, event.clientX - rect.left - HEADER_WIDTH);
-      const factor = Math.exp(-event.deltaY * 0.01);
+      const anchorX = Math.max(0, event.clientX - rect.left - container.clientLeft - HEADER_WIDTH);
       const next = zoomAround(
-        { pps: latest.current.pps, scrollLeft: container.scrollLeft },
-        factor,
+        { pps: ppsRef.current, scrollLeft: pendingScroll.current ?? container.scrollLeft },
+        wheelZoomFactor(event.deltaY, event.deltaMode),
         anchorX,
       );
+      ppsRef.current = next.pps;
       pendingScroll.current = next.scrollLeft;
       setPps(next.pps);
     };
@@ -123,10 +136,11 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
     lastTime.current = time;
     const container = containerRef.current;
     if (!container) return;
-    const next = keepPlayheadVisible({
+    const next = scrollAfterTimeChange({
+      scrubbing: scrubbing.current,
       scrollLeft: container.scrollLeft,
       viewportWidth: container.clientWidth - HEADER_WIDTH,
-      playheadX: timeToX(time, latest.current.pps),
+      playheadX: timeToX(time, ppsRef.current),
     });
     if (next !== container.scrollLeft) container.scrollLeft = next;
   }, [time]);
@@ -141,6 +155,7 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
         shiftKey: event.shiftKey,
         altKey: event.altKey,
         editable: isEditable(event.target, event.key),
+        handled: event.defaultPrevented || insideWidget(event.target),
       });
       if (!command) return;
       event.preventDefault();
@@ -173,7 +188,7 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
   const seekFromPointer = (clientX: number) => {
     const ruler = rulerRef.current;
     if (!ruler) return;
-    const t = pointerToTime(clientX, ruler.getBoundingClientRect().left, latest.current.pps);
+    const t = pointerToTime(clientX, ruler.getBoundingClientRect().left, ppsRef.current);
     latest.current.onSeek(Math.min(t, latest.current.duration));
   };
 

@@ -6,6 +6,7 @@ import {
   formatTimecode,
   rulerTicks,
   timelineWidth,
+  wheelZoomFactor,
   timeToX,
   xToTime,
   zoomAround,
@@ -99,5 +100,23 @@ describe("rulerTicks", () => {
     const times = ticks.map((t) => t.time);
     expect(times.every((t) => t >= 0)).toBe(true);
     expect([...times].sort((a, b) => a - b)).toEqual(times);
+  });
+});
+
+describe("wheelZoomFactor", () => {
+  it("zooms about one third per mouse-wheel notch, symmetrically", () => {
+    const zoomIn = wheelZoomFactor(-100, 0);
+    expect(zoomIn).toBeGreaterThan(1.2);
+    expect(zoomIn).toBeLessThan(1.5);
+    expect(wheelZoomFactor(100, 0)).toBeCloseTo(1 / zoomIn, 9);
+  });
+
+  it("never jumps more than one notch for a huge delta", () => {
+    expect(wheelZoomFactor(-5000, 0)).toBeCloseTo(wheelZoomFactor(-100, 0), 9);
+  });
+
+  it("treats three lines as one notch and leaves small trackpad deltas small", () => {
+    expect(wheelZoomFactor(-3, 1)).toBeCloseTo(wheelZoomFactor(-99, 0), 9);
+    expect(wheelZoomFactor(-4, 0)).toBeLessThan(1.02);
   });
 });

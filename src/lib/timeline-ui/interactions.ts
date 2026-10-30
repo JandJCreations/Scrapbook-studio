@@ -23,10 +23,12 @@ export interface KeyInput {
   altKey: boolean;
   /** True when focus is in an input, select, textarea or contenteditable element. */
   editable: boolean;
+  /** True when another widget already handled this key (a menu, dialog, listbox, slider, tab...). */
+  handled: boolean;
 }
 
 export function commandForKey(input: KeyInput): TimelineCommand | null {
-  if (input.editable || input.altKey) return null;
+  if (input.editable || input.handled || input.altKey) return null;
   const modifier = input.ctrlKey || input.metaKey;
 
   if (modifier) {

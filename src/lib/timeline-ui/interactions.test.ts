@@ -9,6 +9,7 @@ const key = (overrides: Partial<KeyInput>): KeyInput => ({
   shiftKey: false,
   altKey: false,
   editable: false,
+  handled: false,
   ...overrides,
 });
 
@@ -54,5 +55,13 @@ describe("commandForKey", () => {
     expect(commandForKey(key({ key: "a" }))).toBeNull();
     expect(commandForKey(key({ key: "ArrowLeft", ctrlKey: true }))).toBeNull();
     expect(commandForKey(key({ key: " ", metaKey: true }))).toBeNull();
+  });
+});
+
+describe("commandForKey: keys another widget already handled", () => {
+  it("ignores a key that a menu, dialog or other widget has handled", () => {
+    expect(commandForKey(key({ key: "ArrowLeft", handled: true }))).toBeNull();
+    expect(commandForKey(key({ key: " ", handled: true }))).toBeNull();
+    expect(commandForKey(key({ key: "z", ctrlKey: true, handled: true }))).toBeNull();
   });
 });

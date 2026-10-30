@@ -78,3 +78,19 @@ export function rulerTicks(pps: number, startTime: number, endTime: number): Rul
   }
   return ticks.filter((t) => t.time <= endTime + 1e-9).sort((a, b) => a.time - b.time);
 }
+
+const WHEEL_NOTCH_PX = 100;
+const WHEEL_LINE_PX = 33;
+const WHEEL_PAGE_PX = 400;
+const WHEEL_ZOOM_RATE = 0.003;
+
+/**
+ * Zoom factor for one wheel event. A mouse-wheel notch (about 100 px) is a
+ * zoom of about a third; one event never exceeds a notch; trackpad pinch
+ * (many small deltas) stays smooth. Negative delta zooms in.
+ */
+export function wheelZoomFactor(deltaY: number, deltaMode: number): number {
+  const unit = deltaMode === 1 ? WHEEL_LINE_PX : deltaMode === 2 ? WHEEL_PAGE_PX : 1;
+  const pixels = Math.max(-WHEEL_NOTCH_PX, Math.min(WHEEL_NOTCH_PX, deltaY * unit));
+  return Math.exp(-pixels * WHEEL_ZOOM_RATE);
+}
