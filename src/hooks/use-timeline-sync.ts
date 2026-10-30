@@ -6,13 +6,14 @@ import { createClient } from "@/lib/supabase/client";
 import { createSupabaseTimelineStorage } from "@/lib/sync/supabase-timeline-storage";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { createTimelineSync, type SyncStatus, type TimelineSync } from "@/lib/sync/timeline-sync";
+import type { TimelineStorage } from "@/lib/sync/timeline-storage";
 import { selectSavableProject, useClipProjectStore } from "@/store/use-clip-project-store";
 
 /**
  * Loads a project's timeline into the clip store and keeps it saved. `reload`
  * retries after a load error or discards local edits after a conflict.
  */
-export function useTimelineSync(projectId: string) {
+export function useTimelineSync(projectId: string, storage?: TimelineStorage) {
   const [status, setStatus] = React.useState<SyncStatus>({ phase: "loading", error: null });
   const [frame, setFrame] = React.useState<FrameSize | null>(null);
   const syncRef = React.useRef<TimelineSync | null>(null);
@@ -20,7 +21,7 @@ export function useTimelineSync(projectId: string) {
   React.useEffect(() => {
     const sync = createTimelineSync({
       projectId,
-      storage: createSupabaseTimelineStorage(createClient()),
+      storage: storage ?? createSupabaseTimelineStorage(createClient()),
       getSavable: () => selectSavableProject(useClipProjectStore.getState()),
       subscribe: (listener) => useClipProjectStore.subscribe(listener),
       loadProject: (project, loadedFrame) => {
@@ -48,11 +49,11 @@ export function useTimelineSync(projectId: string) {
       setFrame(null);
       void sync.stop();
     };
-  }, [projectId]);
+  }, [projectId, storage]);
 
   const reload = React.useCallback(() => {
     syncRef.current?.load();
   }, []);
 
-  return { status, frame, reload };
+  return { status, frame, setFrame, reload };
 }
