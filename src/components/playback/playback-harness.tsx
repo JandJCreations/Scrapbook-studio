@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { TimelineView } from "@/components/clip-timeline/timeline-view";
 import { createScenePainter } from "@/components/playback/scene-painter";
 import { Button } from "@/components/ui/button";
 import type { SlotState } from "@/lib/engine/slots";
@@ -515,6 +516,13 @@ export function PlaybackHarness() {
           </section>
         </aside>
       </div>
+
+      <TimelineView
+        fps={FPS}
+        onSeek={(t) => sessionRef.current?.seek(t)}
+        onToggle={() => sessionRef.current?.toggle()}
+        onStep={(direction) => sessionRef.current?.step(direction, FPS)}
+      />
     </main>
   );
 }
