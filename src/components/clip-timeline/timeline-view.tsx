@@ -115,17 +115,21 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
     }
   }, [pps]);
 
-  // Keep the playhead in view.
+  // Keep the playhead in view when it moves. Zooming must not do this: it
+  // would pull the view away from the point the user is zooming around.
+  const lastTime = React.useRef(time);
   React.useEffect(() => {
+    if (lastTime.current === time) return;
+    lastTime.current = time;
     const container = containerRef.current;
     if (!container) return;
     const next = keepPlayheadVisible({
       scrollLeft: container.scrollLeft,
       viewportWidth: container.clientWidth - HEADER_WIDTH,
-      playheadX: timeToX(time, pps),
+      playheadX: timeToX(time, latest.current.pps),
     });
     if (next !== container.scrollLeft) container.scrollLeft = next;
-  }, [time, pps]);
+  }, [time]);
 
   // Transport and undo keys.
   React.useEffect(() => {
