@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { ClipVisuals, type MediaVisuals } from "@/components/clip-timeline/clip-visuals";
 import { clipLabel, type ClipRect } from "@/lib/timeline-ui/layout";
 import type { Clip } from "@/types/timeline";
 
@@ -18,6 +19,12 @@ interface ClipChipProps {
   rect: ClipRect;
   selected: boolean;
   dimmed: boolean;
+  /** Thumbnails, pictures and waveforms; absent means a plain coloured chip. */
+  visuals?: MediaVisuals;
+  pps: number;
+  /** The visible lane range (from `viewWindow`), in lane pixels. */
+  viewFrom: number;
+  viewTo: number;
 }
 
 function areChipsEqual(a: ClipChipProps, b: ClipChipProps): boolean {
@@ -28,7 +35,11 @@ function areChipsEqual(a: ClipChipProps, b: ClipChipProps): boolean {
     a.rect.x === b.rect.x &&
     a.rect.y === b.rect.y &&
     a.rect.width === b.rect.width &&
-    a.rect.height === b.rect.height
+    a.rect.height === b.rect.height &&
+    a.visuals === b.visuals &&
+    a.pps === b.pps &&
+    a.viewFrom === b.viewFrom &&
+    a.viewTo === b.viewTo
   );
 }
 
@@ -36,7 +47,16 @@ function areChipsEqual(a: ClipChipProps, b: ClipChipProps): boolean {
  * One clip. Selection is handled once by the lane (it finds the chip through
  * `data-clip-id`), so the chip itself has no handlers and stays memoised.
  */
-export const ClipChip = React.memo(function ClipChip({ clip, rect, selected, dimmed }: ClipChipProps) {
+export const ClipChip = React.memo(function ClipChip({
+  clip,
+  rect,
+  selected,
+  dimmed,
+  visuals,
+  pps,
+  viewFrom,
+  viewTo,
+}: ClipChipProps) {
   return (
     <button
       type="button"
@@ -50,19 +70,32 @@ export const ClipChip = React.memo(function ClipChip({ clip, rect, selected, dim
       } ${selected ? "ring-2 ring-white" : ""} ${dimmed ? "opacity-40" : ""}`}
       style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
     >
+      {visuals && (
+        <ClipVisuals
+          clip={clip}
+          width={rect.width}
+          height={rect.height}
+          pps={pps}
+          visuals={visuals}
+          viewFrom={viewFrom - rect.x}
+          viewTo={viewTo - rect.x}
+        />
+      )}
       {rect.width > 16 && (
         <>
           <span
             data-edge="start"
-            className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize bg-white/0 hover:bg-white/50"
+            className="absolute inset-y-0 left-0 z-20 w-1.5 cursor-ew-resize bg-white/0 hover:bg-white/50"
           />
           <span
             data-edge="end"
-            className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize bg-white/0 hover:bg-white/50"
+            className="absolute inset-y-0 right-0 z-20 w-1.5 cursor-ew-resize bg-white/0 hover:bg-white/50"
           />
         </>
       )}
-      <span className="block truncate leading-tight">{clipLabel(clip)}</span>
+      <span className="relative z-10 block truncate leading-tight [text-shadow:0_1px_2px_rgb(0_0_0/0.8)]">
+        {clipLabel(clip)}
+      </span>
     </button>
   );
 }, areChipsEqual);

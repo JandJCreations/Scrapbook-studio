@@ -3,3 +3,7 @@ export * from "@/lib/timeline-ui/interactions";
 export * from "@/lib/timeline-ui/layout";
 export * from "@/lib/timeline-ui/commands";
 export * from "@/lib/timeline-ui/drag";
+export * from "@/lib/timeline-ui/thumbnail-service";
+export * from "@/lib/timeline-ui/tone-wav";
+export * from "@/lib/timeline-ui/visuals";
+export * from "@/lib/timeline-ui/waveform-service";

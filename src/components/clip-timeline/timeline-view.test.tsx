@@ -31,6 +31,39 @@ describe("TimelineView (jsdom)", () => {
     expect(screen.getByText("First")).toBeTruthy();
     expect(screen.getByText("Second")).toBeTruthy();
   });
+
+  it("passes the media visuals to video chips", () => {
+    const asked: number[] = [];
+    const visuals = {
+      thumbnails: {
+        get: (_id: string, time: number) => {
+          asked.push(time);
+          return null;
+        },
+        failed: () => false,
+        subscribe: () => () => {},
+        getVersion: () => 0,
+        invalidate: () => {},
+        dispose: () => {},
+      },
+      waveforms: {
+        get: () => null,
+        failed: () => false,
+        subscribe: () => () => {},
+        getVersion: () => 0,
+        invalidate: () => {},
+        dispose: () => {},
+      },
+      urlFor: () => null,
+    };
+    act(() => {
+      useClipProjectStore
+        .getState()
+        .load(makeProject(makeStandardTracks(), [makeClip({ id: "a", name: "First", sourceOut: 4 })]));
+    });
+    render(<TimelineView fps={30} onSeek={vi.fn()} onToggle={vi.fn()} onStep={vi.fn()} visuals={visuals} />);
+    expect(asked.length).toBeGreaterThan(0);
+  });
 });
 
 // jsdom has no layout: place the ruler at x=112 (the header width) and the

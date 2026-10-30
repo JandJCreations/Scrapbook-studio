@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { ClipChip } from "@/components/clip-timeline/clip-chip";
 import { TimelineRuler } from "@/components/clip-timeline/timeline-ruler";
+import { type MediaVisuals } from "@/components/clip-timeline/clip-visuals";
 import { TrackHeader } from "@/components/clip-timeline/track-header";
 import { deleteSelected, duplicateSelected, splitAtPlayhead } from "@/lib/timeline-ui/commands";
 import {
@@ -22,6 +23,7 @@ import {
   zoomAround,
 } from "@/lib/timeline-ui/geometry";
 import { commandForKey, nextSelection } from "@/lib/timeline-ui/interactions";
+import { viewWindow } from "@/lib/timeline-ui/visuals";
 import {
   clipRect,
   HEADER_WIDTH,
@@ -46,6 +48,8 @@ interface TimelineViewProps {
   onSeek(time: number): void;
   onToggle(): void;
   onStep(direction: 1 | -1): void;
+  /** Thumbnails, pictures and waveforms for the chips; without it chips are plain. */
+  visuals?: MediaVisuals;
 }
 
 interface PressInfo {
@@ -106,7 +110,7 @@ function oncePerDrag(): IdFn {
   return () => (id ??= createId());
 }
 
-export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
+export function TimelineView({ onSeek, onToggle, onStep, visuals }: TimelineViewProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const rulerRef = React.useRef<HTMLDivElement>(null);
   const tracksRef = React.useRef<HTMLDivElement>(null);
@@ -507,6 +511,7 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
     );
   };
 
+  const visibleRange = viewWindow(scrollLeft, viewportWidth);
   const startTime = scrollLeft / pps;
   const endTime = (scrollLeft + viewportWidth) / pps;
   const totalHeight = RULER_HEIGHT + layout.height;
@@ -575,6 +580,10 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
                         rect={clipRect(clip, { ...row, y: 0 }, pps)}
                         selected={selectedSet.has(clip.id)}
                         dimmed={trackById.get(clip.trackId)?.hidden ?? false}
+                        visuals={visuals}
+                        pps={pps}
+                        viewFrom={visibleRange.from}
+                        viewTo={visibleRange.to}
                       />
                     ))}
                 </div>
