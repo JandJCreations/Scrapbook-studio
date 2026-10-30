@@ -2,6 +2,10 @@ import type { TimelineProject } from "@/types/timeline";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export function isStorageMediaId(id: string): boolean {
+  return UUID_RE.test(id);
+}
+
 export interface MediaRow {
   id: string;
   type: "image" | "video" | "audio";
@@ -29,7 +33,7 @@ export interface MediaUrlDeps {
 export function collectMediaIds(project: TimelineProject): string[] {
   const ids = new Set<string>();
   for (const clip of project.clips) {
-    if (clip.mediaId && UUID_RE.test(clip.mediaId)) ids.add(clip.mediaId);
+    if (clip.mediaId && isStorageMediaId(clip.mediaId)) ids.add(clip.mediaId);
   }
   return Array.from(ids);
 }
