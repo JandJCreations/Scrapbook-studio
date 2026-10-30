@@ -69,6 +69,18 @@ describe("deleteSelected", () => {
     video("b", 4, 4),
   ]);
 
+  it("removes a track that the delete leaves empty, but not the main track", () => {
+    const result = deleteSelected(project, ["o1", "o2"], false);
+    expect(result.tracks.some((t) => t.id === "t2")).toBe(false);
+    expect(result.tracks.some((t) => t.id === "t1")).toBe(true);
+  });
+
+  it("does not prune when nothing was deleted", () => {
+    const tidy = makeProject(makeStandardTracks(), [video("a", 0, 4)]);
+    expect(deleteSelected(tidy, [], false)).toBe(tidy);
+    expect(deleteSelected(tidy, ["missing"], false)).toBe(tidy);
+  });
+
   it("leaves a gap on a free track and closes it on the main track", () => {
     const result = deleteSelected(project, ["o1", "a"], false);
     expect(findClip(result, "o2")?.start).toBe(2);

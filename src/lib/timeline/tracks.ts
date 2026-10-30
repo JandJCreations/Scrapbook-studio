@@ -49,3 +49,17 @@ export function updateTrack(
     tracks: project.tracks.map((t) => (t.id === trackId ? { ...t, ...patch } : t)),
   };
 }
+
+/**
+ * Removes tracks that hold no clips, except the main video track, and
+ * renumbers the rest. Returns the same project when nothing is removed.
+ */
+export function pruneEmptyTracks(project: TimelineProject): TimelineProject {
+  const used = new Set(project.clips.map((clip) => clip.trackId));
+  const kept = project.tracks.filter((track) => track.type === "video" || used.has(track.id));
+  if (kept.length === project.tracks.length) return project;
+  const tracks = [...kept]
+    .sort((a, b) => a.order - b.order)
+    .map((track, index) => (track.order === index ? track : { ...track, order: index }));
+  return { ...project, tracks };
+}

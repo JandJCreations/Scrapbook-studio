@@ -3,6 +3,7 @@ import { clipEnd } from "@/lib/timeline/clip-math";
 import { deleteClips, rippleDeleteClips } from "@/lib/timeline/delete";
 import { createId, type IdFn } from "@/lib/timeline/ids";
 import { splitClip } from "@/lib/timeline/split";
+import { pruneEmptyTracks } from "@/lib/timeline/tracks";
 import type { TimelineProject } from "@/types/timeline";
 
 /**
@@ -37,5 +38,7 @@ export function deleteSelected(
   ids: string[],
   ripple: boolean,
 ): TimelineProject {
-  return ripple ? rippleDeleteClips(project, ids) : deleteClips(project, ids);
+  const next = ripple ? rippleDeleteClips(project, ids) : deleteClips(project, ids);
+  // Only tidy up after a delete that really removed something.
+  return next === project ? project : pruneEmptyTracks(next);
 }

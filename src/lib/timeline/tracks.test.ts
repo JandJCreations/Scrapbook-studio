@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { addTrack, updateTrack } from "@/lib/timeline/tracks";
-import { makeProject, makeStandardTracks, seqIds } from "@/lib/timeline/test-utils";
+import { addTrack, pruneEmptyTracks, updateTrack } from "@/lib/timeline/tracks";
+import { makeClip, makeProject, makeStandardTracks, seqIds } from "@/lib/timeline/test-utils";
 
 const ids = (project: ReturnType<typeof makeProject>) =>
   [...project.tracks].sort((a, b) => a.order - b.order).map((t) => t.id);
@@ -53,5 +53,34 @@ describe("updateTrack", () => {
 
   it("returns the same project for an unknown track", () => {
     expect(updateTrack(project, "nope", { muted: true })).toBe(project);
+  });
+});
+
+describe("pruneEmptyTracks", () => {
+  it("removes empty overlay and audio tracks and renumbers the rest", () => {
+    const project = makeProject(makeStandardTracks(), [makeClip({ id: "a", trackId: "t1" })]);
+    const pruned = pruneEmptyTracks(project);
+    expect(pruned.tracks.map((t) => [t.id, t.order])).toEqual([["t1", 0]]);
+  });
+
+  it("keeps the main video track even when it is empty", () => {
+    const project = makeProject(makeStandardTracks(), []);
+    expect(pruneEmptyTracks(project).tracks.map((t) => t.id)).toEqual(["t1"]);
+  });
+
+  it("keeps tracks that hold clips, in their existing order", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({ id: "a", trackId: "t1" }),
+      makeClip({ id: "o", trackId: "t2", kind: "image", sourceDuration: null }),
+    ]);
+    expect(pruneEmptyTracks(project).tracks.map((t) => [t.id, t.order])).toEqual([
+      ["t2", 0],
+      ["t1", 1],
+    ]);
+  });
+
+  it("returns the same project when nothing is empty", () => {
+    const project = makeProject([makeStandardTracks()[1]], [makeClip({ id: "a", trackId: "t1" })]);
+    expect(pruneEmptyTracks(project)).toBe(project);
   });
 });
