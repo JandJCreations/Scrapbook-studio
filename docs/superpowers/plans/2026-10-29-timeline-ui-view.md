@@ -17,7 +17,7 @@
 
 ## Global Constraints
 
-- Work on branch `feature/timeline-ui`, created from `main`. Never commit to `main`.
+- Work on branch `feature/timeline-ui` (already created from `main`; the plan is its first commit). Never commit to `main`.
 - Read before writing: `AGENTS.md` says this is not the Next.js you know. This plan adds only client components and plain TypeScript, no routing changes. If a component needs a Next API, read `node_modules/next/dist/docs/` first.
 - New code lives in `src/lib/timeline-ui/` (pure, no `window`, `document`, `performance` or React) and `src/components/clip-timeline/` (React). Existing files this plan may change: `src/components/playback/playback-harness.tsx` (mount the timeline) and nothing else outside new files.
 - Pure modules must pass this grep with no output: `grep -rnE "document\.|window\.|requestAnimationFrame|setTimeout|setInterval|performance\.|Date\.now" src/lib/timeline-ui --include=*.ts --exclude=*.test.ts`.
@@ -283,7 +283,6 @@ Expected: PASS; no type errors. (No tick after `endTime` is ever returned, so `r
 
 ```bash
 cd "C:/Users/julia/OneDrive/Desktop/Scrapbook App"
-git checkout -b feature/timeline-ui
 git add src/lib/timeline-ui/geometry.ts src/lib/timeline-ui/geometry.test.ts
 git commit -m "feat: add timeline geometry and ruler maths" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
