@@ -13,10 +13,18 @@ import {
   createBrowserElement,
   readMediaInfo,
 } from "@/lib/playback/browser";
+import {
+  addMedia,
+  summarizeErrors,
+  type AddResult,
+} from "@/lib/playback/add-media";
 import { addMediaToProject, HARNESS_FRAME, type MediaItem } from "@/lib/playback/harness-ops";
 import { createImageCache } from "@/lib/playback/image-cache";
 import type { PoolProblem } from "@/lib/playback/media-pool";
-import { createObjectUrlRegistry } from "@/lib/playback/object-url-registry";
+import {
+  createObjectUrlRegistry,
+  type ObjectUrlRegistry,
+} from "@/lib/playback/object-url-registry";
 import { generateSampleClip, SAMPLE_CLIPS } from "@/lib/playback/sample-clips";
 import { buildScene } from "@/lib/playback/scene";
 import { createPlaybackSession, type PlaybackSession } from "@/lib/playback/session";
@@ -112,7 +120,10 @@ export function PlaybackHarness() {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const sessionRef = React.useRef<PlaybackSession | null>(null);
   const statsRef = React.useRef<ElementStats>({ created: 0, loads: 0, seeks: 0 });
-  const [registry] = React.useState(() => createObjectUrlRegistry());
+  // Each mounted session owns its own registry; `aliveRef` stops add work that
+  // outlives the page from touching the registry or the shared project store.
+  const registryRef = React.useRef<ObjectUrlRegistry | null>(null);
+  const aliveRef = React.useRef(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [urlText, setUrlText] = React.useState("");
@@ -132,6 +143,10 @@ export function PlaybackHarness() {
   React.useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+
+    const registry = createObjectUrlRegistry();
+    registryRef.current = registry;
+    aliveRef.current = true;
 
     useClipProjectStore.getState().load(emptyTimeline(PROJECT_ID));
     useTransportStore.getState().reset();
@@ -211,6 +226,8 @@ export function PlaybackHarness() {
     session.wake();
 
     return () => {
+      aliveRef.current = false;
+      registryRef.current = null;
       window.clearInterval(poll);
       unsubscribe();
       observer.disconnect();
@@ -219,59 +236,76 @@ export function PlaybackHarness() {
       painter.destroy();
       void session.dispose();
     };
-  }, [registry]);
+  }, []);
 
-  async function finishAdd(mediaId: string, name: string, kind: MediaItem["kind"], url: string) {
-    try {
-      const info = await readMediaInfo(url, kind);
-      useClipProjectStore.getState().apply((p) => addMediaToProject(p, { mediaId, name, kind, ...info }));
-      setMessage(null);
-    } catch (error) {
-      registry.remove(mediaId);
-      setMessage(error instanceof Error ? error.message : "Could not add that file.");
-    }
+  function add(source: { blob: Blob } | { url: string }, name: string, kind: MediaItem["kind"]) {
+    const registry = registryRef.current;
+    if (!registry) return Promise.resolve<AddResult>({ ok: false, cancelled: true });
+    return addMedia(
+      {
+        registry,
+        readInfo: readMediaInfo,
+        commit: (item) => useClipProjectStore.getState().apply((p) => addMediaToProject(p, item)),
+        isAlive: () => aliveRef.current && registryRef.current === registry,
+        newId: createId,
+      },
+      source,
+      name,
+      kind,
+    );
   }
 
-  async function addBlob(blob: Blob, name: string, kind: MediaItem["kind"]) {
-    const mediaId = createId();
-    await finishAdd(mediaId, name, kind, registry.addBlob(mediaId, blob));
+  /** Shows a message only while the page is still mounted. */
+  function say(text: string | null) {
+    if (aliveRef.current) setMessage(text);
   }
 
   async function onFiles(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
+    const results: AddResult[] = [];
     for (const file of files) {
       const kind = kindOf(file);
       if (!kind) {
-        setMessage(`Unsupported file type: ${file.type || file.name}`);
+        results.push({ ok: false, error: `Unsupported file type: ${file.type || file.name}` });
         continue;
       }
-      await addBlob(file, file.name, kind);
+      results.push(await add({ blob: file }, file.name, kind));
     }
+    say(summarizeErrors(results));
   }
 
   async function addRemote() {
     const url = urlText.trim();
     if (!url) return;
-    const mediaId = createId();
-    registry.addUrl(mediaId, url);
-    await finishAdd(mediaId, url.split("/").pop() || url, urlKind, url);
+    const result = await add({ url }, url.split("/").pop() || url, urlKind);
+    say(summarizeErrors([result]));
   }
 
   async function generateSamples() {
     setBusy(true);
     try {
-      setMessage("Loading FFmpeg (one-time download of about 30 MB)…");
+      say("Loading FFmpeg (one-time download of about 30 MB)…");
       const ffmpeg = await getFfmpeg();
       for (const spec of SAMPLE_CLIPS) {
-        setMessage(`Generating ${spec.name}…`);
-        await addBlob(await generateSampleClip(ffmpeg, spec), spec.name, "video");
+        if (!aliveRef.current) return;
+        say(`Generating ${spec.name}…`);
+        const result = await add(
+          { blob: await generateSampleClip(ffmpeg, spec) },
+          spec.name,
+          "video",
+        );
+        if (!result.ok) {
+          // Stop at the first failure and keep its message on screen.
+          say(summarizeErrors([result]));
+          return;
+        }
       }
-      setMessage(null);
+      say(null);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not generate the sample clips.");
+      say(error instanceof Error ? error.message : "Could not generate the sample clips.");
     } finally {
-      setBusy(false);
+      if (aliveRef.current) setBusy(false);
     }
   }
 

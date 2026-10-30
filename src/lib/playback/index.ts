@@ -8,3 +8,4 @@ export * from "@/lib/playback/object-url-registry";
 export * from "@/lib/playback/sample-clips";
 export * from "@/lib/playback/scene";
 export * from "@/lib/playback/session";
+export * from "@/lib/playback/add-media";
