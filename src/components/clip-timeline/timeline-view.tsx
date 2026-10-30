@@ -29,6 +29,7 @@ import {
   RULER_HEIGHT,
   scrollAfterTimeChange,
   trackLayout,
+  type TrackLayout,
 } from "@/lib/timeline-ui/layout";
 import { projectDuration } from "@/lib/timeline/clip-math";
 import { createId, type IdFn } from "@/lib/timeline/ids";
@@ -48,13 +49,26 @@ interface TimelineViewProps {
 }
 
 interface PressInfo {
+  /** The pointer that started the drag; events from any other pointer are ignored. */
+  pointerId: number;
   startX: number;
   startY: number;
   moved: boolean;
 }
 
 type Drag =
-  | (PressInfo & { kind: "move"; clipId: string; grabOffset: number; newTrackId: IdFn })
+  | (PressInfo & {
+      kind: "move";
+      clipId: string;
+      grabOffset: number;
+      newTrackId: IdFn;
+      /**
+       * The rows as they were when the drag began. Drop targets are worked out
+       * against this fixed layout: the preview itself adds and moves rows, and
+       * measuring against that makes the target flip on every mouse move.
+       */
+      layout: TrackLayout;
+    })
   | (PressInfo & { kind: "trim"; clipId: string; edge: TrimEdge })
   | (PressInfo & {
       kind: "marquee";
@@ -153,6 +167,7 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
       window.removeEventListener("pointermove", listeners.move);
       window.removeEventListener("pointerup", listeners.end);
       window.removeEventListener("pointercancel", listeners.cancel);
+      window.removeEventListener("blur", listeners.cancel);
     }
     listenersRef.current = null;
     dragRef.current = null;
@@ -171,26 +186,37 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
     return true;
   }, [detach]);
 
-  const onDragEnd = React.useCallback(() => {
-    const drag = dragRef.current;
-    detach();
-    if (!drag) return;
-    if (drag.kind !== "marquee" && drag.moved) useClipProjectStore.getState().endGesture();
-    if (drag.moved) {
-      // The browser sends a click after the pointer is released; ignore that one.
-      suppressClick.current = true;
-      window.setTimeout(() => {
-        suppressClick.current = false;
-      }, 0);
-    }
-    setGuide(null);
-    setMarquee(null);
-  }, [detach]);
+  const onDragEnd = React.useCallback(
+    (event?: PointerEvent) => {
+      const drag = dragRef.current;
+      if (drag && event && event.pointerId !== drag.pointerId) return;
+      detach();
+      if (!drag) return;
+      if (drag.kind !== "marquee" && drag.moved) useClipProjectStore.getState().endGesture();
+      if (drag.moved) {
+        // The browser sends a click after the pointer is released; ignore that one.
+        suppressClick.current = true;
+        window.setTimeout(() => {
+          suppressClick.current = false;
+        }, 0);
+      }
+      setGuide(null);
+      setMarquee(null);
+    },
+    [detach],
+  );
 
   const onDragMove = React.useCallback(
     (event: PointerEvent) => {
       const drag = dragRef.current;
-      if (!drag) return;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      // The button was released somewhere we never heard about (outside the
+      // window, over a dialog): finish with what is on screen instead of
+      // following a mouse that is no longer pressed.
+      if (event.buttons === 0) {
+        onDragEnd(event);
+        return;
+      }
       if (!drag.moved) {
         if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < DRAG_THRESHOLD_PX) {
           return;
@@ -226,7 +252,7 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
               clipId: drag.clipId,
               pointerTime,
               grabOffset: drag.grabOffset,
-              target: dropTargetAt(trackLayout(selectProject(store)), point.y),
+              target: dropTargetAt(drag.layout, point.y),
               playhead,
               pps: zoom,
               newTrackId: drag.newTrackId,
@@ -241,7 +267,7 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
       store.previewApply(() => result.project);
       setGuide(result.guide);
     },
-    [lanePoint],
+    [lanePoint, onDragEnd],
   );
 
   const begin = (drag: Drag, event: React.PointerEvent) => {
@@ -255,6 +281,8 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
     window.addEventListener("pointermove", onDragMove);
     window.addEventListener("pointerup", onDragEnd);
     window.addEventListener("pointercancel", cancelDrag);
+    // Losing focus (Alt+Tab, an OS dialog) can swallow the mouse release.
+    window.addEventListener("blur", cancelDrag);
   };
 
   // Leaving the page mid-drag abandons it.
@@ -272,7 +300,12 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
     const edgeEl = target.closest<HTMLElement>("[data-edge]");
     const store = useClipProjectStore.getState();
     const point = lanePoint(event.clientX, event.clientY);
-    const press = { startX: event.clientX, startY: event.clientY, moved: false };
+    const press = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
     const additive = event.shiftKey || event.ctrlKey || event.metaKey;
 
     if (chipEl?.dataset.clipId) {
@@ -290,6 +323,7 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
             clipId,
             grabOffset: Math.max(0, point.x / ppsRef.current - clip.start),
             newTrackId: oncePerDrag(),
+            layout: trackLayout(selectSavableProject(store)),
             ...press,
           },
           event,

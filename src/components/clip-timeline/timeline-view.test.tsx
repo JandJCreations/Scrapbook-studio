@@ -16,8 +16,8 @@ export function mount(project: TimelineProject) {
     useTransportStore.getState().reset();
   });
   const handlers = { onSeek: vi.fn(), onToggle: vi.fn(), onStep: vi.fn() };
-  render(<TimelineView fps={30} {...handlers} />);
-  return handlers;
+  const view = render(<TimelineView fps={30} {...handlers} />);
+  return { ...handlers, unmount: view.unmount };
 }
 
 describe("TimelineView (jsdom)", () => {
@@ -49,11 +49,28 @@ function placeLayout() {
   });
 }
 
-const pointer = (target: Element | Window | Document, type: string, x: number, y: number, extra = {}) =>
-  fireEvent(
-    target,
-    new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, ...extra }),
-  );
+/** Fires a pointer-style event. The primary button counts as held until the pointer is released. */
+const pointer = (
+  target: Element | Window | Document,
+  type: string,
+  x: number,
+  y: number,
+  extra: { pointerId?: number } & MouseEventInit = {},
+) => {
+  const { pointerId = 1, ...init } = extra;
+  const event = new MouseEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    clientX: x,
+    clientY: y,
+    button: 0,
+    buttons: type === "pointerup" || type === "pointercancel" ? 0 : 1,
+    ...init,
+  });
+  // jsdom's MouseEvent has no pointerId; the component reads one from real pointer events.
+  Object.assign(event, { pointerId });
+  return fireEvent(target, event);
+};
 
 const chip = (id: string) => document.querySelector<HTMLElement>(`[data-clip-id="${id}"]`)!;
 const present = () => selectProject(useClipProjectStore.getState());
@@ -274,5 +291,79 @@ describe("edit keys", () => {
     input.remove();
     fireEvent.keyDown(window, { key: "Delete", repeat: true });
     expect(present().clips.some((c) => c.id === "o")).toBe(true);
+  });
+});
+
+describe("dragging into empty space below the last track", () => {
+  it("settles on one new track instead of flickering as the rows shift", () => {
+    mountEditable();
+    const tracksBefore = present().tracks.length;
+    pointer(chip("o"), "pointerdown", xAt(1.5), yAt(10));
+    // Just below the audio row (it ends at y 156): the preview track pushes every row down.
+    for (const y of [170, 172, 174, 176]) pointer(window, "pointermove", xAt(3), yAt(y));
+    expect(present().tracks.length).toBe(tracksBefore + 1);
+    pointer(window, "pointerup", xAt(3), yAt(176));
+    expect(present().tracks.length).toBe(tracksBefore + 1);
+    const clip = clipById("o");
+    expect(present().tracks.find((t) => t.id === clip.trackId)?.type).toBe("overlay");
+    expect(clip.start).toBe(2.5);
+  });
+});
+
+describe("a drag whose end the browser never reports", () => {
+  it("ends when the button is no longer held and ignores later moves", () => {
+    mountEditable();
+    const before = pastCount();
+    pointer(chip("o"), "pointerdown", xAt(1.5), yAt(10));
+    pointer(window, "pointermove", xAt(3.5), yAt(10));
+    pointer(window, "pointermove", xAt(4.5), yAt(10), { buttons: 0 }); // released elsewhere
+    pointer(window, "pointermove", xAt(7.5), yAt(10));
+    expect(clipById("o").start).toBe(3);
+    expect(pastCount()).toBe(before + 1);
+    expect(useClipProjectStore.getState().history.gestureBase).toBeNull();
+  });
+
+  it("is abandoned when the window loses focus", () => {
+    mountEditable();
+    const before = pastCount();
+    pointer(chip("o"), "pointerdown", xAt(1.5), yAt(10));
+    pointer(window, "pointermove", xAt(3.5), yAt(10));
+    fireEvent.blur(window);
+    expect(clipById("o").start).toBe(1);
+    expect(pastCount()).toBe(before);
+    pointer(window, "pointermove", xAt(5), yAt(10));
+    expect(clipById("o").start).toBe(1);
+  });
+
+  it("is abandoned when the browser cancels the pointer", () => {
+    mountEditable();
+    const before = pastCount();
+    pointer(chip("o"), "pointerdown", xAt(1.5), yAt(10));
+    pointer(window, "pointermove", xAt(3.5), yAt(10));
+    pointer(window, "pointercancel", xAt(3.5), yAt(10));
+    expect(clipById("o").start).toBe(1);
+    expect(pastCount()).toBe(before);
+  });
+
+  it("is abandoned when the timeline unmounts mid-drag", () => {
+    const view = mountEditable();
+    const before = pastCount();
+    pointer(chip("o"), "pointerdown", xAt(1.5), yAt(10));
+    pointer(window, "pointermove", xAt(3.5), yAt(10));
+    view.unmount();
+    expect(clipById("o").start).toBe(1);
+    expect(pastCount()).toBe(before);
+    expect(useClipProjectStore.getState().history.gestureBase).toBeNull();
+  });
+
+  it("ignores a second pointer while one is dragging", () => {
+    mountEditable();
+    pointer(chip("o"), "pointerdown", xAt(1.5), yAt(10), { pointerId: 1 });
+    pointer(window, "pointermove", xAt(3.5), yAt(10), { pointerId: 2 });
+    expect(clipById("o").start).toBe(1);
+    pointer(window, "pointerup", xAt(3.5), yAt(10), { pointerId: 2 });
+    pointer(window, "pointermove", xAt(3.5), yAt(10), { pointerId: 1 });
+    expect(clipById("o").start).toBe(3);
+    pointer(window, "pointerup", xAt(3.5), yAt(10), { pointerId: 1 });
   });
 });
