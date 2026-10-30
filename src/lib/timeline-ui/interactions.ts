@@ -13,7 +13,12 @@ export type TimelineCommand =
   | { type: "seek-start" }
   | { type: "seek-end" }
   | { type: "undo" }
-  | { type: "redo" };
+  | { type: "redo" }
+  | { type: "split" }
+  | { type: "delete" }
+  | { type: "ripple-delete" }
+  | { type: "duplicate" }
+  | { type: "cancel" };
 
 export interface KeyInput {
   key: string;
@@ -25,17 +30,26 @@ export interface KeyInput {
   editable: boolean;
   /** True when another widget already handled this key (a menu, dialog, listbox, slider, tab...). */
   handled: boolean;
+  /** True while a held key is auto-repeating. */
+  repeat: boolean;
 }
 
-export function commandForKey(input: KeyInput): TimelineCommand | null {
-  if (input.editable || input.handled || input.altKey) return null;
+function lookup(input: KeyInput): TimelineCommand | null {
   const modifier = input.ctrlKey || input.metaKey;
 
   if (modifier) {
-    const k = input.key.toLowerCase();
-    if (k === "z") return input.shiftKey ? { type: "redo" } : { type: "undo" };
-    if (k === "y") return { type: "redo" };
-    return null;
+    switch (input.key.toLowerCase()) {
+      case "z":
+        return input.shiftKey ? { type: "redo" } : { type: "undo" };
+      case "y":
+        return { type: "redo" };
+      case "b":
+        return { type: "split" };
+      case "d":
+        return { type: "duplicate" };
+      default:
+        return null;
+    }
   }
 
   switch (input.key) {
@@ -49,7 +63,22 @@ export function commandForKey(input: KeyInput): TimelineCommand | null {
       return { type: "seek-start" };
     case "End":
       return { type: "seek-end" };
+    case "s":
+    case "S":
+      return { type: "split" };
+    case "Delete":
+    case "Backspace":
+      return input.shiftKey ? { type: "ripple-delete" } : { type: "delete" };
+    case "Escape":
+      return { type: "cancel" };
     default:
       return null;
   }
+}
+
+export function commandForKey(input: KeyInput): TimelineCommand | null {
+  if (input.editable || input.handled || input.altKey) return null;
+  const command = lookup(input);
+  if (command && input.repeat && command.type !== "step" && command.type !== "cancel") return null;
+  return command;
 }

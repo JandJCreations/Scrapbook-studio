@@ -10,6 +10,7 @@ const key = (overrides: Partial<KeyInput>): KeyInput => ({
   altKey: false,
   editable: false,
   handled: false,
+  repeat: false,
   ...overrides,
 });
 
@@ -63,5 +64,53 @@ describe("commandForKey: keys another widget already handled", () => {
     expect(commandForKey(key({ key: "ArrowLeft", handled: true }))).toBeNull();
     expect(commandForKey(key({ key: " ", handled: true }))).toBeNull();
     expect(commandForKey(key({ key: "z", ctrlKey: true, handled: true }))).toBeNull();
+  });
+});
+
+describe("commandForKey: edit keys", () => {
+  it("maps split, delete, ripple delete, duplicate and cancel", () => {
+    expect(commandForKey(key({ key: "s" }))).toEqual({ type: "split" });
+    expect(commandForKey(key({ key: "S", shiftKey: true }))).toEqual({ type: "split" });
+    expect(commandForKey(key({ key: "b", ctrlKey: true }))).toEqual({ type: "split" });
+    expect(commandForKey(key({ key: "b", metaKey: true }))).toEqual({ type: "split" });
+    expect(commandForKey(key({ key: "Delete" }))).toEqual({ type: "delete" });
+    expect(commandForKey(key({ key: "Backspace" }))).toEqual({ type: "delete" });
+    expect(commandForKey(key({ key: "Delete", shiftKey: true }))).toEqual({ type: "ripple-delete" });
+    expect(commandForKey(key({ key: "Backspace", shiftKey: true }))).toEqual({ type: "ripple-delete" });
+    expect(commandForKey(key({ key: "d", ctrlKey: true }))).toEqual({ type: "duplicate" });
+    expect(commandForKey(key({ key: "Escape" }))).toEqual({ type: "cancel" });
+  });
+
+  it("does not take the browser's save shortcut or other combinations", () => {
+    expect(commandForKey(key({ key: "s", ctrlKey: true }))).toBeNull();
+    expect(commandForKey(key({ key: "d" }))).toBeNull();
+    expect(commandForKey(key({ key: "Delete", ctrlKey: true }))).toBeNull();
+  });
+
+  it("ignores edit keys inside fields and widgets", () => {
+    expect(commandForKey(key({ key: "s", editable: true }))).toBeNull();
+    expect(commandForKey(key({ key: "Delete", handled: true }))).toBeNull();
+    expect(commandForKey(key({ key: "Escape", editable: true }))).toBeNull();
+  });
+});
+
+describe("commandForKey: held keys", () => {
+  it("does not repeat one-shot commands", () => {
+    for (const k of [
+      key({ key: " ", repeat: true }),
+      key({ key: "s", repeat: true }),
+      key({ key: "Delete", repeat: true }),
+      key({ key: "d", ctrlKey: true, repeat: true }),
+      key({ key: "z", ctrlKey: true, repeat: true }),
+      key({ key: "y", ctrlKey: true, repeat: true }),
+      key({ key: "Home", repeat: true }),
+    ]) {
+      expect(commandForKey(k)).toBeNull();
+    }
+  });
+
+  it("keeps repeating frame steps and still cancels", () => {
+    expect(commandForKey(key({ key: "ArrowRight", repeat: true }))).toEqual({ type: "step", direction: 1 });
+    expect(commandForKey(key({ key: "Escape", repeat: true }))).toEqual({ type: "cancel" });
   });
 });

@@ -5,6 +5,15 @@ import * as React from "react";
 import { ClipChip } from "@/components/clip-timeline/clip-chip";
 import { TimelineRuler } from "@/components/clip-timeline/timeline-ruler";
 import { TrackHeader } from "@/components/clip-timeline/track-header";
+import { deleteSelected, duplicateSelected, splitAtPlayhead } from "@/lib/timeline-ui/commands";
+import {
+  clipsInRect,
+  computeMove,
+  computeTrim,
+  DRAG_THRESHOLD_PX,
+  dropTargetAt,
+  type Guide,
+} from "@/lib/timeline-ui/drag";
 import {
   timelineWidth,
   timeToX,
@@ -16,13 +25,19 @@ import { commandForKey, nextSelection } from "@/lib/timeline-ui/interactions";
 import {
   clipRect,
   HEADER_WIDTH,
-  scrollAfterTimeChange,
   pointerToTime,
   RULER_HEIGHT,
+  scrollAfterTimeChange,
   trackLayout,
 } from "@/lib/timeline-ui/layout";
 import { projectDuration } from "@/lib/timeline/clip-math";
-import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
+import { createId, type IdFn } from "@/lib/timeline/ids";
+import type { TrimEdge } from "@/lib/timeline/trim";
+import {
+  selectProject,
+  selectSavableProject,
+  useClipProjectStore,
+} from "@/store/use-clip-project-store";
 import { useTransportStore } from "@/store/use-transport-store";
 
 interface TimelineViewProps {
@@ -30,6 +45,29 @@ interface TimelineViewProps {
   onSeek(time: number): void;
   onToggle(): void;
   onStep(direction: 1 | -1): void;
+}
+
+interface PressInfo {
+  startX: number;
+  startY: number;
+  moved: boolean;
+}
+
+type Drag =
+  | (PressInfo & { kind: "move"; clipId: string; grabOffset: number; newTrackId: IdFn })
+  | (PressInfo & { kind: "trim"; clipId: string; edge: TrimEdge })
+  | (PressInfo & {
+      kind: "marquee";
+      additive: boolean;
+      baseSelection: string[];
+      origin: { x: number; y: number };
+    });
+
+interface Marquee {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 }
 
 function isEditable(target: EventTarget | null, key: string): boolean {
@@ -48,15 +86,31 @@ function insideWidget(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest(WIDGET_SELECTOR) !== null;
 }
 
+/** One new-track id for the whole drag, so a long drag creates a single track. */
+function oncePerDrag(): IdFn {
+  let id: string | undefined;
+  return () => (id ??= createId());
+}
+
 export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const rulerRef = React.useRef<HTMLDivElement>(null);
+  const tracksRef = React.useRef<HTMLDivElement>(null);
   const scrubbing = React.useRef(false);
   const pendingScroll = React.useRef<number | null>(null);
+  const dragRef = React.useRef<Drag | null>(null);
+  const listenersRef = React.useRef<{
+    move: (event: PointerEvent) => void;
+    end: () => void;
+    cancel: () => void;
+  } | null>(null);
+  const suppressClick = React.useRef(false);
 
   const [pps, setPps] = React.useState(ZOOM_DEFAULT);
   const [scrollLeft, setScrollLeft] = React.useState(0);
   const [viewportWidth, setViewportWidth] = React.useState(800);
+  const [guide, setGuide] = React.useState<Guide | null>(null);
+  const [marquee, setMarquee] = React.useState<Marquee | null>(null);
 
   const project = useClipProjectStore(selectProject);
   const selectedIds = useClipProjectStore((s) => s.selectedClipIds);
@@ -75,17 +129,189 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
   );
   const selectedSet = React.useMemo(() => new Set(selectedIds), [selectedIds]);
 
-  // The latest values for listeners that are registered once. The zoom level
-  // lives in its own ref, written synchronously by the wheel handler: a burst
-  // of pinch events arrives faster than React renders, and each step must
-  // build on the one before it.
+  // The zoom level lives in its own ref, written synchronously by the wheel
+  // handler: a burst of pinch events arrives faster than React renders, and
+  // each step must build on the one before it.
   const ppsRef = React.useRef(ZOOM_DEFAULT);
   const latest = React.useRef({ duration, onSeek, onToggle, onStep });
   React.useEffect(() => {
     latest.current = { duration, onSeek, onToggle, onStep };
   });
 
-  // Track the visible width.
+  // --- Drag lifecycle -----------------------------------------------------
+
+  /** A pointer position in lane coordinates: x in pixels from time 0, y from the top of the tracks. */
+  const lanePoint = React.useCallback((clientX: number, clientY: number) => {
+    const ruler = rulerRef.current?.getBoundingClientRect();
+    const tracks = tracksRef.current?.getBoundingClientRect();
+    return { x: clientX - (ruler?.left ?? 0), y: clientY - (tracks?.top ?? 0) };
+  }, []);
+
+  const detach = React.useCallback(() => {
+    const listeners = listenersRef.current;
+    if (listeners) {
+      window.removeEventListener("pointermove", listeners.move);
+      window.removeEventListener("pointerup", listeners.end);
+      window.removeEventListener("pointercancel", listeners.cancel);
+    }
+    listenersRef.current = null;
+    dragRef.current = null;
+  }, []);
+
+  /** Abandons the drag in progress, if any. Returns whether there was one. */
+  const cancelDrag = React.useCallback((): boolean => {
+    const drag = dragRef.current;
+    if (!drag) return false;
+    detach();
+    const store = useClipProjectStore.getState();
+    if (drag.kind === "marquee") store.setSelectedClipIds(drag.baseSelection);
+    else if (drag.moved) store.cancelGesture();
+    setGuide(null);
+    setMarquee(null);
+    return true;
+  }, [detach]);
+
+  const onDragEnd = React.useCallback(() => {
+    const drag = dragRef.current;
+    detach();
+    if (!drag) return;
+    if (drag.kind !== "marquee" && drag.moved) useClipProjectStore.getState().endGesture();
+    if (drag.moved) {
+      // The browser sends a click after the pointer is released; ignore that one.
+      suppressClick.current = true;
+      window.setTimeout(() => {
+        suppressClick.current = false;
+      }, 0);
+    }
+    setGuide(null);
+    setMarquee(null);
+  }, [detach]);
+
+  const onDragMove = React.useCallback(
+    (event: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      if (!drag.moved) {
+        if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < DRAG_THRESHOLD_PX) {
+          return;
+        }
+        drag.moved = true;
+      }
+
+      const store = useClipProjectStore.getState();
+      const point = lanePoint(event.clientX, event.clientY);
+      const zoom = ppsRef.current;
+      const pointerTime = Math.max(0, point.x / zoom);
+      const playhead = useTransportStore.getState().time;
+
+      if (drag.kind === "marquee") {
+        const shown = selectProject(store);
+        const left = Math.min(drag.origin.x, point.x);
+        const right = Math.max(drag.origin.x, point.x);
+        const top = Math.min(drag.origin.y, point.y);
+        const bottom = Math.max(drag.origin.y, point.y);
+        const hits = clipsInRect(shown, trackLayout(shown), zoom, { left, top, right, bottom });
+        store.setSelectedClipIds(
+          drag.additive ? Array.from(new Set([...drag.baseSelection, ...hits])) : hits,
+        );
+        setMarquee({ left, top, width: right - left, height: bottom - top });
+        return;
+      }
+
+      // Every preview is computed from the project as it was before the drag.
+      const base = selectSavableProject(store);
+      const result =
+        drag.kind === "move"
+          ? computeMove(base, {
+              clipId: drag.clipId,
+              pointerTime,
+              grabOffset: drag.grabOffset,
+              target: dropTargetAt(trackLayout(selectProject(store)), point.y),
+              playhead,
+              pps: zoom,
+              newTrackId: drag.newTrackId,
+            })
+          : computeTrim(base, {
+              clipId: drag.clipId,
+              edge: drag.edge,
+              pointerTime,
+              playhead,
+              pps: zoom,
+            });
+      store.previewApply(() => result.project);
+      setGuide(result.guide);
+    },
+    [lanePoint],
+  );
+
+  const begin = (drag: Drag, event: React.PointerEvent) => {
+    dragRef.current = drag;
+    try {
+      (event.target as Element).setPointerCapture(event.pointerId);
+    } catch {
+      // Not every environment can capture; the window listeners still work.
+    }
+    listenersRef.current = { move: onDragMove, end: onDragEnd, cancel: cancelDrag as () => void };
+    window.addEventListener("pointermove", onDragMove);
+    window.addEventListener("pointerup", onDragEnd);
+    window.addEventListener("pointercancel", cancelDrag);
+  };
+
+  // Leaving the page mid-drag abandons it.
+  React.useEffect(
+    () => () => {
+      cancelDrag();
+    },
+    [cancelDrag],
+  );
+
+  const onLanePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || dragRef.current) return;
+    const target = event.target as HTMLElement;
+    const chipEl = target.closest<HTMLElement>("[data-clip-id]");
+    const edgeEl = target.closest<HTMLElement>("[data-edge]");
+    const store = useClipProjectStore.getState();
+    const point = lanePoint(event.clientX, event.clientY);
+    const press = { startX: event.clientX, startY: event.clientY, moved: false };
+    const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+
+    if (chipEl?.dataset.clipId) {
+      const clipId = chipEl.dataset.clipId;
+      const clip = selectProject(store).clips.find((c) => c.id === clipId);
+      if (!clip) return;
+      if (!additive && !store.selectedClipIds.includes(clipId)) store.setSelectedClipIds([clipId]);
+      const edge = edgeEl?.dataset.edge;
+      if (edge === "start" || edge === "end") {
+        begin({ kind: "trim", clipId, edge, ...press }, event);
+      } else {
+        begin(
+          {
+            kind: "move",
+            clipId,
+            grabOffset: Math.max(0, point.x / ppsRef.current - clip.start),
+            newTrackId: oncePerDrag(),
+            ...press,
+          },
+          event,
+        );
+      }
+      return;
+    }
+
+    begin(
+      {
+        kind: "marquee",
+        additive,
+        baseSelection: additive ? store.selectedClipIds : [],
+        origin: point,
+        ...press,
+      },
+      event,
+    );
+  };
+
+  // --- Width, zoom, follow, keys ------------------------------------------
+
   React.useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -145,7 +371,7 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
     if (next !== container.scrollLeft) container.scrollLeft = next;
   }, [time]);
 
-  // Transport and undo keys.
+  // Transport, undo and edit keys.
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const command = commandForKey({
@@ -156,10 +382,13 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
         altKey: event.altKey,
         editable: isEditable(event.target, event.key),
         handled: event.defaultPrevented || insideWidget(event.target),
+        repeat: event.repeat,
       });
       if (!command) return;
       event.preventDefault();
       const { duration: total, onSeek: seek, onToggle: toggle, onStep: step } = latest.current;
+      const store = useClipProjectStore.getState();
+      const ids = store.selectedClipIds;
       switch (command.type) {
         case "toggle-play":
           toggle();
@@ -174,16 +403,32 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
           seek(total);
           break;
         case "undo":
-          useClipProjectStore.getState().undo();
+          store.undo();
           break;
         case "redo":
-          useClipProjectStore.getState().redo();
+          store.redo();
+          break;
+        case "split":
+          store.apply((p) => splitAtPlayhead(p, ids, useTransportStore.getState().time));
+          break;
+        case "delete":
+          store.apply((p) => deleteSelected(p, ids, false));
+          break;
+        case "ripple-delete":
+          store.apply((p) => deleteSelected(p, ids, true));
+          break;
+        case "duplicate":
+          store.apply((p) => duplicateSelected(p, ids));
+          break;
+        case "cancel":
+          // Escape first abandons a drag; only then does it clear the selection.
+          if (!cancelDrag()) store.setSelectedClipIds([]);
           break;
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [cancelDrag]);
 
   const seekFromPointer = (clientX: number) => {
     const ruler = rulerRef.current;
@@ -193,6 +438,7 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
   };
 
   const onRulerDown: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     scrubbing.current = true;
     seekFromPointer(event.clientX);
@@ -209,14 +455,18 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
 
   // One handler for all lanes: a click on a chip selects it, a click on empty space clears.
   const onLaneClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    const chip = (event.target as HTMLElement).closest<HTMLElement>("[data-clip-id]");
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
+    const chipEl = (event.target as HTMLElement).closest<HTMLElement>("[data-clip-id]");
     const store = useClipProjectStore.getState();
-    if (!chip?.dataset.clipId) {
-      store.setSelectedClipIds([]);
+    if (!chipEl?.dataset.clipId) {
+      if (!(event.shiftKey || event.ctrlKey || event.metaKey)) store.setSelectedClipIds([]);
       return;
     }
     store.setSelectedClipIds(
-      nextSelection(store.selectedClipIds, chip.dataset.clipId, {
+      nextSelection(store.selectedClipIds, chipEl.dataset.clipId, {
         shift: event.shiftKey,
         ctrl: event.ctrlKey || event.metaKey,
       }),
@@ -254,7 +504,12 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
           />
         </div>
 
-        <div className="relative" style={{ height: layout.height }}>
+        <div
+          ref={tracksRef}
+          data-testid="timeline-tracks"
+          className="relative"
+          style={{ height: layout.height }}
+        >
           {project.tracks.map((track) => {
             const row = rowByTrack.get(track.id);
             if (!row) return null;
@@ -273,27 +528,47 @@ export function TimelineView({ onSeek, onToggle, onStep }: TimelineViewProps) {
                 <div
                   data-track-id={track.id}
                   className="relative border-b bg-muted/30"
-                  style={{ width: laneWidth }}
+                  style={{ width: laneWidth, touchAction: "none" }}
+                  onPointerDown={onLanePointerDown}
                   onClick={onLaneClick}
                 >
                   {project.clips
                     .filter((clip) => clip.trackId === track.id)
-                    .map((clip) => {
-                      const rect = clipRect(clip, { ...row, y: 0 }, pps);
-                      return (
-                        <ClipChip
-                          key={clip.id}
-                          clip={clip}
-                          rect={rect}
-                          selected={selectedSet.has(clip.id)}
-                          dimmed={trackById.get(clip.trackId)?.hidden ?? false}
-                        />
-                      );
-                    })}
+                    .map((clip) => (
+                      <ClipChip
+                        key={clip.id}
+                        clip={clip}
+                        rect={clipRect(clip, { ...row, y: 0 }, pps)}
+                        selected={selectedSet.has(clip.id)}
+                        dimmed={trackById.get(clip.trackId)?.hidden ?? false}
+                      />
+                    ))}
                 </div>
               </div>
             );
           })}
+
+          {guide && (
+            <div
+              data-testid="timeline-guide"
+              className={`pointer-events-none absolute top-0 z-20 w-px ${
+                guide.kind === "snap" ? "bg-yellow-400" : "bg-blue-500"
+              }`}
+              style={{ left: HEADER_WIDTH + timeToX(guide.time, pps), height: layout.height }}
+            />
+          )}
+          {marquee && (
+            <div
+              data-testid="timeline-marquee"
+              className="pointer-events-none absolute z-20 border border-sky-400 bg-sky-400/20"
+              style={{
+                left: HEADER_WIDTH + marquee.left,
+                top: marquee.top,
+                width: marquee.width,
+                height: marquee.height,
+              }}
+            />
+          )}
         </div>
 
         <div

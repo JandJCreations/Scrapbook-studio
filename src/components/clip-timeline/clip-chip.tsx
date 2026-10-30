@@ -45,11 +45,23 @@ export const ClipChip = React.memo(function ClipChip({ clip, rect, selected, dim
       title={`${clipLabel(clip)} (${clip.kind})`}
       // Do not take keyboard focus on click, so Space keeps meaning play/pause.
       onMouseDown={(event) => event.preventDefault()}
-      className={`absolute overflow-hidden rounded-md border px-1.5 text-left text-xs text-white shadow-sm ${
+      className={`absolute cursor-grab overflow-hidden rounded-md border px-1.5 text-left text-xs text-white shadow-sm ${
         TONE[clip.kind]
       } ${selected ? "ring-2 ring-white" : ""} ${dimmed ? "opacity-40" : ""}`}
       style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
     >
+      {rect.width > 16 && (
+        <>
+          <span
+            data-edge="start"
+            className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize bg-white/0 hover:bg-white/50"
+          />
+          <span
+            data-edge="end"
+            className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize bg-white/0 hover:bg-white/50"
+          />
+        </>
+      )}
       <span className="block truncate leading-tight">{clipLabel(clip)}</span>
     </button>
   );
