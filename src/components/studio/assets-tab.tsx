@@ -1,0 +1,54 @@
+"use client";
+
+import * as React from "react";
+
+import { ASSET_CATALOG, ASSET_CATEGORY_LABELS } from "@/lib/assets/asset-catalog";
+import type { AssetCategory, ScrapbookAsset } from "@/types/asset";
+
+const CATEGORIES: AssetCategory[] = [
+  "stickers",
+  "emojis",
+  "frames",
+  "washiTape",
+  "polaroids",
+  "shapes",
+  "floral",
+  "paperTextures",
+  "tornPaper",
+  "notebookPaper",
+  "cardboard",
+];
+
+/** The bundled stickers, frames, tapes and papers, grouped by category. Clicking one adds it. */
+export function AssetsTab({ onAdd }: { onAdd(asset: ScrapbookAsset): void }) {
+  return (
+    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+      {CATEGORIES.map((category) => {
+        const assets = ASSET_CATALOG.filter((asset) => asset.category === category);
+        if (assets.length === 0) return null;
+        return (
+          <details key={category} open={category === "stickers" || category === "emojis"}>
+            <summary className="cursor-pointer py-1 text-xs font-semibold">
+              {ASSET_CATEGORY_LABELS[category]}
+            </summary>
+            <div className="grid grid-cols-3 gap-1.5 pt-1">
+              {assets.map((asset) => (
+                <button
+                  key={asset.id}
+                  type="button"
+                  aria-label={`Add ${asset.name}, ${ASSET_CATEGORY_LABELS[category]}`}
+                  title={`Add ${asset.name}`}
+                  onClick={() => onAdd(asset)}
+                  className="flex aspect-square items-center justify-center rounded-md border border-border bg-muted/40 p-2 hover:border-primary hover:bg-muted"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={asset.src} alt="" className="max-h-full max-w-full" />
+                </button>
+              ))}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}

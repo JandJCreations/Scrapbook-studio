@@ -360,3 +360,46 @@ describe("StudioView keyframes and crop", () => {
     );
   });
 });
+
+describe("StudioView assets and layers", () => {
+  async function openAssets() {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("tab", { name: "assets" }));
+  }
+
+  it("adds a sticker from the Assets tab on its own overlay track and stays on that tab", async () => {
+    await openAssets();
+    fireEvent.click(screen.getByRole("button", { name: "Add Star, Stickers" }));
+    const project = selectProject(useClipProjectStore.getState());
+    expect(project.clips).toHaveLength(1);
+    expect(project.clips[0]).toMatchObject({ kind: "sticker", name: "Star", mediaId: "asset:stickers/Star" });
+    expect(project.tracks.find((t) => t.id === project.clips[0].trackId)?.type).toBe("overlay");
+    expect(useClipProjectStore.getState().selectedClipIds).toEqual([project.clips[0].id]);
+    expect(screen.getByRole("button", { name: "Add Heart, Stickers" })).toBeTruthy();
+  });
+
+  it("opens the Edit tab with the sticker panel when a sticker is selected", async () => {
+    await openAssets();
+    fireEvent.click(screen.getByRole("button", { name: "Add Star, Stickers" }));
+    const id = selectProject(useClipProjectStore.getState()).clips[0].id;
+    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
+    act(() => useClipProjectStore.getState().setSelectedClipIds([id]));
+    expect(await screen.findByText("Edit sticker")).toBeTruthy();
+    expect(screen.getByRole("slider", { name: "Opacity" })).toBeTruthy();
+  });
+
+  it("shows the stickers in the Layers tab and brings an earlier one to the front", async () => {
+    await openAssets();
+    fireEvent.click(screen.getByRole("button", { name: "Add Star, Stickers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Heart, Stickers" }));
+    fireEvent.click(screen.getByRole("tab", { name: "layers" }));
+    const before = useClipProjectStore.getState().history.past.length;
+    fireEvent.click(screen.getByRole("button", { name: "Bring Star forward" }));
+    const project = selectProject(useClipProjectStore.getState());
+    const order = (name: string) =>
+      project.tracks.find((t) => t.id === project.clips.find((c) => c.name === name)!.trackId)!.order;
+    expect(order("Star")).toBeLessThan(order("Heart"));
+    expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
+  });
+});

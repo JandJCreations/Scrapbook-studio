@@ -5,6 +5,7 @@ import * as React from "react";
 import { AudioPanel, type AudioValues } from "@/components/studio/audio-panel";
 import { CropSection } from "@/components/studio/crop-section";
 import { KeyframesSection } from "@/components/studio/keyframes-section";
+import { PanelSlider } from "@/components/studio/panel-controls";
 import { PhotoPanel, VideoPanel } from "@/components/studio/look-panels";
 import {
   CROP_ASPECTS,
@@ -124,11 +125,14 @@ export function EditTab({
 
   if (
     !clip ||
-    (clip.kind !== "image" && clip.kind !== "video" && clip.kind !== "audio")
+    (clip.kind !== "image" &&
+      clip.kind !== "video" &&
+      clip.kind !== "audio" &&
+      clip.kind !== "sticker")
   ) {
     return (
       <p className="p-3 text-sm text-muted-foreground">
-        Select a picture, video or music clip to edit how it looks and sounds.
+        Select a picture, video, sticker or music clip to edit how it looks and sounds.
       </p>
     );
   }
@@ -202,7 +206,7 @@ export function EditTab({
     />
   );
   const localTime = () => useTransportStore.getState().time - clip.start;
-  const keyframesSection = (clip.kind === "image" || clip.kind === "video") && (
+  const keyframesSection = (clip.kind === "image" || clip.kind === "video" || clip.kind === "sticker") && (
     <KeyframesSection
       clip={clip}
       playhead={useTransportStore.getState().time}
@@ -295,6 +299,22 @@ export function EditTab({
         </>
       )}
       {clip.kind === "audio" && audioPanel}
+      {clip.kind === "sticker" && (
+        <>
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold">Edit sticker</h2>
+            <PanelSlider
+              label="Opacity"
+              value={Math.round(shownOpacity * 100)}
+              min={0}
+              max={100}
+              onChange={(v) => preview({ opacity: v / 100 })}
+              onCommit={commit}
+            />
+          </div>
+          {keyframesSection}
+        </>
+      )}
     </div>
   );
 }

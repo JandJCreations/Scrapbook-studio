@@ -10,6 +10,8 @@ import { StudioStage } from "@/components/studio/studio-stage";
 import { StudioToolbar } from "@/components/studio/studio-toolbar";
 import { EditTab } from "@/components/studio/edit-tab";
 import { TextTab } from "@/components/studio/text-tab";
+import { AssetsTab } from "@/components/studio/assets-tab";
+import { LayersTab } from "@/components/studio/layers-tab";
 import { useStudioMedia } from "@/components/studio/use-studio-media";
 import { useNaturalSize } from "@/components/studio/use-natural-size";
 import { useStudioPlayback } from "@/components/studio/use-studio-playback";
@@ -19,11 +21,15 @@ import { useTimelineSync } from "@/hooks/use-timeline-sync";
 import {
   addAsOverlay,
   addAudioClip,
+  addSticker,
   addToSequence,
   type AddResult,
   type EditorMedia,
 } from "@/lib/editor/ops";
+import { assetMediaId } from "@/lib/assets/asset-keys";
 import { readMediaInfo } from "@/lib/playback/browser";
+import { withBundledAssets } from "@/lib/sync/bundled-assets";
+import type { ScrapbookAsset } from "@/types/asset";
 import { projectDuration } from "@/lib/timeline/clip-math";
 import {
   selectCanRedo,
@@ -64,8 +70,10 @@ export function StudioView({ env }: { env: StudioEnv }) {
   const time = useTransportStore((s) => s.time);
   const playing = useTransportStore((s) => s.playing);
 
-  useStudioMedia(env.media, project);
-  const { containerRef, session, visuals } = useStudioPlayback({ media: env.media, frame });
+  // Catalog art (stickers) is answered from the catalog; everything else from the environment.
+  const mediaSource = React.useMemo(() => withBundledAssets(env.media), [env.media]);
+  useStudioMedia(mediaSource, project);
+  const { containerRef, session, visuals } = useStudioPlayback({ media: mediaSource, frame });
 
   // Add and save work can outlive the page; it must not touch shared state after that.
   const aliveRef = React.useRef(false);
@@ -83,18 +91,18 @@ export function StudioView({ env }: { env: StudioEnv }) {
   // The sidebar follows the selection: a text clip opens the Text tab, a
   // picture, video or music clip opens the Edit tab. A clip the user has just
   // added from the Media tab does not, so adding several files in a row works.
-  const [tab, setTab] = React.useState<"media" | "text" | "edit">("media");
+  const [tab, setTab] = React.useState<"media" | "assets" | "text" | "edit" | "layers">("media");
   const selectedClip =
     selectedIds.length === 1 ? (project.clips.find((c) => c.id === selectedIds[0]) ?? null) : null;
   const selectedText = selectedClip?.kind === "text" ? selectedClip : null;
-  const natural = useNaturalSize(env.media, selectedClip);
+  const natural = useNaturalSize(mediaSource, selectedClip);
   const [lastClipId, setLastClipId] = React.useState<string | null>(null);
   const [justAddedId, setJustAddedId] = React.useState<string | null>(null);
   if ((selectedClip?.id ?? null) !== lastClipId) {
     setLastClipId(selectedClip?.id ?? null);
     if (selectedClip && selectedClip.id === justAddedId) {
       setJustAddedId(null);
-    } else if (selectedClip && selectedClip.kind !== "sticker") {
+    } else if (selectedClip) {
       setTab(selectedClip.kind === "text" ? "text" : "edit");
     }
   }
@@ -102,8 +110,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
   async function addMedia(item: MediaItem, mode: "sequence" | "overlay") {
     if (!frame) return;
     try {
-      await env.media.ensure([item.id]);
-      const url = env.media.urlFor(item.id) ?? item.url;
+      await mediaSource.ensure([item.id]);
+      const url = mediaSource.urlFor(item.id) ?? item.url;
       if (!url) {
         say("That file isn't available right now.");
         return;
@@ -151,6 +159,21 @@ export function StudioView({ env }: { env: StudioEnv }) {
     } catch (error) {
       say(error instanceof Error ? error.message : "Couldn't add that to the project.");
     }
+  }
+
+  function addAsset(asset: ScrapbookAsset) {
+    if (!frame) return;
+    const art = { mediaId: assetMediaId(asset), name: asset.name, width: asset.width, height: asset.height };
+    const at = useTransportStore.getState().time;
+    let result: AddResult | null = null;
+    useClipProjectStore.getState().apply((p) => {
+      result = addSticker(p, art, frame, at);
+      return result.project;
+    });
+    const added = result as AddResult | null;
+    if (!added) return;
+    useClipProjectStore.getState().setSelectedClipIds([added.clipId]);
+    setJustAddedId(added.clipId);
   }
 
   function changeFrame(preset: { width: number; height: number }) {
@@ -201,7 +224,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-72 shrink-0 flex-col border-r sm:flex">
           <div role="tablist" className="flex shrink-0 border-b">
-            {(["media", "text", "edit"] as const).map((name) => (
+            {(["media", "assets", "text", "edit", "layers"] as const).map((name) => (
               <button
                 key={name}
                 role="tab"
@@ -209,7 +232,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
                 aria-selected={tab === name}
                 onClick={() => setTab(name)}
                 className={
-                  "flex-1 px-3 py-2 text-sm capitalize " +
+                  "flex-1 px-1 py-2 text-xs capitalize " +
                   (tab === name ? "border-b-2 border-primary font-medium" : "text-muted-foreground")
                 }
               >
@@ -224,6 +247,10 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onAdd={(item, mode) => void addMedia(item, mode)}
               onUpload={env.uploadFiles}
             />
+          ) : tab === "assets" ? (
+            <AssetsTab onAdd={addAsset} />
+          ) : tab === "layers" ? (
+            <LayersTab />
           ) : tab === "text" ? (
             <TextTab frame={frame} selectedText={selectedText} onSeek={(t) => session?.seek(t)} />
           ) : (
