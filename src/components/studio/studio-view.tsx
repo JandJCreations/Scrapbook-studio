@@ -184,7 +184,10 @@ export function StudioView({ env }: { env: StudioEnv }) {
       useClipProjectStore.getState().apply((p) => fillPlaceholder(p, slotId, media));
       const filled = selectProject(useClipProjectStore.getState()).clips.find((c) => c.id === slotId);
       if (filled?.isPlaceholder !== false) say("Couldn't put that in the slot.");
-      else say(null);
+      else {
+        say(null);
+        setToolsOpen(false);
+      }
     } catch (error) {
       say(error instanceof Error ? error.message : "Couldn't put that in the slot.");
     }
@@ -195,6 +198,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
     useClipProjectStore.getState().apply(() => built);
     useClipProjectStore.getState().setSelectedClipIds([]);
     setPendingTemplate(null);
+    setToolsOpen(false);
     if (!frame || frame.width !== templateFrame.width || frame.height !== templateFrame.height) {
       changeFrame(templateFrame);
     }

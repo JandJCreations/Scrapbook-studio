@@ -165,7 +165,7 @@ export function ProjectCard({ project }: { project: Project }) {
               <Pencil className="size-4" />
               Rename
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => duplicateProject(project.id)}>
+            <DropdownMenuItem onSelect={() => void duplicateProject(project.id).catch((e: unknown) => toast.error(e instanceof Error ? e.message : "Couldn't duplicate that project."))}>
               <Copy className="size-4" />
               Duplicate
             </DropdownMenuItem>

@@ -8,13 +8,13 @@ export interface ProjectContentRow {
   frame_height: number;
 }
 
-/** The row to insert for a copy of a project: same content, frame and thumbnail, a fresh revision, named as a copy. */
+/** The row to insert for a copy of a project: same content and frame, a fresh revision, named as a copy. It has no thumbnail of its own yet (the studio draws one), so it never shows the original's changing picture. */
 export function duplicatePayload(source: ProjectContentRow, ownerId: string) {
   return {
     owner_id: ownerId,
     name: `${source.name} (Copy)`,
     folder_id: source.folder_id,
-    thumbnail_path: source.thumbnail_path,
+    thumbnail_path: null,
     // Cloned so the copy never shares an object with the original.
     timeline: source.timeline == null ? null : (JSON.parse(JSON.stringify(source.timeline)) as unknown),
     timeline_rev: 0,

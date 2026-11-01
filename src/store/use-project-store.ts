@@ -187,8 +187,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       .select()
       .single();
 
-    if (error || !data) return;
-    set((state) => ({ projects: [rowToProject(data, source.thumbnailUrl), ...state.projects] }));
+    if (error || !data) throw new Error("Couldn't duplicate that project.");
+    set((state) => ({ projects: [rowToProject(data, null), ...state.projects] }));
   },
 
   saveProjectThumbnail: async (id, dataUrl) => {

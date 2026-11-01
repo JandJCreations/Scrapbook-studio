@@ -621,3 +621,16 @@ describe("StudioView messages on a phone", () => {
     expect(await screen.findByRole("alert")).toBeTruthy();
   });
 });
+
+describe("StudioView templates on a phone", () => {
+  it("closes the Tools sheet once a template has been applied", async () => {
+    window.localStorage.clear();
+    mockPhone(true);
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Tools" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "assets" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use the Birthday Bash template" }));
+    await vi.waitFor(() => expect(screen.queryByRole("tablist")).toBeNull());
+  });
+});

@@ -3,13 +3,13 @@
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useTourTargetRect } from "@/hooks/use-tour-target-rect";
 import { cn } from "@/lib/utils";
 import { TOUR_STEPS } from "@/lib/onboarding/tour-steps";
 
 const CALLOUT_WIDTH = 300;
 const VIEWPORT_MARGIN = 12;
-const MOBILE_BREAKPOINT = 640; // below this the sidebar is a sheet (the view's sm: breakpoint)
 
 export function WelcomeTour({
   open,
@@ -19,18 +19,16 @@ export function WelcomeTour({
   onOpenChange(open: boolean): void;
 }) {
   const [stepIndex, setStepIndex] = React.useState(0);
-  const [isMobile, setIsMobile] = React.useState(false);
+  // The same phone breakpoint the studio view uses for its Tools sheet.
+  const isMobile = useMediaQuery("(max-width: 639px)");
+  const nextRef = React.useRef<HTMLButtonElement>(null);
   // However it was closed, the next tour starts from the first step.
   if (!open && stepIndex !== 0) setStepIndex(0);
 
+  // Focus moves into the tour, so Space and Delete do not act on the editor behind it.
   React.useEffect(() => {
-    function checkWidth() {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    }
-    checkWidth();
-    window.addEventListener("resize", checkWidth);
-    return () => window.removeEventListener("resize", checkWidth);
-  }, []);
+    if (open) nextRef.current?.focus();
+  }, [open]);
 
   const step = open ? TOUR_STEPS[stepIndex] : undefined;
   // Some targets (e.g. the Media tab) live inside a sheet that's only
@@ -136,6 +134,7 @@ export function WelcomeTour({
             </Button>
           )}
           <Button
+            ref={nextRef}
             size="sm"
             className="flex-1"
             onClick={() => (isLastStep ? handleClose() : setStepIndex((i) => i + 1))}

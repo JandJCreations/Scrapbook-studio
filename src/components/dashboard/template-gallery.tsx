@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -9,16 +10,22 @@ import { saveProjectFrameChecked } from "@/lib/sync/project-frame";
 import { createSupabaseTimelineStorage } from "@/lib/sync/supabase-timeline-storage";
 import { TEMPLATE_CATALOG } from "@/lib/templates/template-catalog";
 import { writeTemplateProject } from "@/lib/templates/write-template-project";
+import { useDashboardUiStore } from "@/store/use-dashboard-ui-store";
 import { useProjectStore } from "@/store/use-project-store";
 import type { ScrapbookTemplate } from "@/types/template";
 
 export function TemplateGallery() {
   const router = useRouter();
   const createProject = useProjectStore((s) => s.createProject);
+  const activeFolderId = useDashboardUiStore((s) => s.activeFolderId);
+  // Making a project takes two network writes; a second click meanwhile would make a second project.
+  const busy = React.useRef(false);
 
   async function handleUse(template: ScrapbookTemplate) {
+    if (busy.current) return;
+    busy.current = true;
     try {
-      const project = await createProject(template.name);
+      const project = await createProject(template.name, activeFolderId);
       const client = createClient();
       try {
         await writeTemplateProject({
@@ -38,6 +45,7 @@ export function TemplateGallery() {
       router.push(`/editor/${project.id}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create project");
+      busy.current = false;
     }
   }
 

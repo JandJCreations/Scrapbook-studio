@@ -8,6 +8,11 @@ import { WelcomeTour } from "@/components/studio/welcome-tour";
 import { TOUR_STEPS } from "@/lib/onboarding/tour-steps";
 
 describe("WelcomeTour", () => {
+  it("takes focus when it opens, so the keys do not reach the editor behind it", () => {
+    render(<WelcomeTour open onOpenChange={vi.fn()} />);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Next" }));
+  });
+
   it("shows nothing while closed", () => {
     render(<WelcomeTour open={false} onOpenChange={vi.fn()} />);
     expect(screen.queryByRole("dialog")).toBeNull();

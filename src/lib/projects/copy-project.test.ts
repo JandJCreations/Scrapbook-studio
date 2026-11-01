@@ -17,7 +17,7 @@ describe("duplicatePayload", () => {
       owner_id: "user-1",
       name: "Summer (Copy)",
       folder_id: "f1",
-      thumbnail_path: "u/projects/p/thumb.jpg",
+      thumbnail_path: null,
       timeline: { schemaVersion: 1, clips: [] },
       timeline_rev: 0,
       frame_width: 1080,
