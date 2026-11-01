@@ -1,3 +1,4 @@
+import { lookFor, type Look } from "@/lib/appearance/look";
 import { clipDrawState, type DrawState } from "@/lib/playback/draw-state";
 import type { PoolElement } from "@/lib/playback/media-pool";
 import { activeClipsAt } from "@/lib/timeline/active-clips";
@@ -13,6 +14,8 @@ export type SceneContent =
 export interface SceneItem {
   clipId: string;
   draw: DrawState;
+  /** Filters, flip, border and shadows for pictures and video; null when the clip has none. */
+  look: Look | null;
   /** null = nothing to draw for this clip right now (e.g. its video element is not ready). */
   content: SceneContent | null;
 }
@@ -55,6 +58,7 @@ export function buildScene(
     items.push({
       clipId: active.clip.id,
       draw: clipDrawState(active.clip, active.localTime),
+      look: lookFor(active.clip),
       content: contentFor(active.clip, elementFor),
     });
   }

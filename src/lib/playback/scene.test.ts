@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildScene, fitContain, fitFrame } from "@/lib/playback/scene";
 import { FakeElement } from "@/lib/playback/test-utils";
 import { makeClip, makeProject, makeStandardTracks, makeTrack } from "@/lib/timeline/test-utils";
+import { DEFAULT_PHOTO_ADJUSTMENTS } from "@/types/photo-adjustments";
 import type { TextAdjustments } from "@/types/text-adjustments";
 
 const none = () => undefined;
@@ -65,6 +66,26 @@ describe("buildScene", () => {
     expect(byId.txt).toEqual({ type: "text", adjustments: text });
     expect(byId.txt2).toEqual({ type: "placeholder", label: "Fallback" });
     expect(byId.stk).toEqual({ type: "placeholder", label: "Star" });
+  });
+
+  it("carries the look of an adjusted picture and nothing for a plain one", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({
+        id: "bright",
+        trackId: "t2",
+        kind: "image",
+        sourceDuration: null,
+        adjustments: {
+          photo: { ...DEFAULT_PHOTO_ADJUSTMENTS, brightness: 20 },
+          video: null,
+          text: null,
+        },
+      }),
+      makeClip({ id: "plain", trackId: "t2", kind: "image", sourceDuration: null }),
+    ]);
+    const byId = Object.fromEntries(buildScene(project, 1, none).map((i) => [i.clipId, i.look]));
+    expect(byId.bright?.filter).toBe("brightness(1.2)");
+    expect(byId.plain).toBeNull();
   });
 
   it("uses the clip's local time for keyframes and fades", () => {
