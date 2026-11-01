@@ -1,6 +1,6 @@
 # Studio zoom and pan (slice 9)
 
-**Goal:** the stage can be zoomed (buttons, ctrl/pinch wheel, two-finger pinch) and panned (plain wheel when zoomed, middle-mouse drag, two-finger drag, Space+drag), returning the feature the cutover dropped. The painter, the hit/transform layer and the text editor all share one view.
+**Goal:** the stage can be zoomed (buttons, ctrl/pinch wheel, two-finger pinch) and panned (plain wheel when zoomed, middle-mouse drag, two-finger drag; Space is play/pause so it is not a pan key), returning the feature the cutover dropped. The painter, the hit/transform layer and the text editor all share one view.
 
 **Design:** `src/lib/editor/view.ts` (pure): `ViewState {zoom, panX, panY}`, `viewFit(geometry, view)` composes the existing fit with zoom about the frame centre plus pan; `zoomAt` keeps the point under the cursor fixed; pan is clamped so the frame never leaves the stage entirely. `src/store/use-stage-view-store.ts` holds the view; the painter gets `setView`, StageInteraction/TextEdit use `viewFit`. Export and thumbnails are unaffected (capture resets the stage to identity and own painters never get a view).
 

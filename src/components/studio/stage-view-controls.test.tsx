@@ -36,11 +36,11 @@ describe("StageViewControls", () => {
 });
 
 describe("useStageGestures", () => {
-  function setup() {
+  function setup(enabled = true) {
     const element = document.createElement("div");
     document.body.appendChild(element);
     element.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1000, height: 500, right: 1000, bottom: 500, x: 0, y: 0, toJSON() {} });
-    renderHook(() => useStageGestures({ current: element }, geometry));
+    renderHook(() => useStageGestures({ current: element }, geometry, enabled));
     return element;
   }
 
@@ -79,12 +79,70 @@ describe("useStageGestures", () => {
   it("pans by dragging with the middle button", () => {
     const element = setup();
     act(() => useStageViewStore.getState().setView({ zoom: 2, panX: 0, panY: 0 }));
-    const down = new PointerEvent("pointerdown", { button: 1, pointerId: 1, clientX: 100, clientY: 100, bubbles: true, cancelable: true });
+    const down = new PointerEvent("pointerdown", { button: 1, buttons: 4, pointerId: 1, clientX: 100, clientY: 100, bubbles: true, cancelable: true });
     act(() => {
       element.dispatchEvent(down);
-      element.dispatchEvent(new PointerEvent("pointermove", { pointerId: 1, clientX: 130, clientY: 90, bubbles: true }));
+      element.dispatchEvent(new PointerEvent("pointermove", { pointerId: 1, buttons: 4, clientX: 130, clientY: 90, bubbles: true }));
       element.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1, clientX: 130, clientY: 90, bubbles: true }));
     });
     expect(useStageViewStore.getState().view).toMatchObject({ panX: 30, panY: -10 });
+  });
+
+  const pointer = (type: string, init: PointerEventInit) =>
+    new PointerEvent(type, { bubbles: true, cancelable: true, ...init });
+
+  it("pinches: two fingers moving apart zoom in", () => {
+    const element = setup();
+    act(() => {
+      element.dispatchEvent(pointer("pointerdown", { pointerId: 1, pointerType: "touch", clientX: 400, clientY: 250 }));
+      element.dispatchEvent(pointer("pointerdown", { pointerId: 2, pointerType: "touch", clientX: 600, clientY: 250 }));
+      element.dispatchEvent(pointer("pointermove", { pointerId: 2, pointerType: "touch", clientX: 800, clientY: 250 }));
+    });
+    expect(useStageViewStore.getState().view.zoom).toBeGreaterThan(1);
+  });
+
+  it("keeps the touches from reaching clip dragging while two fingers are down", () => {
+    const element = setup();
+    const child = document.createElement("div");
+    element.appendChild(child);
+    let reached = 0;
+    document.body.addEventListener("touchstart", () => (reached += 1));
+    act(() => {
+      element.dispatchEvent(pointer("pointerdown", { pointerId: 1, pointerType: "touch", clientX: 400, clientY: 250 }));
+    });
+    child.dispatchEvent(new Event("touchstart", { bubbles: true, cancelable: true }));
+    expect(reached).toBe(1); // one finger still moves a clip
+    act(() => {
+      element.dispatchEvent(pointer("pointerdown", { pointerId: 2, pointerType: "touch", clientX: 600, clientY: 250 }));
+    });
+    child.dispatchEvent(new Event("touchstart", { bubbles: true, cancelable: true }));
+    child.dispatchEvent(new Event("touchmove", { bubbles: true, cancelable: true }));
+    expect(reached).toBe(1);
+  });
+
+  it("stops panning when the pointer is cancelled or the button is let go elsewhere", () => {
+    const element = setup();
+    act(() => useStageViewStore.getState().setView({ zoom: 2, panX: 0, panY: 0 }));
+    act(() => {
+      element.dispatchEvent(pointer("pointerdown", { button: 1, buttons: 4, pointerId: 1, clientX: 100, clientY: 100 }));
+      element.dispatchEvent(pointer("pointercancel", { pointerId: 1 }));
+      element.dispatchEvent(pointer("pointermove", { pointerId: 1, buttons: 0, clientX: 160, clientY: 100 }));
+    });
+    expect(useStageViewStore.getState().view.panX).toBe(0);
+    act(() => {
+      element.dispatchEvent(pointer("pointerdown", { button: 1, buttons: 4, pointerId: 2, clientX: 100, clientY: 100 }));
+      element.dispatchEvent(pointer("pointermove", { pointerId: 2, buttons: 0, clientX: 160, clientY: 100 }));
+    });
+    expect(useStageViewStore.getState().view.panX).toBe(0);
+  });
+
+  it("does nothing while disabled (no frame yet)", () => {
+    const element = setup(false);
+    const event = new WheelEvent("wheel", { ctrlKey: true, deltaY: -100, cancelable: true, bubbles: true });
+    act(() => {
+      element.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(false);
+    expect(useStageViewStore.getState().view.zoom).toBe(1);
   });
 });

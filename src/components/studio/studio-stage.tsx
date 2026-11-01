@@ -10,7 +10,7 @@ import { patchTextAdjustments } from "@/lib/editor/ops";
 import { stageBoxes } from "@/lib/editor/stage";
 import { StageViewControls } from "@/components/studio/stage-view-controls";
 import { useStageGestures } from "@/components/studio/use-stage-gestures";
-import { viewFit } from "@/lib/editor/view";
+import { panBy, viewFit } from "@/lib/editor/view";
 import { useStageViewStore } from "@/store/use-stage-view-store";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
@@ -46,7 +46,22 @@ export function StudioStage({ containerRef, frame, onGestureStart }: StudioStage
     frameHeight: frame?.height ?? 1,
   };
   const fit = frame ? viewFit(geometry, view) : null;
-  useStageGestures(sizeRef, geometry);
+  useStageGestures(sizeRef, geometry, frame !== null);
+  // A new stage size or frame size can leave the picture mostly off the stage: bring it back.
+  const { width: stageW, height: stageH } = size;
+  const frameW = frame?.width;
+  const frameH = frame?.height;
+  React.useEffect(() => {
+    if (!frameW || !frameH || stageW <= 0 || stageH <= 0) return;
+    const { view: current, setView } = useStageViewStore.getState();
+    const clamped = panBy(
+      { width: stageW, height: stageH, frameWidth: frameW, frameHeight: frameH },
+      current,
+      0,
+      0,
+    );
+    if (clamped.panX !== current.panX || clamped.panY !== current.panY) setView(clamped);
+  }, [stageW, stageH, frameW, frameH]);
   // A project always opens at the fit.
   React.useEffect(() => {
     useStageViewStore.getState().reset();
