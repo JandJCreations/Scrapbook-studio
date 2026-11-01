@@ -1,6 +1,8 @@
 import Konva from "konva";
 
+import type { Look } from "@/lib/appearance/look";
 import { layoutCurvedText } from "@/lib/canvas/curved-text";
+import { roundedRectClip } from "@/lib/canvas/rounded-rect-clip";
 import { fitFrame, type SceneItem } from "@/lib/playback/scene";
 import { buildTextNodes, textKey } from "@/lib/text/text-nodes";
 import type { TextAdjustments } from "@/types/text-adjustments";
@@ -27,12 +29,40 @@ export interface ScenePainter {
 interface ClipNodes {
   group: Konva.Group;
   image: Konva.Image;
+  /** Clips the picture to its rounded corners. */
+  pictureGroup: Konva.Group;
+  glowRect: Konva.Rect;
+  shadowRect: Konva.Rect;
+  borderRect: Konva.Rect;
+  /** Scratch canvas the filtered picture is drawn into, reused between frames. */
+  filterCanvas: HTMLCanvasElement | null;
   placeholder: Konva.Group;
   placeholderRect: Konva.Rect;
   placeholderText: Konva.Text;
   textGroup: Konva.Group;
   /** The textKey the text group was last built for. */
   textKey: string | null;
+}
+
+/** Filtered pictures are drawn at most this wide, however large the source is. */
+const MAX_FILTER_WIDTH = 1920;
+
+const supportsCanvasFilter =
+  typeof CanvasRenderingContext2D !== "undefined" && "filter" in CanvasRenderingContext2D.prototype;
+
+function naturalSize(source: CanvasImageSource): { width: number; height: number } | null {
+  let width = 0;
+  let height = 0;
+  if (source instanceof HTMLVideoElement) {
+    width = source.videoWidth;
+    height = source.videoHeight;
+  } else if (source instanceof HTMLImageElement) {
+    width = source.naturalWidth;
+    height = source.naturalHeight;
+  }
+  if (width <= 0 || height <= 0) return null;
+  const shrink = Math.min(1, MAX_FILTER_WIDTH / width);
+  return { width: Math.round(width * shrink), height: Math.round(height * shrink) };
 }
 
 export function createScenePainter({
@@ -81,11 +111,21 @@ export function createScenePainter({
     const placeholder = new Konva.Group({ visible: false });
     placeholder.add(placeholderRect, placeholderText);
     const textGroup = new Konva.Group({ visible: false });
-    group.add(image, placeholder, textGroup);
+    const pictureGroup = new Konva.Group();
+    pictureGroup.add(image);
+    const glowRect = new Konva.Rect({ visible: false });
+    const shadowRect = new Konva.Rect({ visible: false });
+    const borderRect = new Konva.Rect({ visible: false, listening: false });
+    group.add(glowRect, shadowRect, pictureGroup, borderRect, placeholder, textGroup);
     layer.add(group);
     const entry = {
       group,
       image,
+      pictureGroup,
+      glowRect,
+      shadowRect,
+      borderRect,
+      filterCanvas: null,
       placeholder,
       placeholderRect,
       placeholderText,
@@ -94,6 +134,70 @@ export function createScenePainter({
     };
     nodes.set(clipId, entry);
     return entry;
+  }
+
+  /** The picture to draw: the source itself, or a filtered copy when the look has a filter. */
+  function applyFilter(entry: ClipNodes, source: CanvasImageSource, look: Look | null): CanvasImageSource {
+    if (!look || look.filter === "none" || !supportsCanvasFilter) return source;
+    const size = naturalSize(source);
+    if (!size) return source;
+    const canvas = entry.filterCanvas ?? (entry.filterCanvas = document.createElement("canvas"));
+    if (canvas.width !== size.width || canvas.height !== size.height) {
+      canvas.width = size.width;
+      canvas.height = size.height;
+    }
+    const context = canvas.getContext("2d");
+    if (!context) return source;
+    context.clearRect(0, 0, size.width, size.height);
+    context.filter = look.filter;
+    context.drawImage(source, 0, 0, size.width, size.height);
+    context.filter = "none";
+    return canvas;
+  }
+
+  /** Flip, rounded corners, border, shadow and glow around the picture; all off when there is no look. */
+  function paintLook(entry: ClipNodes, look: Look | null, draw: { width: number; height: number }) {
+    const { width, height } = draw;
+    const flipX = look?.flipX ?? false;
+    const flipY = look?.flipY ?? false;
+    entry.image.scale({ x: flipX ? -1 : 1, y: flipY ? -1 : 1 });
+    entry.image.offset({ x: flipX ? width : 0, y: flipY ? height : 0 });
+
+    const radius = look?.border.radius ?? 0;
+    entry.pictureGroup.clipFunc(radius > 0 ? (ctx) => roundedRectClip(ctx as unknown as Konva.Context, width, height, radius) : undefined);
+
+    const borderWidth = look?.border.width ?? 0;
+    entry.borderRect.visible(borderWidth > 0);
+    if (borderWidth > 0 && look) {
+      entry.borderRect.setAttrs({
+        x: borderWidth / 2,
+        y: borderWidth / 2,
+        width: width - borderWidth,
+        height: height - borderWidth,
+        stroke: look.border.color,
+        strokeWidth: borderWidth,
+        cornerRadius: Math.max(0, radius - borderWidth / 2),
+      });
+    }
+
+    const backing = (rect: Konva.Rect, effect: { color: string; blur: number; opacity: number; offsetX?: number; offsetY?: number } | null) => {
+      rect.visible(effect !== null);
+      if (!effect) return;
+      rect.setAttrs({
+        width,
+        height,
+        cornerRadius: radius,
+        fill: effect.color,
+        shadowEnabled: true,
+        shadowColor: effect.color,
+        shadowBlur: effect.blur,
+        shadowOffsetX: effect.offsetX ?? 0,
+        shadowOffsetY: effect.offsetY ?? 0,
+        shadowOpacity: effect.opacity / 100,
+      });
+    };
+    backing(entry.glowRect, look?.glow ?? null);
+    backing(entry.shadowRect, look?.shadow ?? null);
   }
 
   function paintItem(entry: ClipNodes, item: SceneItem) {
@@ -120,9 +224,10 @@ export function createScenePainter({
 
     entry.image.visible(source !== null);
     if (source !== null) {
-      entry.image.image(source);
+      entry.image.image(applyFilter(entry, source, item.look));
       entry.image.size({ width: draw.width, height: draw.height });
     }
+    paintLook(entry, source !== null ? item.look : null, draw);
 
     entry.placeholder.visible(label !== null);
     if (label !== null) {
