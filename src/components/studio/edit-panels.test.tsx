@@ -25,12 +25,12 @@ describe("PhotoPanel", () => {
     expect(h.onApply).toHaveBeenCalledWith({ filterPreset: "mono" });
   });
 
-  it("previews a slider move and commits it", () => {
+  it("previews a slider move and commits it", async () => {
     const h = handlers();
     render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} opacity={1} {...h} />);
     fireEvent.keyDown(screen.getByRole("slider", { name: "Brightness" }), { key: "ArrowRight" });
     expect(h.onPreview).toHaveBeenCalledWith({ brightness: 1 });
-    expect(h.onCommit).toHaveBeenCalled();
+    await vi.waitFor(() => expect(h.onCommit).toHaveBeenCalled());
   });
 
   it("flips with the flip buttons", () => {
@@ -89,7 +89,7 @@ describe("VideoPanel", () => {
 describe("AudioPanel", () => {
   const base = { volume: 100, muted: false, fadeIn: 0, fadeOut: 0, speed: 1, maxFade: 10 };
 
-  it("applies mute and speed, previews volume and fades", () => {
+  it("applies mute and speed, previews volume and fades", async () => {
     const onPreview = vi.fn();
     const onCommit = vi.fn();
     const onApply = vi.fn();
@@ -105,6 +105,6 @@ describe("AudioPanel", () => {
     expect(onPreview).toHaveBeenCalledWith({ volume: 99 });
     fireEvent.keyDown(screen.getByRole("slider", { name: "Fade in" }), { key: "ArrowRight" });
     expect(onPreview).toHaveBeenCalledWith({ fadeIn: 0.1 });
-    expect(onCommit).toHaveBeenCalled();
+    await vi.waitFor(() => expect(onCommit).toHaveBeenCalled());
   });
 });

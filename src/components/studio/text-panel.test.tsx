@@ -66,12 +66,12 @@ describe("TextPanel", () => {
     expect(screen.queryByLabelText("Shadow colour")).toBeNull();
   });
 
-  it("previews a slider move and commits when it is released", () => {
+  it("previews a slider move and commits when it is released", async () => {
     const { onPreview, onCommit } = setup();
     const thumb = screen.getByRole("slider", { name: "Size" });
     fireEvent.keyDown(thumb, { key: "ArrowRight" });
     expect(onPreview).toHaveBeenCalledWith({ fontSize: DEFAULT_TEXT_ADJUSTMENTS.fontSize + 1 });
-    expect(onCommit).toHaveBeenCalled();
+    await vi.waitFor(() => expect(onCommit).toHaveBeenCalled());
   });
 
   it("resets", () => {

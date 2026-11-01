@@ -233,3 +233,45 @@ describe("StudioView text", () => {
     expect(await screen.findByLabelText("Text content")).toBeTruthy();
   });
 });
+
+describe("StudioView edit tab", () => {
+  async function withPhoto() {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
+    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1));
+    return selectProject(useClipProjectStore.getState()).clips[0];
+  }
+
+  it("stays on the Media tab after adding a file, so several can be added in a row", async () => {
+    await withPhoto();
+    expect(screen.getByRole("button", { name: "Add Beach to the sequence" })).toBeTruthy();
+  });
+
+  it("opens the Edit tab when a picture is selected and edits it as one history entry", async () => {
+    const clip = await withPhoto();
+    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
+    act(() => useClipProjectStore.getState().setSelectedClipIds([clip.id]));
+    const before = useClipProjectStore.getState().history.past.length;
+    fireEvent.keyDown(await screen.findByRole("slider", { name: "Brightness" }), { key: "ArrowRight" });
+    const edited = selectProject(useClipProjectStore.getState()).clips[0];
+    expect(edited.adjustments.photo?.brightness).toBe(1);
+    // The slider ends its change a moment later, inside React's effects.
+    await vi.waitFor(() =>
+      expect(useClipProjectStore.getState().history.past.length).toBe(before + 1),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Flip horizontally" }));
+    expect(selectProject(useClipProjectStore.getState()).clips[0].adjustments.photo?.flipHorizontal).toBe(true);
+  });
+
+  it("resets the look and opacity", async () => {
+    const clip = await withPhoto();
+    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
+    act(() => useClipProjectStore.getState().setSelectedClipIds([clip.id]));
+    fireEvent.keyDown(await screen.findByRole("slider", { name: "Opacity" }), { key: "ArrowLeft" });
+    expect(selectProject(useClipProjectStore.getState()).clips[0].transform.opacity).toBe(0.99);
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    const after = selectProject(useClipProjectStore.getState()).clips[0];
+    expect(after.transform.opacity).toBe(1);
+  });
+});

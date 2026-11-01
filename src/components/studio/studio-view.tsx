@@ -8,6 +8,7 @@ import type { StudioEnv } from "@/components/studio/studio-env";
 import { StudioMediaPanel } from "@/components/studio/studio-media-panel";
 import { StudioStage } from "@/components/studio/studio-stage";
 import { StudioToolbar } from "@/components/studio/studio-toolbar";
+import { EditTab } from "@/components/studio/edit-tab";
 import { TextTab } from "@/components/studio/text-tab";
 import { useStudioMedia } from "@/components/studio/use-studio-media";
 import { useStudioPlayback } from "@/components/studio/use-studio-playback";
@@ -78,16 +79,22 @@ export function StudioView({ env }: { env: StudioEnv }) {
     if (aliveRef.current) setMessage(text);
   };
 
-  // The sidebar follows the selection: picking a text clip opens the Text tab.
-  const [tab, setTab] = React.useState<"media" | "text">("media");
-  const selectedText =
-    selectedIds.length === 1
-      ? (project.clips.find((c) => c.id === selectedIds[0] && c.kind === "text") ?? null)
-      : null;
-  const [lastTextId, setLastTextId] = React.useState<string | null>(null);
-  if ((selectedText?.id ?? null) !== lastTextId) {
-    setLastTextId(selectedText?.id ?? null);
-    if (selectedText) setTab("text");
+  // The sidebar follows the selection: a text clip opens the Text tab, a
+  // picture, video or music clip opens the Edit tab. A clip the user has just
+  // added from the Media tab does not, so adding several files in a row works.
+  const [tab, setTab] = React.useState<"media" | "text" | "edit">("media");
+  const selectedClip =
+    selectedIds.length === 1 ? (project.clips.find((c) => c.id === selectedIds[0]) ?? null) : null;
+  const selectedText = selectedClip?.kind === "text" ? selectedClip : null;
+  const [lastClipId, setLastClipId] = React.useState<string | null>(null);
+  const [justAddedId, setJustAddedId] = React.useState<string | null>(null);
+  if ((selectedClip?.id ?? null) !== lastClipId) {
+    setLastClipId(selectedClip?.id ?? null);
+    if (selectedClip && selectedClip.id === justAddedId) {
+      setJustAddedId(null);
+    } else if (selectedClip && selectedClip.kind !== "sticker") {
+      setTab(selectedClip.kind === "text" ? "text" : "edit");
+    }
   }
 
   async function addMedia(item: MediaItem, mode: "sequence" | "overlay") {
@@ -137,6 +144,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
         return;
       }
       useClipProjectStore.getState().setSelectedClipIds([added.clipId]);
+      setJustAddedId(added.clipId);
       say(null);
     } catch (error) {
       say(error instanceof Error ? error.message : "Couldn't add that to the project.");
@@ -191,7 +199,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-72 shrink-0 flex-col border-r sm:flex">
           <div role="tablist" className="flex shrink-0 border-b">
-            {(["media", "text"] as const).map((name) => (
+            {(["media", "text", "edit"] as const).map((name) => (
               <button
                 key={name}
                 role="tab"
@@ -214,8 +222,10 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onAdd={(item, mode) => void addMedia(item, mode)}
               onUpload={env.uploadFiles}
             />
-          ) : (
+          ) : tab === "text" ? (
             <TextTab frame={frame} selectedText={selectedText} />
+          ) : (
+            <EditTab clip={selectedClip} />
           )}
           {message && (
             <p role="alert" className="border-t p-3 text-xs text-destructive">

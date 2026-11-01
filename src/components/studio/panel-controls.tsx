@@ -32,7 +32,11 @@ export function PanelSlider({ label, value, min, max, step = 1, onChange, onComm
         max={max}
         step={step}
         onValueChange={([v]) => onChange(v)}
-        onValueCommit={() => onCommit()}
+        // Radix reports the end of a keyboard step before the value change itself,
+        // so the commit waits a tick to land after the preview it should close.
+        onValueCommit={() => {
+          window.setTimeout(onCommit, 0);
+        }}
       />
     </div>
   );
