@@ -60,7 +60,16 @@ function traceRoundedRect(ctx: CanvasRenderingContext2D, width: number, height: 
 const supportsCanvasFilter =
   typeof CanvasRenderingContext2D !== "undefined" && "filter" in CanvasRenderingContext2D.prototype;
 
-function naturalSize(source: CanvasImageSource): { width: number; height: number } | null {
+/** The part of a source to draw, in its own pixels: the crop, or all of it. */
+function sourceRegion(
+  natural: { width: number; height: number },
+  crop: { x: number; y: number; width: number; height: number } | null,
+) {
+  return crop && crop.width > 0 && crop.height > 0 ? crop : { x: 0, y: 0, ...natural };
+}
+
+/** The source's own size in pixels (before any cap), or null while it has none. */
+function fullSize(source: CanvasImageSource): { width: number; height: number } | null {
   let width = 0;
   let height = 0;
   if (source instanceof HTMLVideoElement) {
@@ -70,9 +79,7 @@ function naturalSize(source: CanvasImageSource): { width: number; height: number
     width = source.naturalWidth;
     height = source.naturalHeight;
   }
-  if (width <= 0 || height <= 0) return null;
-  const shrink = Math.min(1, MAX_FILTER_WIDTH / width);
-  return { width: Math.round(width * shrink), height: Math.round(height * shrink) };
+  return width > 0 && height > 0 ? { width, height } : null;
 }
 
 export function createScenePainter({
@@ -154,28 +161,36 @@ export function createScenePainter({
     source: CanvasImageSource,
     look: Look | null,
     draw: { width: number; height: number },
-  ): CanvasImageSource {
+  ): { source: CanvasImageSource; baked: boolean } {
     const radius = look?.border.radius ?? 0;
     const blur = look?.blurPx ?? 0;
     const filtered = supportsCanvasFilter && look !== null && (look.filter !== "none" || blur > 0);
-    const size = look && (filtered || radius > 0) ? naturalSize(source) : null;
-    if (!look || !size || draw.width <= 0) {
+    const full = look && (filtered || radius > 0) ? fullSize(source) : null;
+    if (!look || !full || draw.width <= 0) {
       entry.filterCanvas = null;
       entry.filterKey = null;
       entry.filterSource = null;
-      return source;
+      return { source, baked: false };
     }
 
-    // Natural pixels per frame unit: blur and corner radius are set in frame units.
+    // The part of the file to show (its crop, or all of it), at no more than MAX_FILTER_WIDTH.
+    const region = sourceRegion(full, look.crop);
+    const shrink = Math.min(1, MAX_FILTER_WIDTH / region.width);
+    const size = {
+      width: Math.max(1, Math.round(region.width * shrink)),
+      height: Math.max(1, Math.round(region.height * shrink)),
+    };
+
+    // Pixels per frame unit: blur and corner radius are set in frame units.
     const scale = size.width / draw.width;
     const parts = [look.filter === "none" ? "" : look.filter, blur > 0 ? `blur(${Number((blur * scale).toFixed(2))}px)` : ""];
     const css = filtered ? parts.filter(Boolean).join(" ") : "none";
-    const key = `${css}|${Number((radius * scale).toFixed(2))}|${size.width}x${size.height}`;
+    const key = [css, Number((radius * scale).toFixed(2)), size.width, size.height, region.x, region.y, region.width, region.height].join("|");
 
     // A still picture only needs drawing again when its look or source changes.
     const still = source instanceof HTMLImageElement;
     if (still && entry.filterCanvas && entry.filterKey === key && entry.filterSource === source) {
-      return entry.filterCanvas;
+      return { source: entry.filterCanvas, baked: true };
     }
 
     const canvas = entry.filterCanvas ?? (entry.filterCanvas = document.createElement("canvas"));
@@ -184,17 +199,19 @@ export function createScenePainter({
       canvas.height = size.height;
     }
     const context = canvas.getContext("2d");
-    if (!context) return source;
+    if (!context) return { source, baked: false };
     context.clearRect(0, 0, size.width, size.height);
     context.save();
-    if (radius > 0) traceRoundedRect(context, size.width, size.height, radius * scale);
-    if (radius > 0) context.clip();
+    if (radius > 0) {
+      traceRoundedRect(context, size.width, size.height, radius * scale);
+      context.clip();
+    }
     context.filter = css;
-    context.drawImage(source, 0, 0, size.width, size.height);
+    context.drawImage(source, region.x, region.y, region.width, region.height, 0, 0, size.width, size.height);
     context.restore();
     entry.filterKey = still ? key : null;
     entry.filterSource = still ? source : null;
-    return canvas;
+    return { source: canvas, baked: true };
   }
 
   /** Flip, border, shadow and glow around the picture; all off when there is no look. */
@@ -258,7 +275,10 @@ export function createScenePainter({
 
     entry.image.visible(source !== null);
     if (source !== null) {
-      entry.image.image(applyFilter(entry, source, item.look, draw));
+      const prepared = applyFilter(entry, source, item.look, draw);
+      entry.image.image(prepared.source);
+      // A crop that was not baked into a scratch canvas is drawn by Konva itself.
+      entry.image.setAttr("crop", prepared.baked ? undefined : (item.look?.crop ?? undefined));
       entry.image.size({ width: draw.width, height: draw.height });
     }
     paintLook(entry, source !== null ? item.look : null, draw);

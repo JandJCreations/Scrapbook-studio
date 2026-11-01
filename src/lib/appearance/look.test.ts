@@ -40,6 +40,16 @@ describe("lookFor", () => {
     expect(lookFor(photo({ blur: 4 }))).toMatchObject({ filter: "none", blurPx: 4 });
   });
 
+  it("carries a crop, for pictures and for video", () => {
+    const crop = { x: 10, y: 20, width: 100, height: 80 };
+    expect(lookFor(photo({ crop }))).toMatchObject({ filter: "none", crop });
+    const video = makeClip({
+      kind: "video",
+      adjustments: { photo: null, video: { ...createDefaultVideoAdjustments(10), crop }, text: null },
+    });
+    expect(lookFor(video)?.crop).toEqual(crop);
+  });
+
   it("never lets a factor go negative", () => {
     expect(lookFor(photo({ saturation: -100, brightness: -100 }))?.filter).toBe(
       "brightness(0) saturate(0)",

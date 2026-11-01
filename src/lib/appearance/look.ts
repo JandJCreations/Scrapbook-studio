@@ -1,6 +1,7 @@
 import type { Clip } from "@/types/timeline";
 import {
   FILTER_PRESETS,
+  type CropRect,
   type GlowEffect,
   type PhotoAdjustments,
   type ShadowEffect,
@@ -12,6 +13,8 @@ export interface Look {
   filter: string;
   /** Blur radius in frame units; the painter scales it to the picture it blurs. */
   blurPx: number;
+  /** The part of the file to show, in the file's own pixels; null shows all of it. */
+  crop: CropRect | null;
   flipX: boolean;
   flipY: boolean;
   border: { width: number; color: string; radius: number };
@@ -49,6 +52,7 @@ function photoLook(adj: PhotoAdjustments): Look {
       exposure: adj.exposure + (preset.exposure ?? 0),
     }),
     blurPx: adj.blur,
+    crop: adj.crop,
     flipX: adj.flipHorizontal,
     flipY: adj.flipVertical,
     border: { width: adj.borderWidth, color: adj.borderColor, radius: adj.borderRadius },
@@ -61,6 +65,7 @@ function isNeutral(look: Look): boolean {
   return (
     look.filter === "none" &&
     look.blurPx === 0 &&
+    look.crop === null &&
     !look.flipX &&
     !look.flipY &&
     look.border.width === 0 &&
@@ -89,6 +94,7 @@ export function lookFor(clip: Clip): Look | null {
         exposure: 0,
       }),
       blurPx: adj.blur,
+      crop: adj.crop,
       flipX: false,
       flipY: false,
       border: { width: 0, color: "#ffffff", radius: 0 },
