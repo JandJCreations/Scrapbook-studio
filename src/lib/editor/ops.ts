@@ -169,10 +169,11 @@ function textName(content: string): string {
   return trimmed === "" ? "Text" : trimmed.slice(0, TEXT_NAME_LENGTH);
 }
 
-/** The default text style, with the font sized for the frame. */
+/** The default text style: white (frames start black), with the font sized for the frame. */
 function defaultTextFor(frame: FrameSize, content: string): TextAdjustments {
   return {
     ...DEFAULT_TEXT_ADJUSTMENTS,
+    color: "#ffffff",
     content,
     fontSize: Math.round(frame.height * TEXT_FONT_SCALE),
   };

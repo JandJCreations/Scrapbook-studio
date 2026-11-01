@@ -14,6 +14,15 @@ interface TextEditOverlayProps {
   onCancel(): void;
 }
 
+/** True for a #rgb or #rrggbb colour that is bright enough to vanish on a light backing. */
+function isLight(hex: string): boolean {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex);
+  if (!m) return false;
+  const full = m[1].length === 3 ? m[1].split("").map((c) => c + c).join("") : m[1];
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16));
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6;
+}
+
 /** A textarea laid over a text clip on the stage for editing its words in place. */
 export function TextEditOverlay({ box, fit, adjustments, onCommit, onCancel }: TextEditOverlayProps) {
   const ref = React.useRef<HTMLTextAreaElement>(null);
@@ -55,7 +64,7 @@ export function TextEditOverlay({ box, fit, adjustments, onCommit, onCancel }: T
           commit();
         }
       }}
-      className="absolute resize-none overflow-hidden border-2 border-primary bg-white/90 outline-none"
+      className="absolute resize-none overflow-hidden border-2 border-primary outline-none"
       style={{
         left: fit.x + box.x * fit.scale,
         top: fit.y + box.y * fit.scale,
@@ -65,6 +74,7 @@ export function TextEditOverlay({ box, fit, adjustments, onCommit, onCancel }: T
         fontFamily: adjustments.fontFamily,
         fontWeight: adjustments.fontWeight,
         color: adjustments.color,
+        backgroundColor: isLight(adjustments.color) ? "rgba(0,0,0,0.75)" : "rgba(255,255,255,0.9)",
         textAlign: adjustments.align,
         lineHeight: adjustments.lineHeight,
         letterSpacing: adjustments.letterSpacing * fit.scale,

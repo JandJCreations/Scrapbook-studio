@@ -242,7 +242,7 @@ describe("patchTextAdjustments", () => {
     const { project, clipId } = withText();
     const result = patchTextAdjustments(project, clipId, { content: "Happy birthday", fontSize: 90 });
     const clip = findClip(result, clipId)!;
-    expect(clip.adjustments.text).toMatchObject({ content: "Happy birthday", fontSize: 90, color: "#1f2937" });
+    expect(clip.adjustments.text).toMatchObject({ content: "Happy birthday", fontSize: 90, color: "#ffffff" });
     expect(clip.name).toBe("Happy birthday");
   });
 
@@ -278,7 +278,7 @@ describe("resetTextAdjustments", () => {
     const reset = findClip(resetTextAdjustments(changed, clipId, frame), clipId)!;
     expect(reset.adjustments.text).toMatchObject({
       content: "Keep me",
-      color: "#1f2937",
+      color: "#ffffff",
       curve: 0,
       fontSize: 76,
     });

@@ -50,7 +50,7 @@ export function TextPanel({ adjustments, onPreview, onCommit, onApply, onReset }
   const known = GOOGLE_FONTS.some((f) => f.family === adjustments.fontFamily);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">Edit text</h2>
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onReset}>

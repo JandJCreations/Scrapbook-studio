@@ -65,6 +65,45 @@ describe("TextEditOverlay", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+  it("picks a dark backing for light text and a light one for dark text", () => {
+    const { rerender } = render(
+      <TextEditOverlay
+        box={box}
+        fit={fit}
+        adjustments={{ ...DEFAULT_TEXT_ADJUSTMENTS, color: "#ffffff" }}
+        onCommit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const light = screen.getAllByLabelText("Edit text on the stage").pop() as HTMLTextAreaElement;
+    expect(light.style.backgroundColor).toBe("rgba(0, 0, 0, 0.75)");
+    rerender(
+      <TextEditOverlay
+        box={box}
+        fit={fit}
+        adjustments={{ ...DEFAULT_TEXT_ADJUSTMENTS, color: "#111111" }}
+        onCommit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const dark = screen.getAllByLabelText("Edit text on the stage").pop() as HTMLTextAreaElement;
+    expect(dark.style.backgroundColor).toBe("rgba(255, 255, 255, 0.9)");
+  });
+
+  it("reads short #fff colours too", () => {
+    render(
+      <TextEditOverlay
+        box={box}
+        fit={fit}
+        adjustments={{ ...DEFAULT_TEXT_ADJUSTMENTS, color: "#fff" }}
+        onCommit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+    const area = screen.getByLabelText("Edit text on the stage") as HTMLTextAreaElement;
+    expect(area.style.backgroundColor).toBe("rgba(0, 0, 0, 0.75)");
+  });
+
   it("never commits empty words", () => {
     const { area, onCommit } = setup();
     fireEvent.change(area, { target: { value: "   " } });
