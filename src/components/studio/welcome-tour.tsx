@@ -25,10 +25,20 @@ export function WelcomeTour({
   // However it was closed, the next tour starts from the first step.
   if (!open && stepIndex !== 0) setStepIndex(0);
 
-  // Focus moves into the tour, so Space and Delete do not act on the editor behind it.
+  // Focus lives inside the tour while it is open (so Space and Delete do not act
+  // on the editor behind it) and goes back to where it came from when it closes.
+  const openerRef = React.useRef<HTMLElement | null>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      openerRef.current?.focus();
+      openerRef.current = null;
+    };
+  }, [open]);
   React.useEffect(() => {
     if (open) nextRef.current?.focus();
-  }, [open]);
+  }, [open, stepIndex]);
 
   const step = open ? TOUR_STEPS[stepIndex] : undefined;
   // Some targets (e.g. the Media tab) live inside a sheet that's only
@@ -97,7 +107,8 @@ export function WelcomeTour({
       )}
 
       <div
-        className="absolute flex w-[300px] flex-col items-center rounded-2xl bg-popover p-4 text-center text-popover-foreground shadow-lg ring-1 ring-foreground/10"
+        tabIndex={-1}
+        className="absolute flex w-[300px] flex-col items-center rounded-2xl outline-none bg-popover p-4 text-center text-popover-foreground shadow-lg ring-1 ring-foreground/10"
         style={calloutStyle}
       >
         <div className="mb-3 flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">

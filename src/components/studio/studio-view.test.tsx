@@ -634,3 +634,31 @@ describe("StudioView templates on a phone", () => {
     await vi.waitFor(() => expect(screen.queryByRole("tablist")).toBeNull());
   });
 });
+
+describe("StudioView media extras", () => {
+  const second: MediaItem = { ...photo, id: "22222222-2222-4222-8222-222222222222", name: "Forest" };
+  beforeEach(() => mockPhone(false));
+
+  it("adds several ticked photos at once", async () => {
+    render(<StudioView env={env({ library: [photo, second] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the sequence" }));
+    await vi.waitFor(() => {
+      expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(2);
+    });
+    expect(selectProject(useClipProjectStore.getState()).clips.map((c) => c.mediaId)).toEqual([photo.id, second.id]);
+  });
+
+  it("adds one of your own pictures as a sticker", async () => {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach as a sticker" }));
+    await vi.waitFor(() => {
+      expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1);
+    });
+    expect(selectProject(useClipProjectStore.getState()).clips[0]).toMatchObject({ kind: "sticker", mediaId: photo.id });
+    expect(useClipProjectStore.getState().selectedClipIds).toHaveLength(1);
+  });
+});

@@ -241,6 +241,38 @@ export function StudioView({ env }: { env: StudioEnv }) {
     }
   }
 
+  /** Ticked items go in one after another; one that fails does not stop the rest, and its message stays. */
+  async function addMany(items: MediaItem[], mode: "sequence" | "overlay") {
+    for (const item of items) await addMedia(item, mode);
+  }
+
+  /** One of the user's own pictures, as a sticker. */
+  async function addPictureAsSticker(item: MediaItem) {
+    if (!frame) return;
+    try {
+      const media = await loadEditorMedia(item);
+      if (!media || !aliveRef.current) return;
+      const at = useTransportStore.getState().time;
+      let result: AddResult | null = null;
+      useClipProjectStore.getState().apply((p) => {
+        result = addSticker(
+          p,
+          { mediaId: media.mediaId, name: media.name, width: media.width, height: media.height },
+          frame,
+          at,
+        );
+        return result.project;
+      });
+      const added = result as AddResult | null;
+      if (!added) return;
+      useClipProjectStore.getState().setSelectedClipIds([added.clipId]);
+      setJustAddedId(added.clipId);
+      say(null);
+    } catch (error) {
+      say(error instanceof Error ? error.message : "Couldn't add that to the project.");
+    }
+  }
+
   function addMusic(track: MusicLibraryTrack) {
     if (!frame) return;
     const media: EditorMedia = {
@@ -358,6 +390,14 @@ export function StudioView({ env }: { env: StudioEnv }) {
                   setToolsOpen(false);
                 }}
                 onUpload={env.uploadFiles}
+                onAddMany={(items, mode) => {
+                  void addMany(items, mode);
+                  setToolsOpen(false);
+                }}
+                onAddSticker={(item) => {
+                  void addPictureAsSticker(item);
+                  setToolsOpen(false);
+                }}
               />
             ) : tab === "assets" ? (
               <AssetsTab

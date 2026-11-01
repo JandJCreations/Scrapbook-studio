@@ -8,6 +8,18 @@ import { WelcomeTour } from "@/components/studio/welcome-tour";
 import { TOUR_STEPS } from "@/lib/onboarding/tour-steps";
 
 describe("WelcomeTour", () => {
+  it("keeps focus inside as the steps change and gives it back to where it came from", () => {
+    const opener = document.createElement("button");
+    document.body.appendChild(opener);
+    opener.focus();
+    const view = render(<WelcomeTour open onOpenChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Next" }));
+    view.rerender(<WelcomeTour open={false} onOpenChange={vi.fn()} />);
+    expect(document.activeElement).toBe(opener);
+  });
+
   it("takes focus when it opens, so the keys do not reach the editor behind it", () => {
     render(<WelcomeTour open onOpenChange={vi.fn()} />);
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Next" }));

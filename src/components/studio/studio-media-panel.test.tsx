@@ -69,4 +69,43 @@ describe("StudioMediaPanel", () => {
     render(<StudioMediaPanel items={[]} loading onAdd={vi.fn()} />);
     expect(screen.getByText(/loading your media/i)).toBeTruthy();
   });
+
+  it("selects several items and adds them together, in the order of the list", () => {
+    const onAddMany = vi.fn();
+    const a = item({ id: "a", name: "Beach" });
+    const b = item({ id: "b", name: "Forest" });
+    const c = item({ id: "c", name: "Lake" });
+    render(<StudioMediaPanel items={[a, b, c]} loading={false} onAdd={vi.fn()} onAddMany={onAddMany} />);
+    expect(screen.queryByRole("button", { name: /^Add d+ / })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Lake" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the sequence" }));
+    expect(onAddMany).toHaveBeenCalledWith([a, c], "sequence");
+    // The selection is spent once added.
+    expect(screen.queryByRole("button", { name: /^Add d+ / })).toBeNull();
+  });
+
+  it("adds the selection as overlays, and can be cleared", () => {
+    const onAddMany = vi.fn();
+    const a = item({ id: "a", name: "Beach" });
+    const b = item({ id: "b", name: "Forest" });
+    render(<StudioMediaPanel items={[a, b]} loading={false} onAdd={vi.fn()} onAddMany={onAddMany} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 as overlays" }));
+    expect(onAddMany).toHaveBeenCalledWith([a, b], "overlay");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(screen.queryByRole("button", { name: /^Add d+ / })).toBeNull();
+  });
+
+  it("offers a picture as a sticker, but not a video or a song", () => {
+    const onAddSticker = vi.fn();
+    const photo = item({ id: "p", name: "Beach" });
+    const clip = item({ id: "v", name: "Clip", type: "video" });
+    render(<StudioMediaPanel items={[photo, clip]} loading={false} onAdd={vi.fn()} onAddSticker={onAddSticker} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach as a sticker" }));
+    expect(onAddSticker).toHaveBeenCalledWith(photo);
+    expect(screen.queryByRole("button", { name: "Add Clip as a sticker" })).toBeNull();
+  });
 });
