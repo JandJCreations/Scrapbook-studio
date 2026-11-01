@@ -152,6 +152,9 @@ export function PhotoPanel({
       {slider("Contrast", adj.contrast, -100, 100, (contrast) => onPreview({ contrast }))}
       {slider("Saturation", adj.saturation, -100, 100, (saturation) => onPreview({ saturation }))}
       {slider("Exposure", adj.exposure, -100, 100, (exposure) => onPreview({ exposure }))}
+      {slider("Highlights", adj.highlights, -100, 100, (highlights) => onPreview({ highlights }))}
+      {slider("Shadows", adj.shadowsTone, -100, 100, (shadowsTone) => onPreview({ shadowsTone }))}
+      {slider("Sharpness", adj.sharpness, 0, 100, (sharpness) => onPreview({ sharpness }))}
       {slider("Blur", adj.blur, 0, 20, (blur) => onPreview({ blur }))}
       {slider("Opacity", Math.round(opacity * 100), 0, 100, (v) => onOpacity(v / 100))}
 

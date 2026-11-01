@@ -2,6 +2,7 @@ import Konva from "konva";
 
 import type { Look } from "@/lib/appearance/look";
 import { layoutCurvedText } from "@/lib/canvas/curved-text";
+import { applyTone } from "@/lib/appearance/pixel-tone";
 import { DEFAULT_VIEW, viewFit, type ViewState } from "@/lib/editor/view";
 import type { SceneItem } from "@/lib/playback/scene";
 import { buildTextNodes, textKey } from "@/lib/text/text-nodes";
@@ -181,8 +182,9 @@ export function createScenePainter({
   ): { source: CanvasImageSource; baked: boolean } {
     const radius = look?.border.radius ?? 0;
     const blur = look?.blurPx ?? 0;
+    const tone = look?.tone ?? null;
     const filtered = supportsCanvasFilter && look !== null && (look.filter !== "none" || blur > 0);
-    const full = look && (filtered || radius > 0) ? fullSize(source) : null;
+    const full = look && (filtered || radius > 0 || tone !== null) ? fullSize(source) : null;
     if (!look || !full || draw.width <= 0) {
       entry.filterCanvas = null;
       entry.filterKey = null;
@@ -202,7 +204,8 @@ export function createScenePainter({
     const scale = size.width / draw.width;
     const parts = [look.filter === "none" ? "" : look.filter, blur > 0 ? `blur(${Number((blur * scale).toFixed(2))}px)` : ""];
     const css = filtered ? parts.filter(Boolean).join(" ") : "none";
-    const key = [css, Number((radius * scale).toFixed(2)), size.width, size.height, region.x, region.y, region.width, region.height].join("|");
+    const toneKey = tone ? `${tone.highlights},${tone.shadows},${tone.sharpness}` : "";
+    const key = [css, toneKey, Number((radius * scale).toFixed(2)), size.width, size.height, region.x, region.y, region.width, region.height].join("|");
 
     // A still picture only needs drawing again when its look or source changes.
     const still = source instanceof HTMLImageElement;
@@ -226,6 +229,15 @@ export function createScenePainter({
     context.filter = css;
     context.drawImage(source, region.x, region.y, region.width, region.height, 0, 0, size.width, size.height);
     context.restore();
+    if (tone) {
+      try {
+        const pixels = context.getImageData(0, 0, size.width, size.height);
+        applyTone(pixels, tone);
+        context.putImageData(pixels, 0, 0);
+      } catch {
+        // A picture the browser will not let us read (cross-origin) is drawn without tone.
+      }
+    }
     entry.filterKey = still ? key : null;
     entry.filterSource = still ? source : null;
     return { source: canvas, baked: true };

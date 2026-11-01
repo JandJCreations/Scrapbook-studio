@@ -20,6 +20,18 @@ describe("lookFor", () => {
     expect(lookFor(makeClip({ kind: "audio" }))).toBeNull();
   });
 
+  it("carries highlights, shadows and sharpness as tone, and is not neutral because of them", () => {
+    const look = lookFor(photo({ highlights: -20, shadowsTone: 30, sharpness: 40 }));
+    expect(look?.tone).toEqual({ highlights: -20, shadows: 30, sharpness: 40 });
+    expect(look?.filter).toBe("none");
+    expect(lookFor(photo({ sharpness: 1 }))).not.toBeNull();
+    expect(lookFor(photo({}))?.tone ?? null).toBeNull();
+  });
+
+  it("gives a video no tone", () => {
+    expect(lookFor(makeClip({ kind: "video", adjustments: { photo: null, video: { ...createDefaultVideoAdjustments(10), blur: 2 }, text: null } }))?.tone).toBeNull();
+  });
+
   it("turns the sliders into a canvas filter", () => {
     const look = lookFor(photo({ brightness: 20, contrast: -10, saturation: 50, blur: 3 }));
     expect(look?.filter).toBe("brightness(1.2) contrast(0.9) saturate(1.5)");

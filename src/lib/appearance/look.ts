@@ -1,3 +1,4 @@
+import { hasTone, type Tone as PixelTone } from "@/lib/appearance/pixel-tone";
 import type { Clip } from "@/types/timeline";
 import {
   FILTER_PRESETS,
@@ -13,6 +14,8 @@ export interface Look {
   filter: string;
   /** Blur radius in frame units; the painter scales it to the picture it blurs. */
   blurPx: number;
+  /** Highlights, shadows and sharpness: done on the picture's pixels, since a canvas filter cannot; null when none is set. */
+  tone: PixelTone | null;
   /** The part of the file to show, in the file's own pixels; null shows all of it. */
   crop: CropRect | null;
   flipX: boolean;
@@ -52,6 +55,9 @@ function photoLook(adj: PhotoAdjustments): Look {
       exposure: adj.exposure + (preset.exposure ?? 0),
     }),
     blurPx: adj.blur,
+    tone: hasTone({ highlights: adj.highlights, shadows: adj.shadowsTone, sharpness: adj.sharpness })
+      ? { highlights: adj.highlights, shadows: adj.shadowsTone, sharpness: adj.sharpness }
+      : null,
     crop: adj.crop,
     flipX: adj.flipHorizontal,
     flipY: adj.flipVertical,
@@ -65,6 +71,7 @@ function isNeutral(look: Look): boolean {
   return (
     look.filter === "none" &&
     look.blurPx === 0 &&
+    look.tone === null &&
     look.crop === null &&
     !look.flipX &&
     !look.flipY &&
@@ -94,6 +101,7 @@ export function lookFor(clip: Clip): Look | null {
         exposure: 0,
       }),
       blurPx: adj.blur,
+      tone: null,
       crop: adj.crop,
       flipX: false,
       flipY: false,

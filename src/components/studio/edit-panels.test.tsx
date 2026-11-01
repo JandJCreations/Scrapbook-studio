@@ -33,6 +33,17 @@ describe("PhotoPanel", () => {
     await vi.waitFor(() => expect(h.onCommit).toHaveBeenCalled());
   });
 
+  it("has highlights, shadows and sharpness sliders that preview their own setting", async () => {
+    const h = handlers();
+    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} opacity={1} {...h} />);
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Highlights" }), { key: "ArrowRight" });
+    expect(h.onPreview).toHaveBeenCalledWith({ highlights: 1 });
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Shadows" }), { key: "ArrowRight" });
+    expect(h.onPreview).toHaveBeenCalledWith({ shadowsTone: 1 });
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Sharpness" }), { key: "ArrowRight" });
+    expect(h.onPreview).toHaveBeenCalledWith({ sharpness: 1 });
+  });
+
   it("flips with the flip buttons", () => {
     const h = handlers();
     render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} opacity={1} {...h} />);
