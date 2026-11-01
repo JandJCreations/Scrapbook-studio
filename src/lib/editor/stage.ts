@@ -1,4 +1,4 @@
-import { computeSnap, type Box, type GuideLine } from "@/lib/canvas/alignment";
+import { computeSnap, snapToGrid, type Box, type GuideLine } from "@/lib/canvas/alignment";
 import { buildScene } from "@/lib/playback/scene";
 import { isClipLocked } from "@/lib/timeline/lookup";
 import type { TimelineProject } from "@/types/timeline";
@@ -62,18 +62,28 @@ export function nodeToTransform(node: {
   };
 }
 
-/** Snaps a dragged box to the frame and to the other boxes; `scale` is the stage zoom. */
+/**
+ * Snaps a dragged box to the frame and to the other boxes; `scale` is the stage
+ * zoom. With a `grid` size, an axis no guide applied to snaps to the grid instead.
+ */
 export function snapMove(
   moving: { id: string; x: number; y: number; width: number; height: number },
   boxes: StageBox[],
   frame: { width: number; height: number },
   scale: number,
   excludeIds: string[] = [],
+  grid: number | null = null,
 ): { x: number; y: number; guides: GuideLine[] } {
   const skip = new Set([moving.id, ...excludeIds]);
   const others: Box[] = boxes
     .filter((box) => !skip.has(box.clipId))
     .map((box) => ({ id: box.clipId, x: box.x, y: box.y, width: box.width, height: box.height }));
   others.push({ id: "__frame__", x: 0, y: 0, width: frame.width, height: frame.height });
-  return computeSnap(moving, others, SNAP_PX / scale);
+  const snapped = computeSnap(moving, others, SNAP_PX / scale);
+  if (grid === null) return snapped;
+  return {
+    ...snapped,
+    x: snapped.guides.some((g) => g.axis === "x") ? snapped.x : snapToGrid(snapped.x, grid),
+    y: snapped.guides.some((g) => g.axis === "y") ? snapped.y : snapToGrid(snapped.y, grid),
+  };
 }

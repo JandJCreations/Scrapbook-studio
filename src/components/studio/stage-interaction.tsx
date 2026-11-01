@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import type Konva from "konva";
-import { Layer, Rect, Stage, Transformer } from "react-konva";
+import { Layer, Line, Rect, Stage, Transformer } from "react-konva";
 
 import { AlignmentGuidesLayer } from "@/components/canvas/alignment-guides-layer";
 import type { GuideLine } from "@/lib/canvas/alignment";
 import { applyStagePatches } from "@/lib/editor/stage-patches";
 import { MIN_BOX_SIZE, nodeToTransform, snapMove, type StageBox } from "@/lib/editor/stage";
+import { gridLines, gridSize } from "@/lib/editor/grid";
 import { viewFit } from "@/lib/editor/view";
 import { useStageViewStore } from "@/store/use-stage-view-store";
 import type { FrameSize } from "@/lib/sync/timeline-document";
@@ -45,6 +46,8 @@ export function StageInteraction({
   onGestureStart,
 }: StageInteractionProps) {
   const view = useStageViewStore((s) => s.view);
+  const snapToGrid = useStageViewStore((s) => s.snapToGrid);
+  const grid = snapToGrid ? gridSize(frame) : null;
   const fit = viewFit({ width, height, frameWidth: frame.width, frameHeight: frame.height }, view);
   const transformerRef = React.useRef<Konva.Transformer>(null);
   const nodes = React.useRef(new Map<string, Konva.Rect>());
@@ -138,6 +141,7 @@ export function StageInteraction({
       frame,
       fit.scale,
       moving,
+      grid,
     );
     node.position({ x: snapped.x, y: snapped.y });
     setGuides(snapped.guides);
@@ -187,6 +191,23 @@ export function StageInteraction({
       onMouseDown={clearSelectionOnEmpty}
       onTouchStart={clearSelectionOnEmpty}
     >
+      {grid !== null && (
+        <Layer listening={false}>
+          {(() => {
+            const lines = gridLines(frame, grid);
+            const stroke = "rgba(255,255,255,0.28)";
+            const strokeWidth = 1 / fit.scale; // one screen pixel at any zoom
+            return [
+              ...lines.vertical.map((at) => (
+                <Line key={`v${at}`} points={[at, 0, at, frame.height]} stroke={stroke} strokeWidth={strokeWidth} />
+              )),
+              ...lines.horizontal.map((at) => (
+                <Line key={`h${at}`} points={[0, at, frame.width, at]} stroke={stroke} strokeWidth={strokeWidth} />
+              )),
+            ];
+          })()}
+        </Layer>
+      )}
       <Layer>
         {boxes.map((box) => (
           <Rect

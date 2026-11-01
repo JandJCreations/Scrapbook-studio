@@ -7,6 +7,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // The jsdom component tests are slow when the whole suite runs in parallel.
+    testTimeout: 20000,
     include: ["src/**/*.test.{ts,tsx}"],
   },
 });

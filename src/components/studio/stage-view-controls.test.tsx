@@ -11,7 +11,11 @@ import { useStageViewStore } from "@/store/use-stage-view-store";
 
 const geometry = { width: 1000, height: 500, frameWidth: 1000, frameHeight: 500 };
 
-beforeEach(() => act(() => useStageViewStore.getState().reset()));
+beforeEach(() =>
+  act(() => {
+    useStageViewStore.getState().reset();
+    useStageViewStore.getState().setSnapToGrid(false);
+  }));
 
 describe("StageViewControls", () => {
   it("zooms in and out about the centre and shows the percentage", () => {
@@ -32,6 +36,19 @@ describe("StageViewControls", () => {
     expect(fit.disabled).toBe(false);
     fireEvent.click(fit);
     expect(useStageViewStore.getState().view).toEqual({ zoom: 1, panX: 0, panY: 0 });
+  });
+});
+
+describe("grid toggle", () => {
+  it("turns the grid and snapping on and off, and says which it is", () => {
+    render(<StageViewControls geometry={geometry} />);
+    const toggle = screen.getByRole("button", { name: "Snap to grid" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(toggle);
+    expect(useStageViewStore.getState().snapToGrid).toBe(true);
+    expect(screen.getByRole("button", { name: "Snap to grid" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(toggle);
+    expect(useStageViewStore.getState().snapToGrid).toBe(false);
   });
 });
 

@@ -160,3 +160,26 @@ describe("snapMove", () => {
     expect(result).toMatchObject({ x: 123, y: 77, guides: [] });
   });
 });
+
+describe("snapMove to the grid", () => {
+  const frame = { width: 1000, height: 600 };
+
+  it("snaps to the nearest grid line where no guide applies", () => {
+    const result = snapMove({ id: "m", x: 233, y: 187, width: 100, height: 50 }, [], frame, 1, [], 100);
+    expect(result.x).toBe(200);
+    expect(result.y).toBe(200);
+  });
+
+  it("lets a guide win on its own axis, and the grid take the other", () => {
+    // x is 3 from the frame's left edge, y is nowhere near a guide.
+    const result = snapMove({ id: "m", x: 3, y: 187, width: 100, height: 50 }, [], frame, 1, [], 100);
+    expect(result.x).toBe(0);
+    expect(result.y).toBe(200);
+  });
+
+  it("does nothing extra without a grid", () => {
+    const result = snapMove({ id: "m", x: 233, y: 187, width: 100, height: 50 }, [], frame, 1);
+    expect(result.x).toBe(233);
+    expect(result.y).toBe(187);
+  });
+});
