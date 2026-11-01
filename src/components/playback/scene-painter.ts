@@ -13,10 +13,21 @@ export interface ScenePainterOptions {
   getImage(mediaId: string): HTMLImageElement | null;
   /** Called on every draw of a text clip; must be cheap and idempotent (it starts a font load once). */
   requestFont?(family: string): void;
+  /** The page colour behind everything; null leaves it transparent (for exports that keep transparency). Default black. */
+  background?: string | null;
+}
+
+export interface CaptureOptions {
+  /** Width of the picture in pixels; the height follows the frame's shape. */
+  width: number;
+  mimeType?: "image/png" | "image/jpeg";
+  quality?: number;
 }
 
 export interface ScenePainter {
   render(scene: SceneItem[]): void;
+  /** The whole frame, as it is drawn right now, as a data URL at the given pixel width. */
+  capture(options: CaptureOptions): string;
   /** Forget the drawn text so the next render lays it out again (after a font loads). */
   invalidateText(): void;
   resize(width: number, height: number): void;
@@ -87,6 +98,7 @@ export function createScenePainter({
   frame,
   getImage,
   requestFont,
+  background = "#000000",
 }: ScenePainterOptions): ScenePainter {
   const stage = new Konva.Stage({
     container,
@@ -97,9 +109,9 @@ export function createScenePainter({
   const layer = new Konva.Layer({ listening: false });
   layer.clip({ x: 0, y: 0, width: frame.width, height: frame.height });
   stage.add(layer);
-  layer.add(
-    new Konva.Rect({ x: 0, y: 0, width: frame.width, height: frame.height, fill: "#000000" }),
-  );
+  if (background !== null) {
+    layer.add(new Konva.Rect({ x: 0, y: 0, width: frame.width, height: frame.height, fill: background }));
+  }
 
   const nodes = new Map<string, ClipNodes>();
 
@@ -337,6 +349,28 @@ export function createScenePainter({
         nodes.delete(clipId);
       }
       layer.batchDraw();
+    },
+
+    capture({ width, mimeType = "image/png", quality }) {
+      // Draw the frame on its own, at its natural size, then put the stage back as it was.
+      const before = { width: stage.width(), height: stage.height() };
+      stage.size({ width: frame.width, height: frame.height });
+      stage.scale({ x: 1, y: 1 });
+      stage.position({ x: 0, y: 0 });
+      try {
+        return stage.toDataURL({
+          x: 0,
+          y: 0,
+          width: frame.width,
+          height: frame.height,
+          pixelRatio: width / frame.width,
+          mimeType,
+          quality,
+        });
+      } finally {
+        fit(before.width, before.height);
+        layer.batchDraw();
+      }
     },
 
     invalidateText() {

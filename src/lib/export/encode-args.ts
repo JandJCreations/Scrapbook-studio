@@ -1,3 +1,6 @@
+/** H.264 and VP9 want even width and height; this trims an odd side by one pixel. */
+const EVEN_SIDES = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+
 export type EncodeFormat = "gif" | "mp4" | "mov" | "webm";
 
 export interface EncodeOptions {
@@ -37,6 +40,8 @@ export function buildEncodeArgs({
     return [
       ...input,
       ...audioInput,
+      "-vf",
+      EVEN_SIDES,
       "-c:v",
       "libvpx-vp9",
       "-pix_fmt",
@@ -50,6 +55,8 @@ export function buildEncodeArgs({
   return [
     ...input,
     ...audioInput,
+    "-vf",
+    EVEN_SIDES,
     "-c:v",
     "libx264",
     "-pix_fmt",

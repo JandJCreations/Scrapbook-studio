@@ -19,6 +19,15 @@ describe("buildEncodeArgs", () => {
     expect(a[a.length - 1]).toBe("output.mp4");
   });
 
+  it("rounds the picture down to even sides, which h264 and vp9 need", () => {
+    for (const format of ["mp4", "mov", "webm"] as const) {
+      const a = args(format);
+      const i = a.indexOf("-vf");
+      expect(i).toBeGreaterThan(-1);
+      expect(a[i + 1]).toBe("scale=trunc(iw/2)*2:trunc(ih/2)*2");
+    }
+  });
+
   it("makes a looping gif with its own palette and never adds sound", () => {
     const a = args("gif", { audio: true });
     expect(a.join(" ")).toContain("palettegen");
