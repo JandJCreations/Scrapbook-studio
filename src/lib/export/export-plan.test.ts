@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { countSlots, exportableProject, exportFrameTimes, stillTime } from "@/lib/export/export-plan";
+import { countSlots, estimateExport, exportableProject, exportFrameTimes, stillTime } from "@/lib/export/export-plan";
 import { makeClip, makeProject, makeStandardTracks } from "@/lib/timeline/test-utils";
 
 describe("exportFrameTimes", () => {
@@ -49,5 +49,24 @@ describe("stillTime", () => {
     expect(stillTime(10, 10)).toBeLessThan(10);
     expect(stillTime(99, 10)).toBeLessThan(10);
     expect(stillTime(5, 0)).toBe(0);
+  });
+});
+
+describe("estimateExport", () => {
+  it("counts the frames and a rough memory cost, and allows a modest export", () => {
+    const estimate = estimateExport(10, 30, 1920, 1080);
+    expect(estimate.frames).toBe(300);
+    expect(estimate.approxBytes).toBeGreaterThan(300 * 1920 * 1080 * 0.5);
+    expect(estimate.tooBig).toBe(false);
+  });
+
+  it("refuses an export whose frames would not fit in the encoder's memory", () => {
+    expect(estimateExport(60, 30, 1920, 1080).tooBig).toBe(true); // a minute of 1080p at 30 fps
+    expect(estimateExport(10, 60, 3840, 2160).tooBig).toBe(true);
+  });
+
+  it("is cheap for short or small exports", () => {
+    expect(estimateExport(5, 15, 1280, 720).tooBig).toBe(false);
+    expect(estimateExport(0, 30, 1920, 1080).frames).toBe(1);
   });
 });

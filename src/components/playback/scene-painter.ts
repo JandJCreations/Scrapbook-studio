@@ -340,8 +340,8 @@ export function createScenePainter({
         seen.add(item.clipId);
         const entry = nodes.get(item.clipId) ?? create(item.clipId);
         paintItem(entry, item);
-        // Index 0 is the black frame, so clips start at 1, in paint order.
-        entry.group.zIndex(index + 1);
+        // Index 0 is the page rectangle when there is one, so clips start at 1, in paint order.
+        entry.group.zIndex(index + (background === null ? 0 : 1));
       });
       for (const [clipId, entry] of Array.from(nodes)) {
         if (seen.has(clipId)) continue;

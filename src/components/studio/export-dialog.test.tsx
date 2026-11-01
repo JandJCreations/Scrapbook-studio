@@ -113,6 +113,34 @@ describe("ExportDialog", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("returns to normal when a cancel arrives too late to stop the export", async () => {
+    let finish: (r: StudioExportResult) => void = () => {};
+    const exporter = vi.fn(
+      () =>
+        new Promise<StudioExportResult>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    setup(exporter);
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel export" }));
+    finish({ blob: new Blob(["x"]), extension: "mp4" });
+    expect(await screen.findByRole("button", { name: "Export" })).toBeTruthy();
+    expect(screen.queryByText(/saved as/i)).toBeNull();
+    expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
+  });
+
+  it("will not start an export too big for the encoder, and says how to fix it", () => {
+    setup(done);
+    fireEvent.change(screen.getByLabelText("Resolution"), { target: { value: "4k" } });
+    fireEvent.change(screen.getByLabelText("Frame rate"), { target: { value: "60" } });
+    expect((screen.getByRole("button", { name: "Export" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/too long|too big|too large/i)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Resolution"), { target: { value: "720p" } });
+    fireEvent.change(screen.getByLabelText("Frame rate"), { target: { value: "15" } });
+    expect((screen.getByRole("button", { name: "Export" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("tells the user when the export fails, and lets them try again", async () => {
     setup(async () => {
       throw new Error("The video could not be loaded.");

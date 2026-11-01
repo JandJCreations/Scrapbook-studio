@@ -14,7 +14,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { countSlots } from "@/lib/export/export-plan";
+import { countSlots, estimateExport, exportableProject } from "@/lib/export/export-plan";
+import { projectDuration } from "@/lib/timeline/clip-math";
 import {
   ANIMATED_FORMATS,
   FORMAT_GROUPS,
@@ -109,6 +110,9 @@ export function ExportDialog({
   const canBeTransparent = TRANSPARENCY_SUPPORTED_FORMATS.includes(format);
   const preset = RESOLUTION_PRESETS.find((p) => p.id === resolutionId) ?? RESOLUTION_PRESETS[1];
   const slots = countSlots(project);
+  const size = resolveTargetSize(frame, preset);
+  const estimate = estimateExport(projectDuration(exportableProject(project)), fps, size.width, size.height);
+  const tooBig = animated && estimate.tooBig;
   const running = run.state === "running";
 
   function close(next: boolean) {
@@ -135,7 +139,11 @@ export function ExportDialog({
           if (!abort.signal.aborted) setRun({ state: "running", stage, ratio });
         },
       });
-      if (abort.signal.aborted) return;
+      if (abort.signal.aborted) {
+        // The cancel came too late to stop it (the encoder cannot be interrupted): drop the result.
+        setRun({ state: "idle" });
+        return;
+      }
       const filename = fileName(projectName, result.extension);
       download(result.blob, filename);
       setRun({ state: "done", filename });
@@ -231,6 +239,13 @@ export function ExportDialog({
             </div>
           )}
 
+          {tooBig && (
+            <p role="status" className="text-xs text-destructive">
+              This is too large to export in the browser ({estimate.frames} frames at {size.width} × {size.height}). Lower
+              the resolution or the frame rate, or export a shorter project.
+            </p>
+          )}
+
           {slots > 0 && (
             <p className="text-xs text-muted-foreground">
               {slots === 1 ? "1 empty slot will be left out." : `${slots} empty slots will be left out.`}
@@ -260,7 +275,9 @@ export function ExportDialog({
               Cancel export
             </Button>
           ) : (
-            <Button onClick={() => void start()}>Export</Button>
+            <Button disabled={tooBig} onClick={() => void start()}>
+              Export
+            </Button>
           )}
         </div>
       </DialogContent>

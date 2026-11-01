@@ -6,6 +6,24 @@ export function exportFrameTimes(durationSeconds: number, fps: number): number[]
   return Array.from({ length: total }, (_, i) => i / fps);
 }
 
+/** About how many bytes one PNG frame takes, per pixel, in the worst case (a busy photo). */
+const BYTES_PER_PIXEL = 0.9;
+/** FFmpeg keeps every frame in memory until it has encoded them; its heap tops out near 2 GB. */
+export const MAX_EXPORT_BYTES = 1.2e9;
+
+export interface ExportEstimate {
+  frames: number;
+  approxBytes: number;
+  tooBig: boolean;
+}
+
+/** A rough check, before any work, that an animated export fits in the encoder's memory. */
+export function estimateExport(durationSeconds: number, fps: number, width: number, height: number): ExportEstimate {
+  const frames = exportFrameTimes(durationSeconds, fps).length;
+  const approxBytes = frames * width * height * BYTES_PER_PIXEL;
+  return { frames, approxBytes, tooBig: approxBytes > MAX_EXPORT_BYTES };
+}
+
 /** How many empty "tap to add" slots the project still has. */
 export function countSlots(project: TimelineProject): number {
   return project.clips.filter((clip) => clip.isPlaceholder).length;

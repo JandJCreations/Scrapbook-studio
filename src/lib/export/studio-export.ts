@@ -3,7 +3,7 @@ import { jsPDF } from "jspdf";
 
 import { planMixdown } from "@/lib/engine/mixdown";
 import { buildEncodeArgs, type EncodeFormat } from "@/lib/export/encode-args";
-import { exportableProject, exportFrameTimes, stillTime } from "@/lib/export/export-plan";
+import { estimateExport, exportableProject, exportFrameTimes, stillTime } from "@/lib/export/export-plan";
 import { ANIMATED_FORMATS, TRANSPARENCY_SUPPORTED_FORMATS, type ExportFormat } from "@/lib/export/export-formats";
 import { getFfmpeg } from "@/lib/export/ffmpeg-client";
 import { renderMixdown } from "@/lib/export/studio-audio-render";
@@ -62,6 +62,10 @@ export async function exportStudioProject(options: StudioExportOptions): Promise
   const targetHeight = Math.max(2, Math.round((targetWidth * frame.height) / frame.width));
   const transparent = options.transparent && TRANSPARENCY_SUPPORTED_FORMATS.includes(format);
 
+  if (ANIMATED_FORMATS.includes(format) && estimateExport(duration, fps, targetWidth, targetHeight).tooBig) {
+    throw new Error("This export is too large for the browser. Lower the resolution or the frame rate.");
+  }
+
   onProgress("preparing", 0);
   const renderer = createFrameRenderer({
     project,
@@ -76,6 +80,7 @@ export async function exportStudioProject(options: StudioExportOptions): Promise
 
     if (!ANIMATED_FORMATS.includes(format)) {
       await renderer.renderAt(stillTime(playhead, duration));
+      throwIfAborted(signal);
       const dataUrl = renderer.capture({
         width: targetWidth,
         mimeType: format === "png" ? "image/png" : "image/jpeg",
@@ -99,7 +104,11 @@ export async function exportStudioProject(options: StudioExportOptions): Promise
     const audio = encodeFormat === "gif" ? null : await renderMixdown(planMixdown(project), urlFor, signal);
     throwIfAborted(signal);
 
-    const ffmpeg = await getFfmpeg((ratio) => onProgress("encoding", ratio));
+    // Encoding progress is listened for during this export only (the encoder is shared between exports).
+    const ffmpeg = await getFfmpeg();
+    const onEncodeProgress = ({ progress }: { progress: number }) =>
+      onProgress("encoding", Math.max(0, Math.min(1, progress)));
+    ffmpeg.on("progress", onEncodeProgress);
     const times = exportFrameTimes(duration, fps);
     const frameName = (i: number) => `frame${String(i).padStart(5, "0")}.png`;
     const outputName = `output.${encodeFormat}`;
@@ -116,15 +125,18 @@ export async function exportStudioProject(options: StudioExportOptions): Promise
       if (audio) await ffmpeg.writeFile("audio.wav", await fetchFile(audio));
       throwIfAborted(signal);
 
-      await ffmpeg.exec(
+      const exitCode = await ffmpeg.exec(
         buildEncodeArgs({ format: encodeFormat, fps, targetWidth, transparent, hasAudio: audio !== null, outputName }),
       );
+      throwIfAborted(signal);
+      if (exitCode !== 0) throw new Error("The encoder could not make this file.");
       const data = await ffmpeg.readFile(outputName);
       return {
         blob: new Blob([new Uint8Array(data as Uint8Array)], { type: MIME[format] }),
         extension: encodeFormat,
       };
     } finally {
+      ffmpeg.off("progress", onEncodeProgress);
       // FFmpeg's disk lives in memory: always give it back, even after a failure or a cancel.
       for (let i = 0; i < written; i++) await ffmpeg.deleteFile(frameName(i)).catch(() => {});
       await ffmpeg.deleteFile(outputName).catch(() => {});
