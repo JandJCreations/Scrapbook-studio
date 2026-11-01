@@ -6,17 +6,22 @@ import { Button } from "@/components/ui/button";
 import { useTourTargetRect } from "@/hooks/use-tour-target-rect";
 import { cn } from "@/lib/utils";
 import { TOUR_STEPS } from "@/lib/onboarding/tour-steps";
-import { useEditorUiStore } from "@/store/use-editor-ui-store";
 
 const CALLOUT_WIDTH = 300;
 const VIEWPORT_MARGIN = 12;
-const MOBILE_BREAKPOINT = 1024; // matches the sidebar's lg: breakpoint
+const MOBILE_BREAKPOINT = 640; // below this the sidebar is a sheet (the view's sm: breakpoint)
 
-export function WelcomeTourDialog() {
-  const open = useEditorUiStore((s) => s.tourOpen);
-  const setOpen = useEditorUiStore((s) => s.setTourOpen);
+export function WelcomeTour({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange(open: boolean): void;
+}) {
   const [stepIndex, setStepIndex] = React.useState(0);
   const [isMobile, setIsMobile] = React.useState(false);
+  // However it was closed, the next tour starts from the first step.
+  if (!open && stepIndex !== 0) setStepIndex(0);
 
   React.useEffect(() => {
     function checkWidth() {
@@ -52,7 +57,7 @@ export function WelcomeTourDialog() {
   if (!open || !step) return null;
 
   function handleClose() {
-    setOpen(false);
+    onOpenChange(false);
     setStepIndex(0);
   }
 

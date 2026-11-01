@@ -57,6 +57,7 @@ export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null
       projectId,
       projectName: project.name,
       backHref: "/dashboard",
+      welcomeTour: true,
       storage,
       media,
       library,

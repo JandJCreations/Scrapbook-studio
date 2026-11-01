@@ -1,10 +1,11 @@
 import {
+  Clapperboard,
   Download,
   ImagePlus,
   type LucideIcon,
   MousePointerClick,
-  Music,
   Sparkles,
+  Sticker,
   Type,
 } from "lucide-react";
 
@@ -14,7 +15,7 @@ export interface TourStep {
   description: string;
   /** data-tour attribute value of the real element this step should point at. Omit for a centered, untargeted step (e.g. the welcome step). */
   targetSelector?: string;
-  /** Use this selector instead, on narrow viewports where targetSelector's element is hidden inside a closed sheet/drawer. */
+  /** Use this selector instead on narrow screens, where targetSelector's element is inside a closed sheet. */
   mobileTargetSelector?: string;
 }
 
@@ -23,45 +24,52 @@ export const TOUR_STEPS: TourStep[] = [
     icon: Sparkles,
     title: "Welcome to Scrapbook Studio",
     description:
-      "Here's a quick, skippable look around before you start building. Each step points at the real button.",
+      "Here's a quick, skippable look around before you start. Each step points at the real button.",
   },
   {
     icon: ImagePlus,
     title: "Add your photos and video",
     description:
-      "Tap here to open your Media tab, then tap any photo or video to drop it onto the canvas.",
-    targetSelector: "media-tab",
-    mobileTargetSelector: "panels-button",
+      "Your uploads live in the Media tab. Add puts a photo or video on the main track; Overlay lays it on top, like a collage piece.",
+    targetSelector: "tab-media",
+    mobileTargetSelector: "tools-button",
+  },
+  {
+    icon: Sticker,
+    title: "Stickers, music and templates",
+    description:
+      "The Assets tab has stickers, frames, washi tape, papers, a music library, and templates to start from.",
+    targetSelector: "tab-assets",
+    mobileTargetSelector: "tools-button",
   },
   {
     icon: Type,
     title: "Add text",
     description:
-      "Tap this to drop a text box onto the canvas. Double-tap it on the canvas anytime to edit the words.",
-    targetSelector: "add-text-button",
-    mobileTargetSelector: "add-text-button-mobile",
+      "Add text from the Text tab, then double-click it on the stage to type. The panel changes the font, colour, curve and more.",
+    targetSelector: "tab-text",
+    mobileTargetSelector: "tools-button",
   },
   {
     icon: MousePointerClick,
-    title: "Arrange and style anything",
+    title: "Arrange anything",
     description:
-      "Tap anything here to select it and drag to move it. The panel that opens lets you resize, crop, add filters, and more.",
-    targetSelector: "canvas-area",
+      "Click something on the stage to select it, then drag to move it, pull the corners to resize, or use the handle above to turn it.",
+    targetSelector: "stage",
   },
   {
-    icon: Music,
-    title: "Add music",
+    icon: Clapperboard,
+    title: "Your timeline",
     description:
-      "Tap this to create an audio track, then add a clip from the built-in music library or upload your own.",
-    targetSelector: "add-audio-track-button",
+      "Every layer is a row. Drag clips to move them, drag their edges to trim, and press Space to play. Undo is always there.",
+    targetSelector: "timeline",
   },
   {
     icon: Download,
     title: "Export when you're ready",
     description:
-      "Tap this to save your scrapbook as an image, GIF, or video, in whatever size fits where you're sharing it.",
+      "Save your project as a picture, GIF or video, in whatever size fits where you're sharing it.",
     targetSelector: "export-button",
-    mobileTargetSelector: "export-button-mobile",
   },
 ];
 

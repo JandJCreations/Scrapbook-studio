@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Download, History, Redo2, Undo2 } from "lucide-react";
+import { ArrowLeft, CircleHelp, Download, History, Redo2, Undo2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FRAME_PRESETS } from "@/lib/export/frame-presets";
@@ -19,6 +19,7 @@ interface StudioToolbarProps {
   frame: { width: number; height: number } | null;
   onFrameChange(preset: { width: number; height: number }): void;
   onOpenHistory?(): void;
+  onOpenTour?(): void;
   onOpenExport?(): void;
 }
 
@@ -47,6 +48,7 @@ export function StudioToolbar({
   frame,
   onFrameChange,
   onOpenHistory,
+  onOpenTour,
   onOpenExport,
 }: StudioToolbarProps) {
   const current = frame
@@ -90,13 +92,18 @@ export function StudioToolbar({
           {current === "custom" && <option value="custom">Custom</option>}
         </select>
 
+        {onOpenTour && (
+          <Button variant="ghost" size="sm" aria-label="Quick tour" onClick={onOpenTour}>
+            <CircleHelp className="size-4" />
+          </Button>
+        )}
         {onOpenHistory && (
           <Button variant="ghost" size="sm" aria-label="Version history" onClick={onOpenHistory}>
             <History className="size-4" />
           </Button>
         )}
         {onOpenExport && (
-          <Button variant="secondary" size="sm" aria-label="Export" onClick={onOpenExport}>
+          <Button variant="secondary" size="sm" aria-label="Export" data-tour="export-button" onClick={onOpenExport}>
             <Download className="size-4" />
             Export
           </Button>

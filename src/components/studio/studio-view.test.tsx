@@ -533,3 +533,62 @@ describe("StudioView fades", () => {
     await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips[0].fadeIn).toBe(0.1));
   });
 });
+
+function mockPhone(matches: boolean) {
+  window.matchMedia = ((query: string) => ({
+    matches,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })) as unknown as typeof window.matchMedia;
+}
+
+describe("StudioView tour and phone layout", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    mockPhone(false);
+  });
+
+  it("opens the welcome tour the first time, and not again once it has been closed", async () => {
+    const first = render(<StudioView env={env({ welcomeTour: true })} />);
+    await screen.findByText("My trip");
+    expect(await screen.findByText("Welcome to Scrapbook Studio")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /skip/i }));
+    expect(window.localStorage.getItem("scrapbook-studio:tour-seen")).toBe("1");
+    first.unmount();
+
+    render(<StudioView env={env({ welcomeTour: true })} />);
+    await screen.findByText("My trip");
+    expect(screen.queryByText("Welcome to Scrapbook Studio")).toBeNull();
+  });
+
+  it("does not open the tour on its own where the environment does not ask for it", async () => {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    expect(screen.queryByText("Welcome to Scrapbook Studio")).toBeNull();
+  });
+
+  it("opens the tour from the help button", async () => {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Quick tour" }));
+    expect(await screen.findByText("Welcome to Scrapbook Studio")).toBeTruthy();
+  });
+
+  it("on a phone, shows the tools in a sheet from a Tools button, once, and closes it after an add", async () => {
+    mockPhone(true);
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    expect(screen.queryByRole("button", { name: "Add Beach to the sequence" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Tools" }));
+    const add = await screen.findByRole("button", { name: "Add Beach to the sequence" });
+    expect(screen.getAllByRole("tablist")).toHaveLength(1);
+    fireEvent.click(add);
+    await vi.waitFor(() => {
+      expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1);
+    });
+    await vi.waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Add Beach to the sequence" })).toBeNull();
+    });
+  });
+});

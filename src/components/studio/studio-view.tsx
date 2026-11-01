@@ -11,6 +11,10 @@ import { StudioToolbar } from "@/components/studio/studio-toolbar";
 import { EditTab } from "@/components/studio/edit-tab";
 import { TextTab } from "@/components/studio/text-tab";
 import { AssetsTab } from "@/components/studio/assets-tab";
+import { WelcomeTour } from "@/components/studio/welcome-tour";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { TOUR_SEEN_STORAGE_KEY } from "@/lib/onboarding/tour-steps";
 import { ExportDialog } from "@/components/studio/export-dialog";
 import { VersionHistoryDialog } from "@/components/studio/version-history-dialog";
 import { SlotFillPanel } from "@/components/studio/slot-fill-panel";
@@ -117,6 +121,22 @@ export function StudioView({ env }: { env: StudioEnv }) {
   const natural = useNaturalSize(mediaSource, selectedClip);
   const [lastClipId, setLastClipId] = React.useState<string | null>(null);
   const [justAddedId, setJustAddedId] = React.useState<string | null>(null);
+  // On a phone the sidebar is a sheet that slides up from a Tools button.
+  const compact = useMediaQuery("(max-width: 639px)");
+  const [toolsOpen, setToolsOpen] = React.useState(false);
+  const [tourOpen, setTourOpen] = React.useState(false);
+  const ready = status.phase === "ready";
+  React.useEffect(() => {
+    if (!env.welcomeTour || !ready) return;
+    try {
+      if (window.localStorage.getItem(TOUR_SEEN_STORAGE_KEY)) return;
+    } catch {
+      return;
+    }
+    // Opening the tour once, the first time the editor is ready on this browser.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads localStorage, which only exists on the client
+    setTourOpen(true);
+  }, [env.welcomeTour, ready]);
   const [exportOpen, setExportOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [pendingTemplate, setPendingTemplate] = React.useState<ScrapbookTemplate | null>(null);
@@ -254,6 +274,17 @@ export function StudioView({ env }: { env: StudioEnv }) {
     setJustAddedId(added.clipId);
   }
 
+  /** Closes the tour, and remembers that it has been seen so it does not open by itself again. */
+  function closeTour(open: boolean) {
+    setTourOpen(open);
+    if (open) return;
+    try {
+      window.localStorage.setItem(TOUR_SEEN_STORAGE_KEY, "1");
+    } catch {
+      // Private mode: the tour may show again next time.
+    }
+  }
+
   function restoreVersion(restored: TimelineProject, restoredFrame: FrameSize) {
     useClipProjectStore.getState().apply(() => restored);
     useClipProjectStore.getState().setSelectedClipIds([]);
@@ -294,6 +325,83 @@ export function StudioView({ env }: { env: StudioEnv }) {
 
   const duration = projectDuration(project);
 
+  const sidebar = (
+    <>
+            <div role="tablist" className="flex shrink-0 border-b">
+              {(["media", "assets", "text", "edit", "layers"] as const).map((name) => (
+                <button
+                  key={name}
+                  role="tab"
+                  type="button"
+                  aria-selected={tab === name}
+                  onClick={() => setTab(name)}
+                  className={
+                    "flex-1 px-1 py-2 text-xs capitalize " +
+                    (tab === name ? "border-b-2 border-primary font-medium" : "text-muted-foreground")
+                  }
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            {tab === "media" ? (
+              <StudioMediaPanel
+                items={env.library}
+                loading={env.libraryLoading}
+                onAdd={(item, mode) => {
+                  void addMedia(item, mode);
+                  setToolsOpen(false);
+                }}
+                onUpload={env.uploadFiles}
+              />
+            ) : tab === "assets" ? (
+              <AssetsTab
+                onAdd={(...args: Parameters<typeof addAsset>) => {
+                  addAsset(...args);
+                  setToolsOpen(false);
+                }}
+                onTemplate={chooseTemplate}
+                onAddMusic={(...args: Parameters<typeof addMusic>) => {
+                  addMusic(...args);
+                  setToolsOpen(false);
+                }}
+              />
+            ) : tab === "layers" ? (
+              <LayersTab />
+            ) : tab === "text" ? (
+              <TextTab frame={frame} selectedText={selectedText} onSeek={(t) => session?.seek(t)} />
+            ) : selectedClip?.isPlaceholder ? (
+              <SlotFillPanel
+                items={env.library}
+                loading={env.libraryLoading}
+                onFill={(item) => void fillSlot(item, selectedClip.id)}
+              />
+            ) : (
+              <EditTab clip={selectedClip} natural={natural} onSeek={(t) => session?.seek(t)} />
+            )}
+            {pendingTemplate && (
+              <div role="alertdialog" aria-label="Replace the project" className="space-y-2 border-t p-3 text-xs">
+                <p>
+                  Replace everything in this project with the {pendingTemplate.name} template? The frame size changes to match it.
+                </p>
+                <div className="flex gap-2">
+                  <Button size="xs" onClick={() => applyTemplate(pendingTemplate)}>
+                    Replace
+                  </Button>
+                  <Button size="xs" variant="outline" onClick={() => setPendingTemplate(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+            {message && (
+              <p role="alert" className="border-t p-3 text-xs text-destructive">
+                {message}
+              </p>
+            )}
+    </>
+  );
+
   return (
     <div className="flex h-full flex-col">
       <StudioToolbar
@@ -307,8 +415,20 @@ export function StudioView({ env }: { env: StudioEnv }) {
         frame={frame}
         onFrameChange={changeFrame}
         onOpenHistory={() => setHistoryOpen(true)}
+        onOpenTour={() => setTourOpen(true)}
         onOpenExport={() => setExportOpen(true)}
       />
+      <WelcomeTour open={tourOpen} onOpenChange={closeTour} />
+      {compact && (
+        <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
+          <SheetContent side="bottom" className="h-[70svh] gap-0 p-0">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Tools</SheetTitle>
+            </SheetHeader>
+            <div className="flex min-h-0 flex-1 flex-col">{sidebar}</div>
+          </SheetContent>
+        </Sheet>
+      )}
       {frame && (
         <>
           <ExportDialog
@@ -331,76 +451,27 @@ export function StudioView({ env }: { env: StudioEnv }) {
         </>
       )}
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-72 shrink-0 flex-col border-r sm:flex">
-          <div role="tablist" className="flex shrink-0 border-b">
-            {(["media", "assets", "text", "edit", "layers"] as const).map((name) => (
-              <button
-                key={name}
-                role="tab"
-                type="button"
-                aria-selected={tab === name}
-                onClick={() => setTab(name)}
-                className={
-                  "flex-1 px-1 py-2 text-xs capitalize " +
-                  (tab === name ? "border-b-2 border-primary font-medium" : "text-muted-foreground")
-                }
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-          {tab === "media" ? (
-            <StudioMediaPanel
-              items={env.library}
-              loading={env.libraryLoading}
-              onAdd={(item, mode) => void addMedia(item, mode)}
-              onUpload={env.uploadFiles}
-            />
-          ) : tab === "assets" ? (
-            <AssetsTab onAdd={addAsset} onTemplate={chooseTemplate} onAddMusic={addMusic} />
-          ) : tab === "layers" ? (
-            <LayersTab />
-          ) : tab === "text" ? (
-            <TextTab frame={frame} selectedText={selectedText} onSeek={(t) => session?.seek(t)} />
-          ) : selectedClip?.isPlaceholder ? (
-            <SlotFillPanel
-              items={env.library}
-              loading={env.libraryLoading}
-              onFill={(item) => void fillSlot(item, selectedClip.id)}
-            />
-          ) : (
-            <EditTab clip={selectedClip} natural={natural} onSeek={(t) => session?.seek(t)} />
-          )}
-          {pendingTemplate && (
-            <div role="alertdialog" aria-label="Replace the project" className="space-y-2 border-t p-3 text-xs">
-              <p>
-                Replace everything in this project with the {pendingTemplate.name} template? The frame size changes to match it.
-              </p>
-              <div className="flex gap-2">
-                <Button size="xs" onClick={() => applyTemplate(pendingTemplate)}>
-                  Replace
-                </Button>
-                <Button size="xs" variant="outline" onClick={() => setPendingTemplate(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-          {message && (
-            <p role="alert" className="border-t p-3 text-xs text-destructive">
-              {message}
-            </p>
-          )}
-        </aside>
+        {!compact && (
+          <aside className="flex w-72 shrink-0 flex-col border-r">
+            {sidebar}
+          </aside>
+        )}
         <main className="flex min-w-0 flex-1 flex-col">
-          <StudioStage
-            containerRef={containerRef}
-            frame={frame}
-            onGestureStart={() => {
-              if (useTransportStore.getState().playing) session?.pause();
-            }}
-          />
+          <div data-tour="stage" className="flex min-h-0 flex-1 flex-col">
+            <StudioStage
+              containerRef={containerRef}
+              frame={frame}
+              onGestureStart={() => {
+                if (useTransportStore.getState().playing) session?.pause();
+              }}
+            />
+          </div>
           <div className="flex items-center gap-3 border-t px-3 py-2">
+            {compact && (
+              <Button size="sm" variant="outline" data-tour="tools-button" onClick={() => setToolsOpen(true)}>
+                Tools
+              </Button>
+            )}
             <Button
               size="sm"
               variant="secondary"
@@ -413,7 +484,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
               {formatClock(time)} / {formatClock(duration)}
             </span>
           </div>
-          <div className="shrink-0 border-t p-2">
+          <div data-tour="timeline" className="shrink-0 border-t p-2">
             <TimelineView
               fps={FPS}
               onSeek={(t) => session?.seek(t)}

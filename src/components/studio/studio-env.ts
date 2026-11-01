@@ -18,6 +18,8 @@ export interface StudioEnv {
   library: MediaItem[];
   libraryLoading: boolean;
   saveFrame(frame: FrameSize): Promise<void>;
+  /** Show the welcome tour the first time the editor is opened. */
+  welcomeTour?: boolean;
   /** Present where the project has somewhere to keep a dashboard thumbnail. */
   saveThumbnail?(dataUrl: string): Promise<void>;
   /** Present when the Media tab may offer an upload button. */
