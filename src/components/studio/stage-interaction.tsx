@@ -12,8 +12,9 @@ import { gridLines, gridSize } from "@/lib/editor/grid";
 import { viewFit } from "@/lib/editor/view";
 import { useStageViewStore } from "@/store/use-stage-view-store";
 import type { FrameSize } from "@/lib/sync/timeline-document";
+import { dropGroupOf } from "@/lib/timeline/groups";
 import { nextSelection } from "@/lib/timeline-ui/interactions";
-import { useClipProjectStore } from "@/store/use-clip-project-store";
+import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 import { useTransportStore } from "@/store/use-transport-store";
 import type { ClipTransform } from "@/types/timeline";
 
@@ -113,7 +114,11 @@ export function StageInteraction({
     const store = useClipProjectStore.getState();
     const current = store.selectedClipIds;
     if (additive) {
-      store.setSelectedClipIds(nextSelection(current, id, { shift: true, ctrl: false }));
+      const next = nextSelection(current, id, { shift: true, ctrl: false });
+      // Toggling a grouped clip off takes its whole group off.
+      store.setSelectedClipIds(
+        current.includes(id) ? dropGroupOf(selectProject(store), next, id) : next,
+      );
     } else if (!current.includes(id)) {
       store.setSelectedClipIds([id]);
     }

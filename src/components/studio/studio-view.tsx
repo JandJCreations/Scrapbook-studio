@@ -210,11 +210,12 @@ export function StudioView({ env }: { env: StudioEnv }) {
     else applyTemplate(template);
   }
 
-  async function addMedia(item: MediaItem, mode: "sequence" | "overlay") {
-    if (!frame) return;
+  /** Adds one item; false when it could not be added (and the reason is showing). `quiet` leaves the message alone on success. */
+  async function addMedia(item: MediaItem, mode: "sequence" | "overlay", quiet = false): Promise<boolean> {
+    if (!frame) return false;
     try {
       const media = await loadEditorMedia(item);
-      if (!media || !aliveRef.current) return;
+      if (!media || !aliveRef.current) return false;
       const at = useTransportStore.getState().time;
       let result: AddResult | null = null;
       useClipProjectStore.getState().apply((p) => {
@@ -231,19 +232,24 @@ export function StudioView({ env }: { env: StudioEnv }) {
         added && selectProject(useClipProjectStore.getState()).clips.some((c) => c.id === added.clipId);
       if (!added || !stored) {
         say("Couldn't add that to the project.");
-        return;
+        return false;
       }
       useClipProjectStore.getState().setSelectedClipIds([added.clipId]);
       setJustAddedId(added.clipId);
-      say(null);
+      if (!quiet) say(null);
+      return true;
     } catch (error) {
       say(error instanceof Error ? error.message : "Couldn't add that to the project.");
+      return false;
     }
   }
 
-  /** Ticked items go in one after another; one that fails does not stop the rest, and its message stays. */
+  /** Ticked items go in one after another; one that fails does not stop the rest, and the failure stays on screen. */
   async function addMany(items: MediaItem[], mode: "sequence" | "overlay") {
-    for (const item of items) await addMedia(item, mode);
+    say(null);
+    let failed = 0;
+    for (const item of items) if (!(await addMedia(item, mode, true))) failed += 1;
+    if (failed > 1) say(`Couldn't add ${failed} of ${items.length} items.`);
   }
 
   /** One of the user's own pictures, as a sticker. */

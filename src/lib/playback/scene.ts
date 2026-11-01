@@ -38,8 +38,8 @@ function contentFor(
         ? { type: "text", adjustments: clip.adjustments.text }
         : { type: "placeholder", label: clip.name };
     case "sticker":
-      // Catalog art is a picture like any other; a sticker with no art shows a stand-in.
-      return clip.mediaId.startsWith("asset:")
+      // Catalog art or one of the user's own pictures is drawn like any picture; a sticker with no art shows a stand-in.
+      return clip.mediaId !== ""
         ? { type: "image", mediaId: clip.mediaId }
         : { type: "placeholder", label: clip.name };
     case "audio":

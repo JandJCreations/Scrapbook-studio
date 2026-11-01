@@ -26,10 +26,34 @@ export function registerCustomFont(family: string, loaded: Promise<void>): void 
   registered.set(family, loaded.catch(() => undefined));
 }
 
-/** Resolves once the family is usable, or at once if it is unknown or failed: a font never blocks painting or export. */
-export async function whenCustomFontReady(family: string): Promise<void> {
-  await pending;
-  await registered.get(family);
+/** How long painting and export will wait for a font before drawing without it. */
+const FONT_WAIT_MS = 4000;
+
+/**
+ * Resolves once the family is usable, or at once if it is unknown or failed, or
+ * after a few seconds if it is still downloading: a font never holds up painting or export.
+ */
+export function whenCustomFontReady(family: string, timeoutMs = FONT_WAIT_MS): Promise<void> {
+  const ready = (async () => {
+    await pending;
+    await registered.get(family);
+  })();
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    void ready.then(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+/** A CSS url() for a font address: quoted, with the characters that could end the quotes escaped. */
+export function cssUrl(address: string): string {
+  const safe = address
+    .replace(/"/g, "%22")
+    .replace(/\\/g, "%5C")
+    .replace(/[\r\n]/g, "");
+  return `url("${safe}")`;
 }
 
 /** For tests. */

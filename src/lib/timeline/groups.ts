@@ -30,6 +30,14 @@ export function ungroupClips(project: TimelineProject, ids: string[]): TimelineP
   };
 }
 
+/** The selection without the whole group of a clip that was just toggled off, so one member cannot be left out. */
+export function dropGroupOf(project: TimelineProject, ids: string[], removedId: string): string[] {
+  const group = project.clips.find((clip) => clip.id === removedId)?.groupId;
+  if (!group) return ids;
+  const members = new Set(project.clips.filter((clip) => clip.groupId === group).map((clip) => clip.id));
+  return ids.filter((id) => !members.has(id));
+}
+
 /** The ids, plus every other member of any group they touch (given ids keep their order). */
 export function expandToGroups(project: TimelineProject, ids: string[]): string[] {
   const have = new Set(ids);

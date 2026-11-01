@@ -59,7 +59,7 @@ describe("buildScene", () => {
         adjustments: { photo: null, video: null, text },
       }),
       makeClip({ id: "txt2", trackId: "t2", kind: "text", name: "Fallback", sourceDuration: null }),
-      makeClip({ id: "stk", trackId: "t2", kind: "sticker", name: "Star", sourceDuration: null }),
+      makeClip({ id: "stk", trackId: "t2", kind: "sticker", name: "Star", mediaId: "", sourceDuration: null }),
     ]);
     const byId = Object.fromEntries(buildScene(project, 1, none).map((i) => [i.clipId, i.content]));
     expect(byId.img).toEqual({ type: "image", mediaId: "m9" });
@@ -75,6 +75,13 @@ describe("buildScene", () => {
     const art = buildScene(project, 1, none)[0];
     expect(art.content).toEqual({ type: "image", mediaId: "asset:stickers/Star" });
     expect(art.look).toBeNull();
+  });
+
+  it("draws a sticker made from one of the user's own pictures as that picture", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({ id: "mine", trackId: "t2", kind: "sticker", mediaId: "11111111-1111-4111-8111-111111111111", sourceDuration: null }),
+    ]);
+    expect(buildScene(project, 1, none)[0].content).toEqual({ type: "image", mediaId: "11111111-1111-4111-8111-111111111111" });
   });
 
   it("carries the look of an adjusted picture and nothing for a plain one", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { expandToGroups, groupClips, ungroupClips } from "@/lib/timeline/groups";
+import { dropGroupOf, expandToGroups, groupClips, ungroupClips } from "@/lib/timeline/groups";
 import { makeClip, makeProject, makeStandardTracks } from "@/lib/timeline/test-utils";
 
 const project = (groups: Array<string | null> = [null, null, null]) =>
@@ -61,5 +61,18 @@ describe("expandToGroups", () => {
   it("returns the same array when nothing needs adding", () => {
     const ids = ["c1", "c2"];
     expect(expandToGroups(project(["a", "a", null]), ids)).toBe(ids);
+  });
+});
+
+describe("dropGroupOf", () => {
+  it("takes the whole group out of a selection when one member is toggled off", () => {
+    const p = project(["a", "a", null]);
+    expect(dropGroupOf(p, ["c3"], "c1")).toEqual(["c3"]);
+    expect(dropGroupOf(p, ["c2", "c3"], "c1")).toEqual(["c3"]);
+  });
+
+  it("leaves the selection alone for a clip that is in no group", () => {
+    const ids = ["c1"];
+    expect(dropGroupOf(project(["a", "a", null]), ids, "c3")).toBe(ids);
   });
 });

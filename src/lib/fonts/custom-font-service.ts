@@ -84,7 +84,9 @@ export function createCustomFontService({ store, loadFace, newId }: Deps): Custo
         throw new Error("That file is not a usable font.");
       }
 
-      const path = `${userId}/fonts/${id}/${file.name}`;
+      // Named by id and extension only: the file's own name may hold characters storage refuses.
+      const extension = (FONT_EXTENSIONS.exec(file.name)?.[1] ?? "ttf").toLowerCase();
+      const path = `${userId}/fonts/${id}.${extension}`;
       try {
         await store.upload(path, file);
         try {

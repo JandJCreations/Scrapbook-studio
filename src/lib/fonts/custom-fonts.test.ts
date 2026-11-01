@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CUSTOM_FONT_PREFIX,
+  cssUrl,
   customFontFamily,
   isCustomFontFamily,
   registerCustomFont,
@@ -13,6 +14,7 @@ import {
 import { loadGoogleFont } from "@/lib/fonts/load-google-font";
 
 afterEach(() => {
+  vi.useRealTimers();
   resetCustomFonts();
   document.head.innerHTML = "";
 });
@@ -67,5 +69,34 @@ describe("loadGoogleFont with a custom family", () => {
     finishFont();
     await pending;
     expect(done).toHaveBeenCalled();
+  });
+});
+
+describe("a font that takes too long", () => {
+  it("stops being waited for, so painting and export are never held up by a stalled download", async () => {
+    vi.useFakeTimers();
+    setCustomFontsPending(new Promise<void>(() => {}));
+    const done = vi.fn();
+    void whenCustomFontReady("custom-slow").then(done);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(done).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(done).toHaveBeenCalled();
+  });
+
+  it("also gives up on one font that never finishes", async () => {
+    vi.useFakeTimers();
+    registerCustomFont("custom-stuck", new Promise<void>(() => {}));
+    const done = vi.fn();
+    void whenCustomFontReady("custom-stuck").then(done);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(done).toHaveBeenCalled();
+  });
+});
+
+describe("cssUrl", () => {
+  it("quotes the address, so brackets and quotes in it cannot end the url() early", () => {
+    expect(cssUrl("https://x/a b(1).ttf")).toBe('url("https://x/a b(1).ttf")');
+    expect(cssUrl('https://x/a"b\\c.ttf')).toBe('url("https://x/a%22b%5Cc.ttf")');
   });
 });

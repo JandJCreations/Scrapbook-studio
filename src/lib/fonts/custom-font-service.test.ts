@@ -30,14 +30,20 @@ describe("add", () => {
     const font = await service.add(file("Hand Written.ttf"));
     expect(font).toEqual({ id: "id1", name: "Hand Written", family: "custom-id1" });
     expect(loadFace).toHaveBeenCalledWith("custom-id1", expect.any(ArrayBuffer));
-    expect(store.upload).toHaveBeenCalledWith("u1/fonts/id1/Hand Written.ttf", expect.any(File));
+    expect(store.upload).toHaveBeenCalledWith("u1/fonts/id1.ttf", expect.any(File));
     expect(store.insert).toHaveBeenCalledWith({
       id: "id1",
       owner_id: "u1",
       name: "Hand Written",
       family: "custom-id1",
-      storage_path: "u1/fonts/id1/Hand Written.ttf",
+      storage_path: "u1/fonts/id1.ttf",
     });
+  });
+
+  it("keeps the file's own name out of the storage path, so accents and brackets cannot break it", async () => {
+    const { service, store } = setup();
+    await service.add(file("Schrift-ä (Bold).otf"));
+    expect(store.upload).toHaveBeenCalledWith("u1/fonts/id1.otf", expect.any(File));
     await expect(whenCustomFontReady("custom-id1")).resolves.toBeUndefined();
   });
 
@@ -57,7 +63,7 @@ describe("add", () => {
   it("fails, and cleans up the upload, when the font cannot be recorded", async () => {
     const { service, store } = setup({ insert: vi.fn(async () => { throw new Error("db"); }) });
     await expect(service.add(file("a.ttf"))).rejects.toThrow(/could not be saved/i);
-    expect(store.remove).toHaveBeenCalledWith("u1/fonts/id1/a.ttf");
+    expect(store.remove).toHaveBeenCalledWith("u1/fonts/id1.ttf");
   });
 
   it("needs a signed-in user", async () => {

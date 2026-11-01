@@ -685,3 +685,28 @@ describe("StudioView custom fonts", () => {
     expect(screen.queryByLabelText("Upload a font")).toBeNull();
   });
 });
+
+describe("StudioView adding several at once", () => {
+  it("keeps the reason an item failed on screen even though later items were added", async () => {
+    mockPhone(false);
+    const bad: MediaItem = { ...photo, id: "33333333-3333-4333-8333-333333333333", name: "Gone", url: "" };
+    const good: MediaItem = { ...photo, id: "44444444-4444-4444-8444-444444444444", name: "Here" };
+    const base = env();
+    render(
+      <StudioView
+        env={env({
+          library: [bad, good],
+          media: { ...base.media, urlFor: (id: string) => (id === bad.id ? null : "blob:x") },
+        })}
+      />,
+    );
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Gone" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Here" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the sequence" }));
+    await vi.waitFor(() => {
+      expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1);
+    });
+    expect((await screen.findByRole("alert")).textContent).toMatch(/isn.t available|couldn.t add/i);
+  });
+});

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { FontRow, FontStore } from "@/lib/fonts/custom-font-service";
+import { cssUrl } from "@/lib/fonts/custom-fonts";
 import { getSignedUrls, MEDIA_BUCKET } from "@/lib/supabase/storage";
 
 /** The font store on Supabase: the `custom_fonts` table, and the user's media bucket for the files. */
@@ -39,7 +40,7 @@ export function createSupabaseFontStore(client: SupabaseClient): FontStore {
 
 /** Has the browser load a font (from bytes or a URL) and make it available to the page's canvases. */
 export async function loadBrowserFontFace(family: string, source: ArrayBuffer | string): Promise<void> {
-  const face = new FontFace(family, typeof source === "string" ? `url(${source})` : source);
+  const face = new FontFace(family, typeof source === "string" ? cssUrl(source) : source);
   await face.load();
   document.fonts.add(face);
 }
