@@ -7,7 +7,7 @@ import { PanelColor, PanelSlider, PanelToggleSection } from "@/components/studio
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { CustomFont } from "@/lib/fonts/custom-fonts";
+import { isCustomFontFamily, type CustomFont } from "@/lib/fonts/custom-fonts";
 import { GOOGLE_FONTS } from "@/lib/fonts/google-fonts-catalog";
 import type { TextAdjustments, TextAlign } from "@/types/text-adjustments";
 
@@ -80,7 +80,11 @@ export function TextPanel({ adjustments, onPreview, onCommit, onApply, onReset, 
           onChange={(event) => onApply({ fontFamily: event.target.value })}
           className="h-8 rounded-md border border-border bg-background px-2 text-xs"
         >
-          {!known && <option value={adjustments.fontFamily}>{adjustments.fontFamily}</option>}
+          {!known && (
+            <option value={adjustments.fontFamily}>
+              {isCustomFontFamily(adjustments.fontFamily) ? "Missing font" : adjustments.fontFamily}
+            </option>
+          )}
           {customFonts && customFonts.fonts.length > 0 && (
             <optgroup label="Your fonts">
               {customFonts.fonts.map((f) => (

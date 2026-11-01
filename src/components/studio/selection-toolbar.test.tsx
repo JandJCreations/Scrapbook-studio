@@ -99,3 +99,39 @@ describe("SelectionToolbar groups", () => {
     expect(screen.queryByRole("button", { name: "Group" })).toBeNull();
   });
 });
+
+describe("SelectionToolbar group buttons in mixed selections", () => {
+  const grouped = (id: string, groupId: string | null, locked = false) =>
+    makeClip({ id, trackId: "t2", kind: "image", sourceDuration: null, sourceOut: 3, groupId, locked });
+
+  function loadClips(...clipList: ReturnType<typeof grouped>[]) {
+    act(() => {
+      store().load(makeProject(makeStandardTracks(), clipList));
+      store().setSelectedClipIds(clipList.map((c) => c.id));
+    });
+  }
+
+  it("offers both Group and Ungroup when a group is selected with something outside it", () => {
+    loadClips(grouped("a", "g"), grouped("b", "g"), grouped("c", null));
+    render(<SelectionToolbar />);
+    expect(screen.getByRole("button", { name: "Group" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ungroup" })).toBeTruthy();
+  });
+
+  it("merges two groups into one with Group", () => {
+    loadClips(grouped("a", "g1"), grouped("b", "g1"), grouped("c", "g2"), grouped("d", "g2"));
+    render(<SelectionToolbar />);
+    fireEvent.click(screen.getByRole("button", { name: "Group" }));
+    expect(new Set(clips().map((c) => c.groupId)).size).toBe(1);
+  });
+
+  it("offers only Ungroup when the whole selection is one group, and no Group when too few can be grouped", () => {
+    loadClips(grouped("a", "g"), grouped("b", "g"));
+    const view = render(<SelectionToolbar />);
+    expect(screen.queryByRole("button", { name: "Group" })).toBeNull();
+    view.unmount();
+    loadClips(grouped("x", null), grouped("y", null, true));
+    render(<SelectionToolbar />);
+    expect(screen.queryByRole("button", { name: "Group" })).toBeNull();
+  });
+});

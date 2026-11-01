@@ -21,6 +21,8 @@ export interface StudioEnv {
   saveFrame(frame: FrameSize): Promise<void>;
   /** Show the welcome tour the first time the editor is opened. */
   welcomeTour?: boolean;
+  /** True when the project already has a dashboard thumbnail, so opening it need not redraw one. */
+  hasThumbnail?: boolean;
   /** Present where the project has somewhere to keep a dashboard thumbnail. */
   saveThumbnail?(dataUrl: string): Promise<void>;
   /** Present where the user may bring their own fonts: the ones they have, and a way to add one. */

@@ -55,7 +55,26 @@ export interface MoveInput {
 
 const unchanged = (project: TimelineProject): DragResult => ({ project, guide: null });
 
+/**
+ * Moves a clip, and with it the rest of its group: every other unlocked member
+ * shifts by the same amount of time, staying on its own track (never before 0).
+ */
 export function computeMove(project: TimelineProject, input: MoveInput): DragResult {
+  const result = computeSingleMove(project, input);
+  const clip = findClip(project, input.clipId);
+  const landed = findClip(result.project, input.clipId);
+  if (!clip || !landed || clip.groupId === null || result.project === project) return result;
+  const shift = landed.start - clip.start;
+  if (shift === 0) return result;
+  let next = result.project;
+  for (const mate of project.clips) {
+    if (mate.id === clip.id || mate.groupId !== clip.groupId) continue;
+    next = moveClip(next, mate.id, { start: Math.max(0, mate.start + shift) });
+  }
+  return { ...result, project: next };
+}
+
+function computeSingleMove(project: TimelineProject, input: MoveInput): DragResult {
   const clip = findClip(project, input.clipId);
   if (!clip || isClipLocked(project, clip)) return unchanged(project);
 

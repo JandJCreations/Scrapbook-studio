@@ -85,7 +85,9 @@ export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null
   }, [fetchProjects, fetchMedia]);
 
   // Only the name matters here: saving a thumbnail replaces the project object, which must not remake the environment.
-  const projectName = projects.find((p) => p.id === projectId)?.name;
+  const found = projects.find((p) => p.id === projectId);
+  const projectName = found?.name;
+  const hasThumbnail = Boolean(found?.thumbnailUrl);
 
   const env = React.useMemo<StudioEnv | null>(() => {
     if (!media || projectName === undefined) return null;
@@ -94,6 +96,7 @@ export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null
       projectName,
       backHref: "/dashboard",
       welcomeTour: true,
+      hasThumbnail,
       customFonts: { fonts, add: addFont },
       storage,
       media,
@@ -105,7 +108,7 @@ export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null
         useMediaStore.getState().addFiles(files, null);
       },
     };
-  }, [media, projectName, projectId, storage, library, libraryLoading, fonts, addFont]);
+  }, [media, projectName, hasThumbnail, projectId, storage, library, libraryLoading, fonts, addFont]);
 
   return { env, missing: projectsLoaded && projectName === undefined };
 }

@@ -96,6 +96,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
     frame,
     urlFor: mediaSource.urlFor,
     saveThumbnail: env.saveThumbnail,
+    hasThumbnail: env.hasThumbnail,
   });
 
   // Add and save work can outlive the page; it must not touch shared state after that.
@@ -270,7 +271,12 @@ export function StudioView({ env }: { env: StudioEnv }) {
         return result.project;
       });
       const added = result as AddResult | null;
-      if (!added) return;
+      const stored =
+        added && selectProject(useClipProjectStore.getState()).clips.some((c) => c.id === added.clipId);
+      if (!added || !stored) {
+        say("Couldn't add that to the project.");
+        return;
+      }
       useClipProjectStore.getState().setSelectedClipIds([added.clipId]);
       setJustAddedId(added.clipId);
       say(null);

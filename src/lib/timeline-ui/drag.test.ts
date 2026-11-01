@@ -274,3 +274,41 @@ describe("clipsInRect", () => {
     expect(clipsInRect(project, layout, 60, { left: 0, top: 0, right: 61, bottom: 40 })).toEqual(["o"]);
   });
 });
+
+describe("computeMove with a group", () => {
+  const audio = (id: string, start: number, extra = {}) =>
+    makeClip({ id, trackId: "t3", kind: "audio", start, sourceIn: 0, sourceOut: 2, sourceDuration: 50, ...extra });
+  const move = (project: ReturnType<typeof makeProject>, clipId: string, pointerTime: number) =>
+    computeMove(project, { ...base, clipId, pointerTime, grabOffset: 0, target: onTrack("t2") });
+
+  it("moves the rest of the group by the same amount of time, each on its own track", () => {
+    const project = makeProject(makeStandardTracks(), [
+      overlay("a", 0, 2, { groupId: "g" }),
+      audio("b", 1, { groupId: "g" }),
+      audio("c", 20),
+    ]);
+    const result = move(project, "a", 3).project;
+    expect(findClip(result, "a")?.start).toBe(3);
+    expect(findClip(result, "b")?.start).toBe(4);
+    expect(findClip(result, "b")?.trackId).toBe("t3");
+    expect(findClip(result, "c")?.start).toBe(20);
+  });
+
+  it("leaves a locked member where it is, and does not push a member before the start", () => {
+    const project = makeProject(makeStandardTracks(), [
+      overlay("a", 4, 2, { groupId: "g" }),
+      audio("b", 1, { groupId: "g" }),
+      audio("c", 10, { groupId: "g", locked: true }),
+    ]);
+    const result = move(project, "a", 0).project;
+    expect(findClip(result, "a")?.start).toBe(0);
+    expect(findClip(result, "b")?.start).toBe(0);
+    expect(findClip(result, "c")?.start).toBe(10);
+  });
+
+  it("moves a clip with no group on its own, as before", () => {
+    const project = makeProject(makeStandardTracks(), [overlay("a", 0, 2), audio("b", 1)]);
+    const result = move(project, "a", 3).project;
+    expect(findClip(result, "b")?.start).toBe(1);
+  });
+});

@@ -110,6 +110,12 @@ describe("TextPanel custom fonts", () => {
     expect((screen.getByLabelText("Font") as HTMLSelectElement).selectedOptions[0].textContent).toBe("Hand Written");
   });
 
+  it("calls a custom font that is no longer in the list 'Missing font', not by its internal name", () => {
+    setupFonts(vi.fn(async () => {}), { fontFamily: "custom-gone" });
+    const select = screen.getByLabelText("Font") as HTMLSelectElement;
+    expect(select.selectedOptions[0].textContent).toBe("Missing font");
+  });
+
   it("uploads a chosen font file and says when it cannot be used", async () => {
     const add = vi.fn(async () => {
       throw new Error("That file is not a font.");

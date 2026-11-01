@@ -8,6 +8,7 @@ import { deleteSelected, duplicateSelected } from "@/lib/timeline-ui/commands";
 import { updateClip } from "@/lib/timeline/clip-edits";
 import { groupClips, ungroupClips } from "@/lib/timeline/groups";
 import { createId } from "@/lib/timeline/ids";
+import { isClipLocked } from "@/lib/timeline/lookup";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 
 /** Duplicate, lock and delete for whatever is selected, floating over the stage. */
@@ -20,6 +21,11 @@ export function SelectionToolbar() {
   const ids = selected.map((clip) => clip.id);
   const allLocked = selected.every((clip) => clip.locked);
   const anyGrouped = selected.some((clip) => clip.groupId !== null);
+  // Group needs two clips that can be grouped, and is pointless if they are already one group together.
+  const usable = selected.filter((clip) => !isClipLocked(project, clip));
+  const oneGroupAlone =
+    selected.every((clip) => clip.groupId !== null) && new Set(selected.map((clip) => clip.groupId)).size === 1;
+  const canGroup = usable.length >= 2 && !oneGroupAlone;
 
   function duplicate() {
     const made: string[] = [];
@@ -73,16 +79,15 @@ export function SelectionToolbar() {
       >
         {allLocked ? <Unlock className="size-4" /> : <Lock className="size-4" />}
       </Button>
-      {anyGrouped ? (
+      {canGroup && (
+        <Button variant="ghost" size="icon" className="size-8" aria-label="Group" onClick={group}>
+          <Group className="size-4" />
+        </Button>
+      )}
+      {anyGrouped && (
         <Button variant="ghost" size="icon" className="size-8" aria-label="Ungroup" onClick={ungroup}>
           <Ungroup className="size-4" />
         </Button>
-      ) : (
-        selected.length >= 2 && (
-          <Button variant="ghost" size="icon" className="size-8" aria-label="Group" onClick={group}>
-            <Group className="size-4" />
-          </Button>
-        )
       )}
       <Button variant="ghost" size="icon" className="size-8" aria-label="Delete" onClick={remove}>
         <Trash2 className="size-4" />

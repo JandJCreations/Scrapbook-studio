@@ -73,6 +73,14 @@ describe("add", () => {
 });
 
 describe("list", () => {
+  it("asks the store only once, however often it is called", async () => {
+    const rows = vi.fn(async () => []);
+    const { service } = setup({ rows });
+    await Promise.all([service.list(), service.list()]);
+    await service.list();
+    expect(rows).toHaveBeenCalledTimes(1);
+  });
+
   it("registers every stored font and skips one that will not load", async () => {
     const loadFace = vi.fn<LoadFace>(async (family) => {
       if (family === "custom-bad") throw new Error("corrupt");

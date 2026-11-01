@@ -152,3 +152,29 @@ describe('useStudioThumbnail with changing callbacks', () => {
     expect(saves).toHaveLength(1);
   });
 });
+
+describe("useStudioThumbnail when the project already has one", () => {
+  it("leaves it alone until the project is edited", async () => {
+    const saveThumbnail = vi.fn(async () => {});
+    const renderThumbnail = vi.fn(async () => "data:x");
+    act(() => useClipProjectStore.getState().load(withContent()));
+    renderHook(() =>
+      useStudioThumbnail({ enabled: true, frame, urlFor: () => null, saveThumbnail, renderThumbnail, hasThumbnail: true }),
+    );
+    await settle();
+    expect(saveThumbnail).not.toHaveBeenCalled();
+    act(() => useClipProjectStore.getState().apply((p) => ({ ...p, clips: [...p.clips, makeClip({ id: "b", trackId: "t1", start: 9 })] })));
+    await settle();
+    expect(saveThumbnail).toHaveBeenCalledTimes(1);
+  });
+
+  it("still makes the first one for a project that has none", async () => {
+    const saveThumbnail = vi.fn(async () => {});
+    act(() => useClipProjectStore.getState().load(withContent()));
+    renderHook(() =>
+      useStudioThumbnail({ enabled: true, frame, urlFor: () => null, saveThumbnail, renderThumbnail: async () => "data:x", hasThumbnail: false }),
+    );
+    await settle();
+    expect(saveThumbnail).toHaveBeenCalledTimes(1);
+  });
+});

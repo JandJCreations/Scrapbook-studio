@@ -40,8 +40,11 @@ export interface CustomFontService {
 }
 
 export function createCustomFontService({ store, loadFace, newId }: Deps): CustomFontService {
+  // The list is fetched (and its fonts loaded) once, however many times the caller asks.
+  let listed: Promise<CustomFont[]> | null = null;
   return {
-    async list() {
+    list() {
+      if (listed) return listed;
       const listing = (async () => {
         const rows = await store.rows();
         const urls = await store.signedUrls(rows.map((row) => row.storage_path));
@@ -66,6 +69,7 @@ export function createCustomFontService({ store, loadFace, newId }: Deps): Custo
       })();
       // Painting asks whether a font is ready; until the list is in, it waits.
       setCustomFontsPending(listing.then(() => undefined));
+      listed = listing;
       return listing;
     },
 

@@ -16,6 +16,8 @@ interface Options {
   enabled: boolean;
   frame: FrameSize | null;
   urlFor(mediaId: string): string | null;
+  /** True when the project already has a thumbnail: it is then remade only after an edit, not on every open. */
+  hasThumbnail?: boolean;
   /** Present only where the project has somewhere to keep a thumbnail. */
   saveThumbnail?: (dataUrl: string) => Promise<void>;
   /** The drawing step; replaced in tests. */
@@ -27,7 +29,7 @@ interface Options {
  * stop, draws the project's first visible moment off screen and saves it. A
  * thumbnail is never worth an error, so every failure is ignored.
  */
-export function useStudioThumbnail({ enabled, frame, urlFor, saveThumbnail, renderThumbnail }: Options): void {
+export function useStudioThumbnail({ enabled, frame, urlFor, saveThumbnail, renderThumbnail, hasThumbnail }: Options): void {
   // Only committed edits count: a drag in progress is not saved, so it is not drawn either.
   const project = useClipProjectStore(selectSavableProject);
 
@@ -39,8 +41,16 @@ export function useStudioThumbnail({ enabled, frame, urlFor, saveThumbnail, rend
   });
   const canSave = Boolean(saveThumbnail);
 
+  // The project as it was when the editor became ready; unchanged since, it needs no new thumbnail if it has one.
+  const opened = React.useRef<{ project: typeof project; hadThumbnail: boolean } | null>(null);
+  React.useEffect(() => {
+    if (!enabled) opened.current = null;
+    else if (opened.current === null) opened.current = { project, hadThumbnail: hasThumbnail ?? false };
+  });
+
   React.useEffect(() => {
     if (!enabled || !frame || !canSave) return;
+    if (opened.current?.hadThumbnail && opened.current.project === project) return;
     const shown = exportableProject(project);
     const time = thumbnailTime(shown);
     if (time === null) return;
