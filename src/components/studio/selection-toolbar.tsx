@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Copy, Lock, Trash2, Unlock } from "lucide-react";
+import { Copy, Group, Lock, Trash2, Ungroup, Unlock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { deleteSelected, duplicateSelected } from "@/lib/timeline-ui/commands";
 import { updateClip } from "@/lib/timeline/clip-edits";
+import { groupClips, ungroupClips } from "@/lib/timeline/groups";
 import { createId } from "@/lib/timeline/ids";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 
@@ -18,6 +19,7 @@ export function SelectionToolbar() {
   if (selected.length === 0) return null;
   const ids = selected.map((clip) => clip.id);
   const allLocked = selected.every((clip) => clip.locked);
+  const anyGrouped = selected.some((clip) => clip.groupId !== null);
 
   function duplicate() {
     const made: string[] = [];
@@ -37,6 +39,14 @@ export function SelectionToolbar() {
     useClipProjectStore
       .getState()
       .apply((p) => ids.reduce((current, id) => updateClip(current, id, { locked: !allLocked }), p));
+  }
+
+  function group() {
+    useClipProjectStore.getState().apply((p) => groupClips(p, ids, createId));
+  }
+
+  function ungroup() {
+    useClipProjectStore.getState().apply((p) => ungroupClips(p, ids));
   }
 
   function remove() {
@@ -63,6 +73,17 @@ export function SelectionToolbar() {
       >
         {allLocked ? <Unlock className="size-4" /> : <Lock className="size-4" />}
       </Button>
+      {anyGrouped ? (
+        <Button variant="ghost" size="icon" className="size-8" aria-label="Ungroup" onClick={ungroup}>
+          <Ungroup className="size-4" />
+        </Button>
+      ) : (
+        selected.length >= 2 && (
+          <Button variant="ghost" size="icon" className="size-8" aria-label="Group" onClick={group}>
+            <Group className="size-4" />
+          </Button>
+        )
+      )}
       <Button variant="ghost" size="icon" className="size-8" aria-label="Delete" onClick={remove}>
         <Trash2 className="size-4" />
       </Button>

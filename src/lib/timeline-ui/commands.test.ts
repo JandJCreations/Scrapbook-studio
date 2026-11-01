@@ -47,6 +47,18 @@ describe("splitAtPlayhead", () => {
 });
 
 describe("duplicateSelected", () => {
+  it("keeps a duplicated group together, as a new group of its own", () => {
+    const grouped = (id: string, start: number) => ({ ...video(id, start, 2), groupId: "g" });
+    const project = makeProject(makeStandardTracks(), [grouped("a", 0), grouped("b", 10), video("c", 20, 2)]);
+    const result = duplicateSelected(project, ["a", "b"], seqIds("d"));
+    const copies = result.clips.filter((c) => !["a", "b", "c"].includes(c.id));
+    expect(copies).toHaveLength(2);
+    expect(copies[0].groupId).not.toBeNull();
+    expect(copies[0].groupId).toBe(copies[1].groupId);
+    expect(copies[0].groupId).not.toBe("g");
+    expect(result.clips.filter((c) => c.groupId === "g")).toHaveLength(2);
+  });
+
   it("copies every selected clip to sit after its original", () => {
     const project = makeProject(makeStandardTracks(), [video("a", 0, 4), overlay("o", 1, 2)]);
     const result = duplicateSelected(project, ["a", "o"], seqIds("d"));

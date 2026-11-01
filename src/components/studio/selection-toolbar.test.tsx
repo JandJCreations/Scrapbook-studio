@@ -70,3 +70,32 @@ describe("SelectionToolbar", () => {
     expect(clips()).toHaveLength(2);
   });
 });
+
+describe("SelectionToolbar groups", () => {
+  it("groups two selected clips, and selecting one afterwards selects both", () => {
+    act(() => store().setSelectedClipIds(["a", "o"]));
+    render(<SelectionToolbar />);
+    expect(screen.queryByRole("button", { name: "Ungroup" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Group" }));
+    const [a, o] = [clips().find((c) => c.id === "a"), clips().find((c) => c.id === "o")];
+    expect(a?.groupId).not.toBeNull();
+    expect(a?.groupId).toBe(o?.groupId);
+    act(() => store().setSelectedClipIds(["a"]));
+    expect(store().selectedClipIds).toEqual(["a", "o"]);
+  });
+
+  it("ungroups them again", () => {
+    act(() => store().setSelectedClipIds(["a", "o"]));
+    render(<SelectionToolbar />);
+    fireEvent.click(screen.getByRole("button", { name: "Group" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ungroup" }));
+    expect(clips().every((c) => c.groupId === null)).toBe(true);
+    expect(screen.queryByRole("button", { name: "Ungroup" })).toBeNull();
+  });
+
+  it("offers no Group for a single clip", () => {
+    act(() => store().setSelectedClipIds(["a"]));
+    render(<SelectionToolbar />);
+    expect(screen.queryByRole("button", { name: "Group" })).toBeNull();
+  });
+});

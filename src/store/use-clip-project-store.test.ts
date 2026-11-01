@@ -148,3 +148,22 @@ describe("selection", () => {
     expect(state().selectedClipIds).toEqual([]);
   });
 });
+
+describe("groups", () => {
+  const grouped = () =>
+    makeProject(makeStandardTracks(), [
+      makeClip({ id: "a", start: 0, sourceOut: 4, groupId: "g" }),
+      makeClip({ id: "b", trackId: "t2", kind: "image", sourceDuration: null, start: 2, sourceOut: 3, groupId: "g" }),
+      makeClip({ id: "c", start: 10, sourceOut: 4 }),
+    ]);
+
+  it("selecting one clip of a group selects the whole group", () => {
+    state().load(grouped());
+    state().setSelectedClipIds(["a"]);
+    expect(state().selectedClipIds).toEqual(["a", "b"]);
+    state().setSelectedClipIds(["c"]);
+    expect(state().selectedClipIds).toEqual(["c"]);
+    state().setSelectedClipIds([]);
+    expect(state().selectedClipIds).toEqual([]);
+  });
+});
