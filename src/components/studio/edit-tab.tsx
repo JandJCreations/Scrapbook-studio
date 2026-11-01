@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { AudioPanel, type AudioValues } from "@/components/studio/audio-panel";
 import { CropSection } from "@/components/studio/crop-section";
+import { FadeSection } from "@/components/studio/fade-section";
 import { KeyframesSection } from "@/components/studio/keyframes-section";
 import { PanelSlider } from "@/components/studio/panel-controls";
 import { PhotoPanel, VideoPanel } from "@/components/studio/look-panels";
@@ -21,6 +22,7 @@ import {
 } from "@/lib/editor/keyframes";
 import {
   patchAudio,
+  patchFades,
   patchPhotoAdjustments,
   patchVideoAdjustments,
   setClipOpacity,
@@ -50,6 +52,7 @@ interface Pending {
   /** Where in the clip (seconds from its start) an opacity change on an animated clip is keyed. */
   opacityTime?: number;
   crop?: { value: CropRect | null };
+  fades?: { fadeIn?: number; fadeOut?: number };
 }
 
 type Size = { width: number; height: number };
@@ -72,6 +75,7 @@ function applyPending(
       pending.opacity,
     );
   }
+  if (pending.fades) result = patchFades(result, id, pending.fades);
   if (pending.crop && natural)
     result = setCrop(result, id, pending.crop.value, natural);
   return result;
@@ -162,6 +166,7 @@ export function EditTab({
           ? useTransportStore.getState().time - clip.start
           : undefined),
       crop: patch.crop ?? pending.current.crop,
+      fades: patch.fades ? { ...pending.current.fades, ...patch.fades } : pending.current.fades,
     };
     const merged = pending.current;
     useClipProjectStore
@@ -206,6 +211,15 @@ export function EditTab({
     />
   );
   const localTime = () => useTransportStore.getState().time - clip.start;
+  const fadeSection = (clip.kind === "image" || clip.kind === "sticker") && (
+    <FadeSection
+      fadeIn={clip.fadeIn}
+      fadeOut={clip.fadeOut}
+      maxFade={clipDuration(clip)}
+      onPreview={(fades) => preview({ fades })}
+      onCommit={commit}
+    />
+  );
   const keyframesSection = (clip.kind === "image" || clip.kind === "video" || clip.kind === "sticker") && (
     <KeyframesSection
       clip={clip}
@@ -266,6 +280,7 @@ export function EditTab({
             }
           />
           {cropSection}
+          {fadeSection}
           {keyframesSection}
         </>
       )}
@@ -312,6 +327,7 @@ export function EditTab({
               onCommit={commit}
             />
           </div>
+          {fadeSection}
           {keyframesSection}
         </>
       )}

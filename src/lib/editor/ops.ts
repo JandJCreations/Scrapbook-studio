@@ -453,3 +453,13 @@ export function fillPlaceholder(
   };
   return { ...project, clips: project.clips.map((c) => (c.id === clipId ? filled : c)) };
 }
+
+/** Fade in and out for any clip (a picture fades its opacity, sound fades its volume). */
+export function patchFades(
+  project: TimelineProject,
+  clipId: string,
+  patch: { fadeIn?: number; fadeOut?: number },
+): TimelineProject {
+  if (!project.clips.some((c) => c.id === clipId)) return project;
+  return updateClip(project, clipId, patch);
+}

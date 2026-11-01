@@ -9,6 +9,7 @@ import {
   addToSequence,
   OVERLAY_SCALE,
   patchAudio,
+  patchFades,
   patchPhotoAdjustments,
   patchTextAdjustments,
   patchVideoAdjustments,
@@ -540,5 +541,24 @@ describe("fillPlaceholder", () => {
     expect(fillPlaceholder(plain.project, plain.clipId, media)).toBe(plain.project);
     const locked = { ...project, clips: project.clips.map((c) => ({ ...c, locked: true })) };
     expect(fillPlaceholder(locked, clipId, media)).toBe(locked);
+  });
+});
+
+describe("patchFades", () => {
+  it("sets the fades of any visible clip, kept inside the clip's length", () => {
+    const { project, clipId } = addText(base(), frame, 0, seqIds("n")); // 5 s
+    const result = findClip(patchFades(project, clipId, { fadeIn: 1, fadeOut: 99 }), clipId)!;
+    expect(result.fadeIn).toBe(1);
+    expect(result.fadeOut).toBe(5);
+    const sticker = addSticker(base(), { mediaId: "asset:x/y", name: "S", width: 10, height: 10 }, frame, 0, seqIds("m"));
+    expect(findClip(patchFades(sticker.project, sticker.clipId, { fadeOut: 2 }), sticker.clipId)?.fadeOut).toBe(2);
+  });
+
+  it("leaves unknown, locked and unchanged clips alone", () => {
+    const { project, clipId } = addText(base(), frame, 0, seqIds("n"));
+    expect(patchFades(project, "missing", { fadeIn: 1 })).toBe(project);
+    expect(patchFades(project, clipId, {})).toBe(project);
+    const locked = { ...project, clips: project.clips.map((c) => ({ ...c, locked: true })) };
+    expect(patchFades(locked, clipId, { fadeIn: 1 })).toBe(locked);
   });
 });

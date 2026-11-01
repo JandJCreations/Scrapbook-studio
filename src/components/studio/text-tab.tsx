@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Type } from "lucide-react";
 
+import { FadeSection } from "@/components/studio/fade-section";
 import { KeyframesSection } from "@/components/studio/keyframes-section";
 import { TextPanel } from "@/components/studio/text-panel";
 import { Button } from "@/components/ui/button";
@@ -13,11 +14,13 @@ import {
 } from "@/lib/editor/keyframes";
 import {
   addText,
+  patchFades,
   patchTextAdjustments,
   resetTextAdjustments,
   type AddResult,
 } from "@/lib/editor/ops";
 import type { FrameSize } from "@/lib/sync/timeline-document";
+import { clipDuration } from "@/lib/timeline/clip-math";
 import { useClipProjectStore } from "@/store/use-clip-project-store";
 import { useTransportStore } from "@/store/use-transport-store";
 import type { Clip, TimelineProject } from "@/types/timeline";
@@ -35,9 +38,11 @@ export function TextTab({ frame, selectedText, onSeek }: TextTabProps) {
   // Changes made while previewing; each preview is recomputed from the project
   // as it was before the gesture, so the patches must be sent together.
   const pending = React.useRef<Partial<TextAdjustments>>({});
+  const fadePending = React.useRef<{ fadeIn?: number; fadeOut?: number }>({});
 
   const commit = React.useCallback(() => {
     pending.current = {};
+    fadePending.current = {};
     useClipProjectStore.getState().endGesture();
   }, []);
 
@@ -46,7 +51,7 @@ export function TextTab({ frame, selectedText, onSeek }: TextTabProps) {
   // panel edit is closed the moment any pointer goes down.
   React.useEffect(() => {
     const closeOpenEdit = () => {
-      if (Object.keys(pending.current).length > 0) commit();
+      if (Object.keys(pending.current).length > 0 || Object.keys(fadePending.current).length > 0) commit();
     };
     window.addEventListener("pointerdown", closeOpenEdit, true);
     return () => window.removeEventListener("pointerdown", closeOpenEdit, true);
@@ -121,7 +126,18 @@ export function TextTab({ frame, selectedText, onSeek }: TextTabProps) {
           />
           {selectedText && (
             <div className="px-3 pb-3">
-              <KeyframesSection
+              <FadeSection
+              fadeIn={selectedText.fadeIn}
+              fadeOut={selectedText.fadeOut}
+              maxFade={clipDuration(selectedText)}
+              onPreview={(fades) => {
+                fadePending.current = { ...fadePending.current, ...fades };
+                const merged = fadePending.current;
+                useClipProjectStore.getState().previewApply((project) => patchFades(project, textId, merged));
+              }}
+              onCommit={commit}
+            />
+            <KeyframesSection
                 clip={selectedText}
                 playhead={useTransportStore.getState().time}
                 onSeek={onSeek}

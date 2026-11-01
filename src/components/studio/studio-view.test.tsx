@@ -507,3 +507,29 @@ describe("StudioView export and history", () => {
     expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(2);
   });
 });
+
+describe("StudioView fades", () => {
+  it("fades a picture in and out from the Edit tab, as one undo step per move", async () => {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
+    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1));
+    const id = selectProject(useClipProjectStore.getState()).clips[0].id;
+    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
+    act(() => useClipProjectStore.getState().setSelectedClipIds([id]));
+    fireEvent.keyDown(await screen.findByRole("slider", { name: "Fade in" }), { key: "ArrowRight" });
+    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips[0].fadeIn).toBe(0.1));
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Fade out" }), { key: "ArrowRight" });
+    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips[0].fadeOut).toBe(0.1));
+  });
+
+  it("fades text from the Text tab", async () => {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("tab", { name: "text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    await screen.findByLabelText("Text content");
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Fade in" }), { key: "ArrowRight" });
+    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips[0].fadeIn).toBe(0.1));
+  });
+});
