@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ASSET_CATALOG } from "@/lib/assets/asset-catalog";
 import { assetMediaId } from "@/lib/assets/asset-keys";
+import { musicMediaId } from "@/lib/audio/music-keys";
+import { MUSIC_LIBRARY } from "@/lib/audio/music-library-catalog";
 import type { MediaUrlSource } from "@/lib/sync/media-url-store";
 import { withBundledAssets } from "@/lib/sync/bundled-assets";
 
@@ -43,5 +45,19 @@ describe("withBundledAssets", () => {
     expect(wrapped.posterFor(assetMediaId(star))).toBeNull();
     wrapped.subscribe(() => {});
     expect(source.subscribe).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("withBundledAssets and the music library", () => {
+  const track = MUSIC_LIBRARY[0];
+
+  it("answers library music from the catalog and keeps it away from the real source", async () => {
+    const source = real();
+    const wrapped = withBundledAssets(source);
+    expect(wrapped.urlFor(musicMediaId(track))).toBe(track.src);
+    expect(wrapped.posterFor(musicMediaId(track))).toBeNull();
+    await wrapped.ensure([musicMediaId(track), "file-1"]);
+    expect(source.ensure).toHaveBeenCalledWith(["file-1"]);
+    expect(source.urlFor).not.toHaveBeenCalledWith(musicMediaId(track));
   });
 });

@@ -32,6 +32,8 @@ import {
   type EditorMedia,
 } from "@/lib/editor/ops";
 import { assetMediaId } from "@/lib/assets/asset-keys";
+import { musicMediaId } from "@/lib/audio/music-keys";
+import type { MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
 import { readMediaInfo } from "@/lib/playback/browser";
 import { withBundledAssets } from "@/lib/sync/bundled-assets";
 import { templateToProject } from "@/lib/templates/template-to-project";
@@ -215,6 +217,28 @@ export function StudioView({ env }: { env: StudioEnv }) {
     }
   }
 
+  function addMusic(track: MusicLibraryTrack) {
+    if (!frame) return;
+    const media: EditorMedia = {
+      mediaId: musicMediaId(track),
+      name: track.name,
+      kind: "audio",
+      duration: track.duration,
+      width: 0,
+      height: 0,
+    };
+    const at = useTransportStore.getState().time;
+    let result: AddResult | null = null;
+    useClipProjectStore.getState().apply((p) => {
+      result = addAudioClip(p, media, frame, at);
+      return result.project;
+    });
+    const added = result as AddResult | null;
+    if (!added) return;
+    useClipProjectStore.getState().setSelectedClipIds([added.clipId]);
+    setJustAddedId(added.clipId);
+  }
+
   function addAsset(asset: ScrapbookAsset) {
     if (!frame) return;
     const art = { mediaId: assetMediaId(asset), name: asset.name, width: asset.width, height: asset.height };
@@ -333,7 +357,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onUpload={env.uploadFiles}
             />
           ) : tab === "assets" ? (
-            <AssetsTab onAdd={addAsset} onTemplate={chooseTemplate} />
+            <AssetsTab onAdd={addAsset} onTemplate={chooseTemplate} onAddMusic={addMusic} />
           ) : tab === "layers" ? (
             <LayersTab />
           ) : tab === "text" ? (

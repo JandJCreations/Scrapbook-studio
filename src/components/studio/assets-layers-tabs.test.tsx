@@ -7,13 +7,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssetsTab } from "@/components/studio/assets-tab";
 import { LayersTab } from "@/components/studio/layers-tab";
 import { ASSET_CATALOG } from "@/lib/assets/asset-catalog";
+import { MUSIC_LIBRARY } from "@/lib/audio/music-library-catalog";
 import { makeClip, makeProject, makeTrack } from "@/lib/timeline/test-utils";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 
 describe("AssetsTab", () => {
   it("shows the catalog by category and adds the asset that is clicked", () => {
     const onAdd = vi.fn();
-    render(<AssetsTab onAdd={onAdd} onTemplate={vi.fn()} />);
+    render(<AssetsTab onAdd={onAdd} onTemplate={vi.fn()} onAddMusic={vi.fn()} />);
     expect(screen.getByText("Stickers")).toBeTruthy();
     expect(screen.getByText("Washi tape")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Add Star, Stickers" }));
@@ -22,8 +23,8 @@ describe("AssetsTab", () => {
   });
 
   it("offers every asset in the catalog", () => {
-    render(<AssetsTab onAdd={vi.fn()} onTemplate={vi.fn()} />);
-    expect(screen.getAllByRole("button", { name: /^Add / }).length).toBe(ASSET_CATALOG.length);
+    render(<AssetsTab onAdd={vi.fn()} onTemplate={vi.fn()} onAddMusic={vi.fn()} />);
+    expect(screen.getAllByRole("button", { name: /^Add .+, / }).length).toBe(ASSET_CATALOG.length);
   });
 });
 
@@ -103,5 +104,31 @@ describe("LayersTab", () => {
     act(() => store().setSelectedClipIds(["s"]));
     render(<LayersTab />);
     expect(screen.getByRole("button", { name: "Select Star" }).getAttribute("aria-pressed")).toBe("true");
+  });
+});
+
+describe("AssetsTab music", () => {
+  beforeEach(() => {
+    HTMLMediaElement.prototype.play = vi.fn(async () => {});
+    HTMLMediaElement.prototype.pause = vi.fn();
+  });
+
+  it("lists the library tracks and adds the one chosen", () => {
+    const onAddMusic = vi.fn();
+    render(<AssetsTab onAdd={vi.fn()} onTemplate={vi.fn()} onAddMusic={onAddMusic} />);
+    for (const track of MUSIC_LIBRARY) {
+      expect(screen.getByRole("button", { name: `Add ${track.name} as music` })).toBeTruthy();
+    }
+    fireEvent.click(screen.getByRole("button", { name: `Add ${MUSIC_LIBRARY[0].name} as music` }));
+    expect(onAddMusic).toHaveBeenCalledWith(MUSIC_LIBRARY[0]);
+  });
+
+  it("previews a track, and pauses it when it is pressed again", () => {
+    render(<AssetsTab onAdd={vi.fn()} onTemplate={vi.fn()} onAddMusic={vi.fn()} />);
+    const name = MUSIC_LIBRARY[0].name;
+    fireEvent.click(screen.getByRole("button", { name: `Preview ${name}` }));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: `Pause ${name}` }));
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
   });
 });

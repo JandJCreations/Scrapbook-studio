@@ -28,7 +28,7 @@ const item = (overrides: Partial<MediaItem>): MediaItem => ({
 describe("templates in the Assets tab", () => {
   it("lists every template and hands back the one chosen", () => {
     const onTemplate = vi.fn();
-    render(<AssetsTab onAdd={vi.fn()} onTemplate={onTemplate} />);
+    render(<AssetsTab onAdd={vi.fn()} onTemplate={onTemplate} onAddMusic={vi.fn()} />);
     for (const template of TEMPLATE_CATALOG) {
       expect(screen.getByRole("button", { name: `Use the ${template.name} template` })).toBeTruthy();
     }
