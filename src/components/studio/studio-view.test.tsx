@@ -10,6 +10,7 @@ import { createMemoryTimelineStorage } from "@/lib/sync/memory-timeline-storage"
 import type { TimelineStorage } from "@/lib/sync/timeline-storage";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 import type { MediaItem } from "@/types/media";
+import { DEFAULT_PHOTO_ADJUSTMENTS } from "@/types/photo-adjustments";
 
 // The painter, audio and Konva stage need a real browser; the view's own
 // behaviour is what these tests are about.
@@ -262,6 +263,26 @@ describe("StudioView edit tab", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Flip horizontally" }));
     expect(selectProject(useClipProjectStore.getState()).clips[0].adjustments.photo?.flipHorizontal).toBe(true);
+  });
+
+  it("keeps the crop when the look is reset", async () => {
+    const clip = await withPhoto();
+    const crop = { x: 10, y: 20, width: 100, height: 80 };
+    act(() => {
+      useClipProjectStore.getState().apply((p) => ({
+        ...p,
+        clips: p.clips.map((c) => ({
+          ...c,
+          adjustments: { ...c.adjustments, photo: { ...DEFAULT_PHOTO_ADJUSTMENTS, crop, brightness: 30 } },
+        })),
+      }));
+    });
+    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
+    act(() => useClipProjectStore.getState().setSelectedClipIds([clip.id]));
+    fireEvent.click(await screen.findByRole("button", { name: "Reset" }));
+    const photo = selectProject(useClipProjectStore.getState()).clips[0].adjustments.photo;
+    expect(photo?.brightness).toBe(0);
+    expect(photo?.crop).toEqual(crop);
   });
 
   it("resets the look and opacity", async () => {

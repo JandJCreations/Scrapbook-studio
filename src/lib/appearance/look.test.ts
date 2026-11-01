@@ -22,7 +22,8 @@ describe("lookFor", () => {
 
   it("turns the sliders into a canvas filter", () => {
     const look = lookFor(photo({ brightness: 20, contrast: -10, saturation: 50, blur: 3 }));
-    expect(look?.filter).toBe("brightness(1.2) contrast(0.9) saturate(1.5) blur(3px)");
+    expect(look?.filter).toBe("brightness(1.2) contrast(0.9) saturate(1.5)");
+    expect(look?.blurPx).toBe(3);
   });
 
   it("folds exposure into brightness", () => {
@@ -33,6 +34,10 @@ describe("lookFor", () => {
     // mono: saturation -100, contrast +10
     const look = lookFor(photo({ filterPreset: "mono", saturation: 20 }));
     expect(look?.filter).toBe("contrast(1.1) saturate(0.2)");
+  });
+
+  it("counts a blur alone as a look", () => {
+    expect(lookFor(photo({ blur: 4 }))).toMatchObject({ filter: "none", blurPx: 4 });
   });
 
   it("never lets a factor go negative", () => {
@@ -80,7 +85,8 @@ describe("lookFor", () => {
       },
     });
     expect(lookFor(clip)).toMatchObject({
-      filter: "brightness(0.5) blur(2px)",
+      filter: "brightness(0.5)",
+      blurPx: 2,
       flipX: false,
       flipY: false,
       border: { width: 0, color: "#ffffff", radius: 0 },

@@ -33,6 +33,19 @@ function applyPending(project: TimelineProject, id: string, pending: Pending): T
   return result;
 }
 
+/** Only the look fields of a video, so a reset leaves its crop and trim alone. */
+function videoLookDefaults(clip: Clip): Partial<VideoAdjustments> {
+  const base = createDefaultVideoAdjustments(clip.sourceDuration ?? 0);
+  return {
+    opacity: base.opacity,
+    brightness: base.brightness,
+    contrast: base.contrast,
+    saturation: base.saturation,
+    blur: base.blur,
+    shadow: base.shadow,
+  };
+}
+
 /** The sidebar's Edit tab: the look and sound controls for the selected picture, video or music clip. */
 export function EditTab({ clip }: { clip: Clip | null }) {
   const clipId = clip?.id ?? null;
@@ -107,8 +120,16 @@ export function EditTab({ clip }: { clip: Clip | null }) {
           onApply={(photo) => apply((project) => patchPhotoAdjustments(project, id, photo))}
           onOpacity={(opacity) => preview({ opacity })}
           onReset={() =>
+            // The look goes back to normal; the crop is not part of the look and stays.
             apply((project) =>
-              setClipOpacity(patchPhotoAdjustments(project, id, DEFAULT_PHOTO_ADJUSTMENTS), id, 1),
+              setClipOpacity(
+                patchPhotoAdjustments(project, id, {
+                  ...DEFAULT_PHOTO_ADJUSTMENTS,
+                  crop: clip.adjustments.photo?.crop ?? null,
+                }),
+                id,
+                1,
+              ),
             )
           }
         />
@@ -125,11 +146,7 @@ export function EditTab({ clip }: { clip: Clip | null }) {
             onReset={() =>
               apply((project) =>
                 setClipOpacity(
-                  patchVideoAdjustments(
-                    project,
-                    id,
-                    createDefaultVideoAdjustments(clip.sourceDuration ?? 0),
-                  ),
+                  patchVideoAdjustments(project, id, videoLookDefaults(clip)),
                   id,
                   1,
                 ),

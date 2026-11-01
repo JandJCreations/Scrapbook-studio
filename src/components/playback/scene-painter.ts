@@ -2,7 +2,6 @@ import Konva from "konva";
 
 import type { Look } from "@/lib/appearance/look";
 import { layoutCurvedText } from "@/lib/canvas/curved-text";
-import { roundedRectClip } from "@/lib/canvas/rounded-rect-clip";
 import { fitFrame, type SceneItem } from "@/lib/playback/scene";
 import { buildTextNodes, textKey } from "@/lib/text/text-nodes";
 import type { TextAdjustments } from "@/types/text-adjustments";
@@ -29,13 +28,13 @@ export interface ScenePainter {
 interface ClipNodes {
   group: Konva.Group;
   image: Konva.Image;
-  /** Clips the picture to its rounded corners. */
   pictureGroup: Konva.Group;
-  glowRect: Konva.Rect;
-  shadowRect: Konva.Rect;
   borderRect: Konva.Rect;
-  /** Scratch canvas the filtered picture is drawn into, reused between frames. */
+  /** Scratch canvas the filtered, rounded picture is drawn into, reused between frames. */
   filterCanvas: HTMLCanvasElement | null;
+  /** What a still picture's scratch canvas was last drawn for, so an unchanged look is not redrawn. */
+  filterKey: string | null;
+  filterSource: CanvasImageSource | null;
   placeholder: Konva.Group;
   placeholderRect: Konva.Rect;
   placeholderText: Konva.Text;
@@ -46,6 +45,17 @@ interface ClipNodes {
 
 /** Filtered pictures are drawn at most this wide, however large the source is. */
 const MAX_FILTER_WIDTH = 1920;
+
+function traceRoundedRect(ctx: CanvasRenderingContext2D, width: number, height: number, radius: number) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.arcTo(width, 0, width, height, r);
+  ctx.arcTo(width, height, 0, height, r);
+  ctx.arcTo(0, height, 0, 0, r);
+  ctx.arcTo(0, 0, width, 0, r);
+  ctx.closePath();
+}
 
 const supportsCanvasFilter =
   typeof CanvasRenderingContext2D !== "undefined" && "filter" in CanvasRenderingContext2D.prototype;
@@ -113,19 +123,17 @@ export function createScenePainter({
     const textGroup = new Konva.Group({ visible: false });
     const pictureGroup = new Konva.Group();
     pictureGroup.add(image);
-    const glowRect = new Konva.Rect({ visible: false });
-    const shadowRect = new Konva.Rect({ visible: false });
     const borderRect = new Konva.Rect({ visible: false, listening: false });
-    group.add(glowRect, shadowRect, pictureGroup, borderRect, placeholder, textGroup);
+    group.add(pictureGroup, borderRect, placeholder, textGroup);
     layer.add(group);
     const entry = {
       group,
       image,
       pictureGroup,
-      glowRect,
-      shadowRect,
       borderRect,
       filterCanvas: null,
+      filterKey: null,
+      filterSource: null,
       placeholder,
       placeholderRect,
       placeholderText,
@@ -136,11 +144,40 @@ export function createScenePainter({
     return entry;
   }
 
-  /** The picture to draw: the source itself, or a filtered copy when the look has a filter. */
-  function applyFilter(entry: ClipNodes, source: CanvasImageSource, look: Look | null): CanvasImageSource {
-    if (!look || look.filter === "none" || !supportsCanvasFilter) return source;
-    const size = naturalSize(source);
-    if (!size) return source;
+  /**
+   * The picture to draw: the source itself, or a scratch-canvas copy when the
+   * look needs a filter, blur or rounded corners baked in. Rounding is baked in
+   * (not clipped by a group) so the picture's shadow follows its rounded shape.
+   */
+  function applyFilter(
+    entry: ClipNodes,
+    source: CanvasImageSource,
+    look: Look | null,
+    draw: { width: number; height: number },
+  ): CanvasImageSource {
+    const radius = look?.border.radius ?? 0;
+    const blur = look?.blurPx ?? 0;
+    const filtered = supportsCanvasFilter && look !== null && (look.filter !== "none" || blur > 0);
+    const size = look && (filtered || radius > 0) ? naturalSize(source) : null;
+    if (!look || !size || draw.width <= 0) {
+      entry.filterCanvas = null;
+      entry.filterKey = null;
+      entry.filterSource = null;
+      return source;
+    }
+
+    // Natural pixels per frame unit: blur and corner radius are set in frame units.
+    const scale = size.width / draw.width;
+    const parts = [look.filter === "none" ? "" : look.filter, blur > 0 ? `blur(${Number((blur * scale).toFixed(2))}px)` : ""];
+    const css = filtered ? parts.filter(Boolean).join(" ") : "none";
+    const key = `${css}|${Number((radius * scale).toFixed(2))}|${size.width}x${size.height}`;
+
+    // A still picture only needs drawing again when its look or source changes.
+    const still = source instanceof HTMLImageElement;
+    if (still && entry.filterCanvas && entry.filterKey === key && entry.filterSource === source) {
+      return entry.filterCanvas;
+    }
+
     const canvas = entry.filterCanvas ?? (entry.filterCanvas = document.createElement("canvas"));
     if (canvas.width !== size.width || canvas.height !== size.height) {
       canvas.width = size.width;
@@ -149,13 +186,18 @@ export function createScenePainter({
     const context = canvas.getContext("2d");
     if (!context) return source;
     context.clearRect(0, 0, size.width, size.height);
-    context.filter = look.filter;
+    context.save();
+    if (radius > 0) traceRoundedRect(context, size.width, size.height, radius * scale);
+    if (radius > 0) context.clip();
+    context.filter = css;
     context.drawImage(source, 0, 0, size.width, size.height);
-    context.filter = "none";
+    context.restore();
+    entry.filterKey = still ? key : null;
+    entry.filterSource = still ? source : null;
     return canvas;
   }
 
-  /** Flip, rounded corners, border, shadow and glow around the picture; all off when there is no look. */
+  /** Flip, border, shadow and glow around the picture; all off when there is no look. */
   function paintLook(entry: ClipNodes, look: Look | null, draw: { width: number; height: number }) {
     const { width, height } = draw;
     const flipX = look?.flipX ?? false;
@@ -164,8 +206,6 @@ export function createScenePainter({
     entry.image.offset({ x: flipX ? width : 0, y: flipY ? height : 0 });
 
     const radius = look?.border.radius ?? 0;
-    entry.pictureGroup.clipFunc(radius > 0 ? (ctx) => roundedRectClip(ctx as unknown as Konva.Context, width, height, radius) : undefined);
-
     const borderWidth = look?.border.width ?? 0;
     entry.borderRect.visible(borderWidth > 0);
     if (borderWidth > 0 && look) {
@@ -180,24 +220,18 @@ export function createScenePainter({
       });
     }
 
-    const backing = (rect: Konva.Rect, effect: { color: string; blur: number; opacity: number; offsetX?: number; offsetY?: number } | null) => {
-      rect.visible(effect !== null);
-      if (!effect) return;
-      rect.setAttrs({
-        width,
-        height,
-        cornerRadius: radius,
-        fill: effect.color,
-        shadowEnabled: true,
-        shadowColor: effect.color,
-        shadowBlur: effect.blur,
-        shadowOffsetX: effect.offsetX ?? 0,
-        shadowOffsetY: effect.offsetY ?? 0,
-        shadowOpacity: effect.opacity / 100,
-      });
-    };
-    backing(entry.glowRect, look?.glow ?? null);
-    backing(entry.shadowRect, look?.shadow ?? null);
+    // One shadow slot on the picture: a drop shadow wins over a glow when both are on.
+    const shadow = look?.shadow ?? null;
+    const glow = look?.glow ?? null;
+    const effect = shadow ?? glow;
+    entry.image.shadowEnabled(effect !== null);
+    if (effect) {
+      entry.image.shadowColor(effect.color);
+      entry.image.shadowBlur(effect.blur);
+      entry.image.shadowOpacity(effect.opacity / 100);
+      entry.image.shadowOffsetX(shadow ? shadow.offsetX : 0);
+      entry.image.shadowOffsetY(shadow ? shadow.offsetY : 0);
+    }
   }
 
   function paintItem(entry: ClipNodes, item: SceneItem) {
@@ -224,7 +258,7 @@ export function createScenePainter({
 
     entry.image.visible(source !== null);
     if (source !== null) {
-      entry.image.image(applyFilter(entry, source, item.look));
+      entry.image.image(applyFilter(entry, source, item.look, draw));
       entry.image.size({ width: draw.width, height: draw.height });
     }
     paintLook(entry, source !== null ? item.look : null, draw);

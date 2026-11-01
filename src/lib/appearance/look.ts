@@ -8,8 +8,10 @@ import {
 
 /** How the painter should dress a picture or video clip. */
 export interface Look {
-  /** A canvas `filter` value; "none" when only the other parts apply. */
+  /** A canvas `filter` value without the blur; "none" when there is nothing to apply. */
   filter: string;
+  /** Blur radius in frame units; the painter scales it to the picture it blurs. */
+  blurPx: number;
   flipX: boolean;
   flipY: boolean;
   border: { width: number; color: string; radius: number };
@@ -28,13 +30,12 @@ interface Tone {
   blur: number;
 }
 
-function filterFor(tone: Tone): string {
+function filterFor(tone: Omit<Tone, "blur">): string {
   const parts: string[] = [];
   const brightness = factor(tone.brightness) * factor(tone.exposure);
   if (round(brightness) !== 1) parts.push(`brightness(${round(brightness)})`);
   if (tone.contrast !== 0) parts.push(`contrast(${factor(tone.contrast)})`);
   if (tone.saturation !== 0) parts.push(`saturate(${factor(tone.saturation)})`);
-  if (tone.blur > 0) parts.push(`blur(${tone.blur}px)`);
   return parts.length > 0 ? parts.join(" ") : "none";
 }
 
@@ -46,8 +47,8 @@ function photoLook(adj: PhotoAdjustments): Look {
       contrast: adj.contrast + (preset.contrast ?? 0),
       saturation: adj.saturation + (preset.saturation ?? 0),
       exposure: adj.exposure + (preset.exposure ?? 0),
-      blur: adj.blur,
     }),
+    blurPx: adj.blur,
     flipX: adj.flipHorizontal,
     flipY: adj.flipVertical,
     border: { width: adj.borderWidth, color: adj.borderColor, radius: adj.borderRadius },
@@ -59,6 +60,7 @@ function photoLook(adj: PhotoAdjustments): Look {
 function isNeutral(look: Look): boolean {
   return (
     look.filter === "none" &&
+    look.blurPx === 0 &&
     !look.flipX &&
     !look.flipY &&
     look.border.width === 0 &&
@@ -85,8 +87,8 @@ export function lookFor(clip: Clip): Look | null {
         contrast: adj.contrast,
         saturation: adj.saturation,
         exposure: 0,
-        blur: adj.blur,
       }),
+      blurPx: adj.blur,
       flipX: false,
       flipY: false,
       border: { width: 0, color: "#ffffff", radius: 0 },
