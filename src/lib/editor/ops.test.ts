@@ -13,6 +13,7 @@ import {
   resetTextAdjustments,
   setClipOpacity,
   setClipTransforms,
+  setCrop,
   STILL_SECONDS,
   TEXT_SECONDS,
   type EditorMedia,
@@ -377,5 +378,60 @@ describe("patchAudio", () => {
       seqIds("c"),
     );
     expect(patchAudio(project, clipId, { volume: 10 })).toBe(project);
+  });
+});
+
+describe("setCrop", () => {
+  const natural = { width: 400, height: 300 };
+  const photo = () =>
+    addToSequence(
+      base(),
+      video("p", { kind: "image", duration: 0, width: 400, height: 300 }),
+      { width: 400, height: 300 },
+      seqIds("c"),
+    );
+
+  it("stores the crop and reshapes the box to it, keeping its width and centre", () => {
+    const { project, clipId } = photo();
+    const before = findClip(project, clipId)!.transform; // 400 x 300 at 0,0
+    const result = setCrop(project, clipId, { x: 50, y: 0, width: 300, height: 300 }, natural);
+    const clip = findClip(result, clipId)!;
+    expect(clip.adjustments.photo?.crop).toEqual({ x: 50, y: 0, width: 300, height: 300 });
+    expect(clip.transform.width).toBe(before.width);
+    expect(clip.transform.height).toBe(400);
+    expect(clip.transform.y).toBe(before.y + (before.height - 400) / 2);
+  });
+
+  it("clearing the crop restores the pictures own shape", () => {
+    const { project, clipId } = photo();
+    const cropped = setCrop(project, clipId, { x: 0, y: 0, width: 400, height: 100 }, natural);
+    const cleared = findClip(setCrop(cropped, clipId, null, natural), clipId)!;
+    expect(cleared.adjustments.photo?.crop).toBeNull();
+    expect(cleared.transform).toMatchObject({ width: 400, height: 300, y: 0 });
+  });
+
+  it("crops videos through their video adjustments", () => {
+    const added = addToSequence(
+      base(),
+      video("v", { width: 400, height: 300 }),
+      { width: 400, height: 300 },
+      seqIds("c"),
+    );
+    const result = setCrop(added.project, added.clipId, { x: 0, y: 0, width: 200, height: 300 }, natural);
+    const clip = findClip(result, added.clipId)!;
+    expect(clip.adjustments.video?.crop).toEqual({ x: 0, y: 0, width: 200, height: 300 });
+    expect(clip.transform.height).toBe(600);
+  });
+
+  it("returns the same project for no change, other kinds, locked clips and unusable sizes", () => {
+    const { project, clipId } = photo();
+    expect(setCrop(project, clipId, null, natural)).toBe(project);
+    expect(setCrop(project, clipId, { x: 0, y: 0, width: 0, height: 10 }, natural)).toBe(project);
+    const text = addText(base(), { width: 400, height: 300 }, 0, seqIds("n"));
+    expect(setCrop(text.project, text.clipId, { x: 0, y: 0, width: 10, height: 10 }, natural)).toBe(
+      text.project,
+    );
+    const locked = { ...project, clips: project.clips.map((c) => ({ ...c, locked: true })) };
+    expect(setCrop(locked, clipId, { x: 0, y: 0, width: 10, height: 10 }, natural)).toBe(locked);
   });
 });

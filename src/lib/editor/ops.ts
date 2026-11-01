@@ -7,7 +7,11 @@ import { clipsOnTrack } from "@/lib/timeline/lookup";
 import { insertClip } from "@/lib/timeline/place";
 import { addTrack } from "@/lib/timeline/tracks";
 import type { Clip, ClipTransform, TimelineProject, TrackType } from "@/types/timeline";
-import { DEFAULT_PHOTO_ADJUSTMENTS, type PhotoAdjustments } from "@/types/photo-adjustments";
+import {
+  DEFAULT_PHOTO_ADJUSTMENTS,
+  type CropRect,
+  type PhotoAdjustments,
+} from "@/types/photo-adjustments";
 import { DEFAULT_TEXT_ADJUSTMENTS, type TextAdjustments } from "@/types/text-adjustments";
 import { createDefaultVideoAdjustments, type VideoAdjustments } from "@/types/video-adjustments";
 
@@ -301,4 +305,34 @@ export function patchAudio(
   const clip = project.clips.find((c) => c.id === clipId);
   if (!clip || (clip.kind !== "video" && clip.kind !== "audio")) return project;
   return updateClip(project, clipId, patch);
+}
+
+/**
+ * Crops a picture or video to a rectangle of the file's own pixels (null clears
+ * it), and reshapes the clip's box to the crop, keeping its width and centre, so
+ * nothing is stretched. `natural` is the file's full size in pixels.
+ */
+export function setCrop(
+  project: TimelineProject,
+  clipId: string,
+  crop: CropRect | null,
+  natural: { width: number; height: number },
+): TimelineProject {
+  const clip = project.clips.find((c) => c.id === clipId);
+  if (!clip || (clip.kind !== "image" && clip.kind !== "video")) return project;
+  if (crop && !(crop.width > 0 && crop.height > 0)) return project;
+
+  const changed =
+    clip.kind === "image"
+      ? patchPhotoAdjustments(project, clipId, { crop })
+      : patchVideoAdjustments(project, clipId, { crop });
+  if (changed === project) return project;
+
+  const aspect = crop ? crop.width / crop.height : natural.width / natural.height;
+  if (!(aspect > 0) || !Number.isFinite(aspect)) return changed;
+  const { width, height, y } = clip.transform;
+  const nextHeight = width / aspect;
+  return setClipTransforms(changed, {
+    [clipId]: { height: nextHeight, y: y + (height - nextHeight) / 2 },
+  });
 }
