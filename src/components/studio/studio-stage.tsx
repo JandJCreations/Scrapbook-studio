@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { SelectionToolbar } from "@/components/studio/selection-toolbar";
 import { StageInteraction } from "@/components/studio/stage-interaction";
 import { TextEditOverlay } from "@/components/studio/text-edit-overlay";
 import { useElementSize } from "@/hooks/use-element-size";
@@ -41,6 +42,7 @@ export function StudioStage({ containerRef, frame }: StudioStageProps) {
       className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-muted/30"
     >
       <div ref={containerRef} className="absolute inset-0" />
+      {frame && <SelectionToolbar />}
       {frame && size.width > 0 && size.height > 0 && (
         <div className="absolute inset-0 z-10">
           <StageInteraction
