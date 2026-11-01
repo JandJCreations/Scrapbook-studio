@@ -378,3 +378,33 @@ export function addSticker(
   const sticker: Clip = { ...clip, kind: "sticker", sourceOut: STICKER_SECONDS };
   return { project: insertClip(withTrack, sticker), clipId: sticker.id };
 }
+
+export interface PlaceholderBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+}
+
+/** Adds an empty "tap to add" slot (a picture clip with no media) on its own new top overlay track. */
+export function addPlaceholder(
+  project: TimelineProject,
+  name: string,
+  box: PlaceholderBox,
+  at: number,
+  newId: IdFn = createId,
+): AddResult {
+  const withTrack = addTrack(project, "overlay", newId);
+  const created = withTrack.tracks.find((track) => !project.tracks.some((old) => old.id === track.id));
+  if (!created) throw new Error("addTrack did not add a track");
+  const clip = buildClip(
+    { mediaId: "", name, kind: "image", duration: 0, width: 0, height: 0 },
+    created.id,
+    Math.max(0, at),
+    { ...box, opacity: 1 },
+    newId,
+  );
+  const slot: Clip = { ...clip, isPlaceholder: true };
+  return { project: insertClip(withTrack, slot), clipId: slot.id };
+}
