@@ -331,6 +331,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
               {(["media", "assets", "text", "edit", "layers"] as const).map((name) => (
                 <button
                   key={name}
+                  data-tour={`tab-${name}`}
                   role="tab"
                   type="button"
                   aria-selected={tab === name}

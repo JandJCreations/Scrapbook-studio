@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StudioEnv } from "@/components/studio/studio-env";
 import { StudioView } from "@/components/studio/studio-view";
 import { TEMPLATE_CATALOG } from "@/lib/templates/template-catalog";
+import { TOUR_STEPS } from "@/lib/onboarding/tour-steps";
 import { createMemoryTimelineStorage } from "@/lib/sync/memory-timeline-storage";
 import type { TimelineStorage } from "@/lib/sync/timeline-storage";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
@@ -590,5 +591,21 @@ describe("StudioView tour and phone layout", () => {
     await vi.waitFor(() => {
       expect(screen.queryByRole("button", { name: "Add Beach to the sequence" })).toBeNull();
     });
+  });
+});
+
+describe("StudioView tour targets", () => {
+  it.each([
+    ["desktop", false],
+    ["phone", true],
+  ])("has an element for every tour step on %s", async (_name, phone) => {
+    mockPhone(phone);
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    for (const step of TOUR_STEPS) {
+      const selector = phone ? (step.mobileTargetSelector ?? step.targetSelector) : step.targetSelector;
+      if (!selector) continue;
+      expect(document.querySelector(`[data-tour="${selector}"]`), selector).not.toBeNull();
+    }
   });
 });
