@@ -402,4 +402,14 @@ describe("StudioView assets and layers", () => {
     expect(order("Star")).toBeLessThan(order("Heart"));
     expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
   });
+
+  it("stays on the Layers tab when a layer is picked there", async () => {
+    await openAssets();
+    fireEvent.click(screen.getByRole("button", { name: "Add Star, Stickers" }));
+    fireEvent.click(screen.getByRole("tab", { name: "layers" }));
+    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
+    fireEvent.click(screen.getByRole("button", { name: "Select Star" }));
+    expect(screen.getByRole("button", { name: "Select Star" })).toBeTruthy();
+    expect(screen.queryByText("Edit sticker")).toBeNull();
+  });
 });

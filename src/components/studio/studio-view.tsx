@@ -102,7 +102,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
     setLastClipId(selectedClip?.id ?? null);
     if (selectedClip && selectedClip.id === justAddedId) {
       setJustAddedId(null);
-    } else if (selectedClip) {
+    } else if (selectedClip && tab !== "layers") {
+      // The Layers tab is for picking clips, so picking one there does not leave it.
       setTab(selectedClip.kind === "text" ? "text" : "edit");
     }
   }
