@@ -7,9 +7,14 @@ import { clipsOnTrack } from "@/lib/timeline/lookup";
 import { insertClip } from "@/lib/timeline/place";
 import { addTrack } from "@/lib/timeline/tracks";
 import type { Clip, ClipTransform, TimelineProject, TrackType } from "@/types/timeline";
+import { DEFAULT_TEXT_ADJUSTMENTS, type TextAdjustments } from "@/types/text-adjustments";
 
 export const STILL_SECONDS = 5;
 export const OVERLAY_SCALE = 0.4;
+export const TEXT_SECONDS = 5;
+const TEXT_WIDTH_SCALE = 0.6;
+const TEXT_FONT_SCALE = 0.07;
+const TEXT_NAME_LENGTH = 24;
 
 export interface EditorMedia {
   mediaId: string;
@@ -157,4 +162,94 @@ export function setClipTransforms(
     result = updateClip(result, clipId, { transform: { ...clip.transform, ...patch } });
   }
   return result;
+}
+
+function textName(content: string): string {
+  const trimmed = content.trim();
+  return trimmed === "" ? "Text" : trimmed.slice(0, TEXT_NAME_LENGTH);
+}
+
+/** The default text style, with the font sized for the frame. */
+function defaultTextFor(frame: FrameSize, content: string): TextAdjustments {
+  return {
+    ...DEFAULT_TEXT_ADJUSTMENTS,
+    content,
+    fontSize: Math.round(frame.height * TEXT_FONT_SCALE),
+  };
+}
+
+/** Adds a text clip on its own new top overlay track, centred in the frame, at the playhead. */
+export function addText(
+  project: TimelineProject,
+  frame: FrameSize,
+  at: number,
+  newId: IdFn = createId,
+): AddResult {
+  const withTrack = addTrack(project, "overlay", newId);
+  const created = withTrack.tracks.find((track) => !project.tracks.some((old) => old.id === track.id));
+  if (!created) throw new Error("addTrack did not add a track");
+
+  const text = defaultTextFor(frame, "Your text");
+  const width = frame.width * TEXT_WIDTH_SCALE;
+  const height = text.fontSize * text.lineHeight * 2;
+  const clip: Clip = {
+    id: newId(),
+    trackId: created.id,
+    kind: "text",
+    name: textName(text.content),
+    mediaId: "",
+    sourceDuration: null,
+    start: Math.max(0, at),
+    sourceIn: 0,
+    sourceOut: TEXT_SECONDS,
+    speed: 1,
+    reversed: false,
+    loop: false,
+    volume: 100,
+    muted: false,
+    fadeIn: 0,
+    fadeOut: 0,
+    transform: {
+      x: (frame.width - width) / 2,
+      y: (frame.height - height) / 2,
+      width,
+      height,
+      rotation: 0,
+      opacity: 1,
+    },
+    adjustments: { photo: null, video: null, text },
+    keyframes: [],
+    groupId: null,
+    locked: false,
+    isPlaceholder: false,
+  };
+  return { project: insertClip(withTrack, clip), clipId: clip.id };
+}
+
+/** Merges a patch into a text clip's style and keeps the clip name in step with its words. */
+export function patchTextAdjustments(
+  project: TimelineProject,
+  clipId: string,
+  patch: Partial<TextAdjustments>,
+): TimelineProject {
+  const clip = project.clips.find((c) => c.id === clipId);
+  const current = clip?.adjustments.text;
+  if (!clip || clip.kind !== "text" || !current) return project;
+  const next: TextAdjustments = { ...current, ...patch };
+  if (JSON.stringify(next) === JSON.stringify(current)) return project;
+  return updateClip(project, clipId, {
+    name: textName(next.content),
+    adjustments: { ...clip.adjustments, text: next },
+  });
+}
+
+/** Puts the style back to the default for this frame, keeping the words. */
+export function resetTextAdjustments(
+  project: TimelineProject,
+  clipId: string,
+  frame: FrameSize,
+): TimelineProject {
+  const current = project.clips.find((c) => c.id === clipId)?.adjustments.text;
+  if (!current) return project;
+  return patchTextAdjustments(project, clipId, defaultTextFor(frame, current.content));
 }

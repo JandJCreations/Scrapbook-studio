@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   addAsOverlay,
   addAudioClip,
+  addText,
   addToSequence,
   OVERLAY_SCALE,
+  patchTextAdjustments,
+  resetTextAdjustments,
   setClipTransforms,
   STILL_SECONDS,
+  TEXT_SECONDS,
   type EditorMedia,
 } from "@/lib/editor/ops";
 import { emptyTimeline } from "@/lib/sync/timeline-document";
@@ -193,5 +197,91 @@ describe("setClipTransforms", () => {
       clips: a.project.clips.map((c) => ({ ...c, locked: true })),
     };
     expect(setClipTransforms(locked, { [a.clipId]: { x: 99 } })).toBe(locked);
+  });
+});
+
+describe("addText", () => {
+  it("puts a five second text clip on its own new top overlay track at the playhead", () => {
+    const first = addText(base(), frame, 2, seqIds("n"));
+    const second = addText(first.project, frame, 4, seqIds("m"));
+    const clip = findClip(second.project, second.clipId)!;
+    expect(clip).toMatchObject({
+      kind: "text",
+      mediaId: "",
+      sourceDuration: null,
+      start: 4,
+      name: "Your text",
+    });
+    expect(clipEnd(clip)).toBe(4 + TEXT_SECONDS);
+    const order = (trackId: string) => second.project.tracks.find((t) => t.id === trackId)!.order;
+    const older = findClip(second.project, first.clipId)!;
+    expect(order(clip.trackId)).toBeLessThan(order(older.trackId));
+    expect(second.project.tracks.find((t) => t.id === clip.trackId)?.type).toBe("overlay");
+  });
+
+  it("sizes the font and box from the frame and centres the box", () => {
+    const result = addText(base(), frame, 0, seqIds("n"));
+    const clip = findClip(result.project, result.clipId)!;
+    expect(clip.adjustments.text?.fontSize).toBe(76);
+    expect(clip.transform.width).toBeCloseTo(1920 * 0.6, 6);
+    expect(clip.transform.x).toBeCloseTo((1920 - clip.transform.width) / 2, 6);
+    expect(clip.transform.y).toBeCloseTo((1080 - clip.transform.height) / 2, 6);
+    expect(clip.adjustments.text?.content).toBe("Your text");
+  });
+
+  it("never starts before zero", () => {
+    const result = addText(base(), frame, -5, seqIds("n"));
+    expect(findClip(result.project, result.clipId)?.start).toBe(0);
+  });
+});
+
+describe("patchTextAdjustments", () => {
+  const withText = () => addText(base(), frame, 0, seqIds("n"));
+
+  it("merges the patch and keeps the clip name in step with the content", () => {
+    const { project, clipId } = withText();
+    const result = patchTextAdjustments(project, clipId, { content: "Happy birthday", fontSize: 90 });
+    const clip = findClip(result, clipId)!;
+    expect(clip.adjustments.text).toMatchObject({ content: "Happy birthday", fontSize: 90, color: "#1f2937" });
+    expect(clip.name).toBe("Happy birthday");
+  });
+
+  it("shortens a long name and falls back to Text for empty content", () => {
+    const { project, clipId } = withText();
+    const long = patchTextAdjustments(project, clipId, { content: "a".repeat(40) });
+    expect(findClip(long, clipId)?.name).toBe("a".repeat(24));
+    const empty = patchTextAdjustments(project, clipId, { content: "   " });
+    expect(findClip(empty, clipId)?.name).toBe("Text");
+  });
+
+  it("returns the same project for an unknown clip, a non-text clip, a locked clip or no change", () => {
+    const { project, clipId } = withText();
+    expect(patchTextAdjustments(project, "missing", { fontSize: 5 })).toBe(project);
+    expect(patchTextAdjustments(project, clipId, {})).toBe(project);
+    expect(patchTextAdjustments(project, clipId, { fontSize: 76 })).toBe(project);
+    const media = addToSequence(base(), video("a"), frame, seqIds("c"));
+    expect(patchTextAdjustments(media.project, media.clipId, { fontSize: 5 })).toBe(media.project);
+    const locked = { ...project, clips: project.clips.map((c) => ({ ...c, locked: true })) };
+    expect(patchTextAdjustments(locked, clipId, { fontSize: 5 })).toBe(locked);
+  });
+});
+
+describe("resetTextAdjustments", () => {
+  it("restores the default style but keeps the words", () => {
+    const { project, clipId } = addText(base(), frame, 0, seqIds("n"));
+    const changed = patchTextAdjustments(project, clipId, {
+      content: "Keep me",
+      color: "#ff0000",
+      curve: 50,
+      fontSize: 10,
+    });
+    const reset = findClip(resetTextAdjustments(changed, clipId, frame), clipId)!;
+    expect(reset.adjustments.text).toMatchObject({
+      content: "Keep me",
+      color: "#1f2937",
+      curve: 0,
+      fontSize: 76,
+    });
+    expect(reset.name).toBe("Keep me");
   });
 });
