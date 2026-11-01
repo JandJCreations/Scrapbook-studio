@@ -2,10 +2,12 @@ import { clipDrawState, type DrawState } from "@/lib/playback/draw-state";
 import type { PoolElement } from "@/lib/playback/media-pool";
 import { activeClipsAt } from "@/lib/timeline/active-clips";
 import type { Clip, TimelineProject } from "@/types/timeline";
+import type { TextAdjustments } from "@/types/text-adjustments";
 
 export type SceneContent =
   | { type: "video"; element: PoolElement }
   | { type: "image"; mediaId: string }
+  | { type: "text"; adjustments: TextAdjustments }
   | { type: "placeholder"; label: string };
 
 export interface SceneItem {
@@ -27,7 +29,9 @@ function contentFor(
     case "image":
       return { type: "image", mediaId: clip.mediaId };
     case "text":
-      return { type: "placeholder", label: clip.adjustments.text?.content || clip.name };
+      return clip.adjustments.text
+        ? { type: "text", adjustments: clip.adjustments.text }
+        : { type: "placeholder", label: clip.name };
     case "sticker":
       return { type: "placeholder", label: clip.name };
     case "audio":

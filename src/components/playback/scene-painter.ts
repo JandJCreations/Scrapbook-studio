@@ -1,16 +1,23 @@
 import Konva from "konva";
 
+import { layoutCurvedText } from "@/lib/canvas/curved-text";
 import { fitFrame, type SceneItem } from "@/lib/playback/scene";
+import { buildTextNodes, textKey } from "@/lib/text/text-nodes";
+import type { TextAdjustments } from "@/types/text-adjustments";
 
 export interface ScenePainterOptions {
   container: HTMLDivElement;
   frame: { width: number; height: number };
   /** The loaded image for an image clip, or null while it is loading. */
   getImage(mediaId: string): HTMLImageElement | null;
+  /** Called on every draw of a text clip; must be cheap and idempotent (it starts a font load once). */
+  requestFont?(family: string): void;
 }
 
 export interface ScenePainter {
   render(scene: SceneItem[]): void;
+  /** Forget the drawn text so the next render lays it out again (after a font loads). */
+  invalidateText(): void;
   resize(width: number, height: number): void;
   /** Number of clip nodes currently on the stage (for the debug panel). */
   nodeCount(): number;
@@ -23,9 +30,17 @@ interface ClipNodes {
   placeholder: Konva.Group;
   placeholderRect: Konva.Rect;
   placeholderText: Konva.Text;
+  textGroup: Konva.Group;
+  /** The textKey the text group was last built for. */
+  textKey: string | null;
 }
 
-export function createScenePainter({ container, frame, getImage }: ScenePainterOptions): ScenePainter {
+export function createScenePainter({
+  container,
+  frame,
+  getImage,
+  requestFont,
+}: ScenePainterOptions): ScenePainter {
   const stage = new Konva.Stage({
     container,
     width: container.clientWidth || frame.width,
@@ -65,9 +80,18 @@ export function createScenePainter({ container, frame, getImage }: ScenePainterO
     });
     const placeholder = new Konva.Group({ visible: false });
     placeholder.add(placeholderRect, placeholderText);
-    group.add(image, placeholder);
+    const textGroup = new Konva.Group({ visible: false });
+    group.add(image, placeholder, textGroup);
     layer.add(group);
-    const entry = { group, image, placeholder, placeholderRect, placeholderText };
+    const entry = {
+      group,
+      image,
+      placeholder,
+      placeholderRect,
+      placeholderText,
+      textGroup,
+      textKey: null,
+    };
     nodes.set(clipId, entry);
     return entry;
   }
@@ -83,12 +107,15 @@ export function createScenePainter({ container, frame, getImage }: ScenePainterO
 
     let source: CanvasImageSource | null = null;
     let label: string | null = null;
+    let text: TextAdjustments | null = null;
     if (content?.type === "video") {
       source = content.element as unknown as HTMLVideoElement;
     } else if (content?.type === "image") {
       source = getImage(content.mediaId);
     } else if (content?.type === "placeholder") {
       label = content.label;
+    } else if (content?.type === "text") {
+      text = content.adjustments;
     }
 
     entry.image.visible(source !== null);
@@ -103,7 +130,31 @@ export function createScenePainter({ container, frame, getImage }: ScenePainterO
       entry.placeholderText.setAttrs({ text: label, width: draw.width, height: draw.height });
     }
 
-    entry.group.visible(source !== null || label !== null);
+    entry.textGroup.visible(text !== null);
+    if (text !== null) {
+      requestFont?.(text.fontFamily);
+      const key = textKey(text, draw);
+      if (key !== entry.textKey) {
+        entry.textKey = key;
+        entry.textGroup.destroyChildren();
+        const curved =
+          text.curve !== 0
+            ? layoutCurvedText(
+                text.content,
+                text.fontSize,
+                text.fontFamily,
+                text.fontWeight,
+                text.letterSpacing,
+                text.curve,
+              )
+            : [];
+        for (const attrs of buildTextNodes(text, draw, curved)) {
+          entry.textGroup.add(new Konva.Text(attrs));
+        }
+      }
+    }
+
+    entry.group.visible(source !== null || label !== null || text !== null);
   }
 
   return {
@@ -122,6 +173,10 @@ export function createScenePainter({ container, frame, getImage }: ScenePainterO
         nodes.delete(clipId);
       }
       layer.batchDraw();
+    },
+
+    invalidateText() {
+      for (const entry of nodes.values()) entry.textKey = null;
     },
 
     resize(width, height) {

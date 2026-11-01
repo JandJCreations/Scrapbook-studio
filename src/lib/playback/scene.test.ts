@@ -62,7 +62,7 @@ describe("buildScene", () => {
     ]);
     const byId = Object.fromEntries(buildScene(project, 1, none).map((i) => [i.clipId, i.content]));
     expect(byId.img).toEqual({ type: "image", mediaId: "m9" });
-    expect(byId.txt).toEqual({ type: "placeholder", label: "Hello" });
+    expect(byId.txt).toEqual({ type: "text", adjustments: text });
     expect(byId.txt2).toEqual({ type: "placeholder", label: "Fallback" });
     expect(byId.stk).toEqual({ type: "placeholder", label: "Star" });
   });

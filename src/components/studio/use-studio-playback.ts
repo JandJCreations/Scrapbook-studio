@@ -10,6 +10,7 @@ import {
   createBrowserAudioContext,
   createBrowserElement,
 } from "@/lib/playback/browser";
+import { loadGoogleFont } from "@/lib/fonts/load-google-font";
 import { createImageCache } from "@/lib/playback/image-cache";
 import { buildScene } from "@/lib/playback/scene";
 import { createPlaybackSession, type PlaybackSession } from "@/lib/playback/session";
@@ -63,10 +64,21 @@ export function useStudioPlayback(options: { media: MediaUrlSource; frame: Frame
       },
       createImage: () => new Image(),
     });
+    // Each font is requested once; when it has loaded the text is laid out again.
+    const requestedFonts = new Set<string>();
     const painter = createScenePainter({
       container,
       frame: size,
       getImage: (mediaId) => imageCache.get(mediaId),
+      requestFont: (family) => {
+        if (requestedFonts.has(family)) return;
+        requestedFonts.add(family);
+        void loadGoogleFont(family).then(() => {
+          if (!alive) return;
+          painter.invalidateText();
+          sessionHolder.current?.wake();
+        });
+      },
     });
     const getProject = () => selectProject(useClipProjectStore.getState());
 
