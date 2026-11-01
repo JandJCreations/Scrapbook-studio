@@ -40,6 +40,19 @@ function keyframed(keyframes: Keyframe[], localTime: number) {
   return last;
 }
 
+/** Position, rotation and opacity before fades: from the keyframes when there are any, else the clip's own transform. */
+export function clipBaseState(
+  clip: Clip,
+  localTime: number,
+): { x: number; y: number; rotation: number; opacity: number } {
+  const { transform } = clip;
+  if (clip.keyframes.length > 0) {
+    const k = keyframed(clip.keyframes, localTime);
+    return { x: k.x, y: k.y, rotation: k.rotation, opacity: k.opacity };
+  }
+  return { x: transform.x, y: transform.y, rotation: transform.rotation, opacity: transform.opacity };
+}
+
 /**
  * What to draw for a clip `localTime` seconds after it starts. Keyframe times
  * are relative to the clip start; when present they replace x, y, rotation
@@ -47,15 +60,7 @@ function keyframed(keyframes: Keyframe[], localTime: number) {
  */
 export function clipDrawState(clip: Clip, localTime: number): DrawState {
   const { transform } = clip;
-  const base =
-    clip.keyframes.length > 0
-      ? keyframed(clip.keyframes, localTime)
-      : {
-          x: transform.x,
-          y: transform.y,
-          rotation: transform.rotation,
-          opacity: transform.opacity,
-        };
+  const base = clipBaseState(clip, localTime);
 
   return {
     x: base.x,
