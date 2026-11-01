@@ -171,7 +171,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) throw new Error("You must be signed in to duplicate a project.");
 
     // Read the real row: the thumbnail on `source` is a signed URL that expires, the stored path does not.
     const { data: sourceRow } = await supabase
@@ -179,7 +179,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       .select("name, folder_id, thumbnail_path, timeline, frame_width, frame_height")
       .eq("id", source.id)
       .single();
-    if (!sourceRow) return;
+    if (!sourceRow) throw new Error("Couldn't duplicate that project.");
 
     const { data, error } = await supabase
       .from("projects")
