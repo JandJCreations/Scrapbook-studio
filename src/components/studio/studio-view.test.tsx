@@ -169,3 +169,56 @@ describe("StudioView", () => {
     ).toBeTruthy();
   }, 40000);
 });
+
+describe("StudioView text", () => {
+  async function withText() {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("tab", { name: "text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    await screen.findByLabelText("Text content");
+    return selectProject(useClipProjectStore.getState());
+  }
+
+  it("adds a selected text clip on its own overlay track and shows its panel", async () => {
+    const project = await withText();
+    expect(project.clips).toHaveLength(1);
+    const clip = project.clips[0];
+    expect(clip).toMatchObject({ kind: "text", name: "Your text" });
+    expect(project.tracks.find((t) => t.id === clip.trackId)?.type).toBe("overlay");
+    expect(useClipProjectStore.getState().selectedClipIds).toEqual([clip.id]);
+  });
+
+  it("applies a switch edit as one history entry", async () => {
+    await withText();
+    const before = useClipProjectStore.getState().history.past.length;
+    fireEvent.click(screen.getByRole("switch", { name: "Bold" }));
+    const project = selectProject(useClipProjectStore.getState());
+    expect(project.clips[0].adjustments.text?.fontWeight).toBe(400);
+    expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
+  });
+
+  it("turns several typed changes into one history entry when focus leaves", async () => {
+    await withText();
+    const before = useClipProjectStore.getState().history.past.length;
+    const box = screen.getByLabelText("Text content");
+    fireEvent.change(box, { target: { value: "H" } });
+    fireEvent.change(box, { target: { value: "Hi" } });
+    fireEvent.change(box, { target: { value: "Hi there" } });
+    expect(useClipProjectStore.getState().history.past.length).toBe(before);
+    fireEvent.blur(box);
+    const clip = selectProject(useClipProjectStore.getState()).clips[0];
+    expect(clip.adjustments.text?.content).toBe("Hi there");
+    expect(clip.name).toBe("Hi there");
+    expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
+  });
+
+  it("opens the Text tab when a text clip is selected", async () => {
+    const project = await withText();
+    fireEvent.click(screen.getByRole("tab", { name: "media" }));
+    expect(screen.queryByLabelText("Text content")).toBeNull();
+    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
+    act(() => useClipProjectStore.getState().setSelectedClipIds([project.clips[0].id]));
+    expect(await screen.findByLabelText("Text content")).toBeTruthy();
+  });
+});

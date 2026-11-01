@@ -8,6 +8,7 @@ import type { StudioEnv } from "@/components/studio/studio-env";
 import { StudioMediaPanel } from "@/components/studio/studio-media-panel";
 import { StudioStage } from "@/components/studio/studio-stage";
 import { StudioToolbar } from "@/components/studio/studio-toolbar";
+import { TextTab } from "@/components/studio/text-tab";
 import { useStudioMedia } from "@/components/studio/use-studio-media";
 import { useStudioPlayback } from "@/components/studio/use-studio-playback";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
   const project = useClipProjectStore(selectProject);
   const canUndo = useClipProjectStore(selectCanUndo);
   const canRedo = useClipProjectStore(selectCanRedo);
+  const selectedIds = useClipProjectStore((s) => s.selectedClipIds);
   const time = useTransportStore((s) => s.time);
   const playing = useTransportStore((s) => s.playing);
 
@@ -75,6 +77,18 @@ export function StudioView({ env }: { env: StudioEnv }) {
   const say = (text: string | null) => {
     if (aliveRef.current) setMessage(text);
   };
+
+  // The sidebar follows the selection: picking a text clip opens the Text tab.
+  const [tab, setTab] = React.useState<"media" | "text">("media");
+  const selectedText =
+    selectedIds.length === 1
+      ? (project.clips.find((c) => c.id === selectedIds[0] && c.kind === "text") ?? null)
+      : null;
+  const [lastTextId, setLastTextId] = React.useState<string | null>(null);
+  if ((selectedText?.id ?? null) !== lastTextId) {
+    setLastTextId(selectedText?.id ?? null);
+    if (selectedText) setTab("text");
+  }
 
   async function addMedia(item: MediaItem, mode: "sequence" | "overlay") {
     if (!frame) return;
@@ -176,12 +190,33 @@ export function StudioView({ env }: { env: StudioEnv }) {
       />
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-72 shrink-0 flex-col border-r sm:flex">
-          <StudioMediaPanel
-            items={env.library}
-            loading={env.libraryLoading}
-            onAdd={(item, mode) => void addMedia(item, mode)}
-            onUpload={env.uploadFiles}
-          />
+          <div role="tablist" className="flex shrink-0 border-b">
+            {(["media", "text"] as const).map((name) => (
+              <button
+                key={name}
+                role="tab"
+                type="button"
+                aria-selected={tab === name}
+                onClick={() => setTab(name)}
+                className={
+                  "flex-1 px-3 py-2 text-sm capitalize " +
+                  (tab === name ? "border-b-2 border-primary font-medium" : "text-muted-foreground")
+                }
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          {tab === "media" ? (
+            <StudioMediaPanel
+              items={env.library}
+              loading={env.libraryLoading}
+              onAdd={(item, mode) => void addMedia(item, mode)}
+              onUpload={env.uploadFiles}
+            />
+          ) : (
+            <TextTab frame={frame} selectedText={selectedText} />
+          )}
           {message && (
             <p role="alert" className="border-t p-3 text-xs text-destructive">
               {message}
