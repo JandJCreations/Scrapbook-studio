@@ -5,18 +5,14 @@ import * as React from "react";
 import type { StudioEnv } from "@/components/studio/studio-env";
 import { createClient } from "@/lib/supabase/client";
 import { createMediaUrlStore, type MediaUrlStore } from "@/lib/sync/media-url-store";
+import { saveProjectFrameChecked } from "@/lib/sync/project-frame";
 import { createSupabaseMediaDeps } from "@/lib/sync/supabase-media-deps";
 import { createSupabaseTimelineStorage } from "@/lib/sync/supabase-timeline-storage";
 import { useMediaStore } from "@/store/use-media-store";
 import { useProjectStore } from "@/store/use-project-store";
 
-async function saveFrame(projectId: string, frame: { width: number; height: number }) {
-  const { error } = await createClient()
-    .from("projects")
-    .update({ frame_width: frame.width, frame_height: frame.height })
-    .eq("id", projectId);
-  if (error) throw error;
-}
+const saveFrame = (projectId: string, frame: { width: number; height: number }) =>
+  saveProjectFrameChecked(createClient(), projectId, frame);
 
 /**
  * The studio's environment backed by Supabase. `env` is null until the project

@@ -21,11 +21,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FRAME_PRESETS, DEFAULT_FRAME_PRESET } from "@/lib/export/frame-presets";
-import { saveProjectFrame } from "@/lib/sync/project-content-sync";
-import { applyTemplateToProject } from "@/lib/templates/apply-template";
+import { createClient } from "@/lib/supabase/client";
+import { saveProjectFrameChecked } from "@/lib/sync/project-frame";
+import { createSupabaseTimelineStorage } from "@/lib/sync/supabase-timeline-storage";
 import { TEMPLATE_CATALOG } from "@/lib/templates/template-catalog";
-import { useCanvasStore } from "@/store/use-canvas-store";
-import { useCanvasFrameStore } from "@/store/use-canvas-frame-store";
+import { writeTemplateProject } from "@/lib/templates/write-template-project";
 import { useDashboardUiStore } from "@/store/use-dashboard-ui-store";
 import { useProjectStore } from "@/store/use-project-store";
 import { useSettingsStore } from "@/store/use-settings-store";
@@ -53,10 +53,6 @@ export function NewProjectDialog({
   const [open, setOpen] = React.useState(false);
   const [format, setFormat] = React.useState<ProjectFormat>("scrapbook");
   const createProject = useProjectStore((s) => s.createProject);
-  const setFrame = useCanvasFrameStore((s) => s.setFrame);
-  const addObject = useCanvasStore((s) => s.addObject);
-  const updateObject = useCanvasStore((s) => s.updateObject);
-  const updateTextAdjustments = useCanvasStore((s) => s.updateTextAdjustments);
   const defaultFramePresetId = useSettingsStore((s) => s.defaultFramePresetId);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const activeFolderId = useDashboardUiStore((s) => s.activeFolderId);
@@ -79,18 +75,33 @@ export function NewProjectDialog({
   async function onSubmit(values: FormValues) {
     try {
       const project = await createProject(values.name, activeFolderId);
+      const client = createClient();
+      const saveFrame = (frame: { width: number; height: number }) =>
+        saveProjectFrameChecked(client, project.id, frame);
 
-      if (format === "video-collage") {
-        const template = TEMPLATE_CATALOG.find((t) => t.id === VIDEO_COLLAGE_TEMPLATE_ID);
-        if (template) {
-          applyTemplateToProject(project.id, template, {
-            setFrame,
-            addObject,
-            updateObject,
-            updateTextAdjustments,
-          });
+      try {
+        if (format === "video-collage") {
+          const template = TEMPLATE_CATALOG.find((t) => t.id === VIDEO_COLLAGE_TEMPLATE_ID);
+          if (template) {
+            await writeTemplateProject({
+              storage: createSupabaseTimelineStorage(client),
+              saveFrame,
+              template,
+              projectId: project.id,
+            });
+          }
+        } else {
+          const preset =
+            FRAME_PRESETS.find((p) => p.id === defaultFramePresetId) ?? DEFAULT_FRAME_PRESET;
+          await saveFrame({ width: preset.width, height: preset.height });
         }
-        toast.success(`"${project.name}" created`);
+      } catch (error) {
+        // The project exists and opens fine, just without its starting content.
+        toast.error(
+          error instanceof Error
+            ? `"${project.name}" was created, but its starting layout could not be saved: ${error.message}`
+            : `"${project.name}" was created, but its starting layout could not be saved.`,
+        );
         reset();
         setFormat("scrapbook");
         setOpen(false);
@@ -98,19 +109,11 @@ export function NewProjectDialog({
         return;
       }
 
-      const preset =
-        FRAME_PRESETS.find((p) => p.id === defaultFramePresetId) ??
-        DEFAULT_FRAME_PRESET;
-      const frame = { width: preset.width, height: preset.height };
-      setFrame(project.id, frame);
-      saveProjectFrame(project.id, frame).catch((error) => {
-        console.error("Failed to save canvas frame:", error);
-      });
       toast.success(`"${project.name}" created`);
       reset();
       setFormat("scrapbook");
       setOpen(false);
-      router.push("/dashboard");
+      router.push(`/editor/${project.id}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create project");
     }
