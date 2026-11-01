@@ -15,7 +15,7 @@ export interface StageBox {
   height: number;
   rotation: number;
   locked: boolean;
-  /** Has keyframes: selectable, but dragging waits for the keyframes slice. */
+  /** Has keyframes: moving or rotating it writes a keyframe at the playhead. */
   animated: boolean;
   /** A text clip: double-clicking it edits the words in place. */
   isText: boolean;

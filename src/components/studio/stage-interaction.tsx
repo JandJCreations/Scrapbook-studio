@@ -6,12 +6,13 @@ import { Layer, Rect, Stage, Transformer } from "react-konva";
 
 import { AlignmentGuidesLayer } from "@/components/canvas/alignment-guides-layer";
 import type { GuideLine } from "@/lib/canvas/alignment";
-import { setClipTransforms } from "@/lib/editor/ops";
+import { applyStagePatches } from "@/lib/editor/stage-patches";
 import { MIN_BOX_SIZE, nodeToTransform, snapMove, type StageBox } from "@/lib/editor/stage";
 import { fitFrame } from "@/lib/playback/scene";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { nextSelection } from "@/lib/timeline-ui/interactions";
 import { useClipProjectStore } from "@/store/use-clip-project-store";
+import { useTransportStore } from "@/store/use-transport-store";
 import type { ClipTransform } from "@/types/timeline";
 
 interface StageInteractionProps {
@@ -52,7 +53,7 @@ export function StageInteraction({
   const editable = React.useCallback(
     (id: string) => {
       const box = boxById.get(id);
-      return box !== undefined && !box.locked && !box.animated;
+      return box !== undefined && !box.locked;
     },
     [boxById],
   );
@@ -69,9 +70,14 @@ export function StageInteraction({
     transformer.getLayer()?.batchDraw();
   }, [selectedIds, editable]);
 
+  // The playhead when the gesture began: an animated clip gets its keyframe there,
+  // even if playback moves on while the pointer is down.
+  const gestureTime = React.useRef(0);
+
   const preview = () => {
     const snapshot = { ...patches.current };
-    useClipProjectStore.getState().previewApply((project) => setClipTransforms(project, snapshot));
+    const time = gestureTime.current;
+    useClipProjectStore.getState().previewApply((project) => applyStagePatches(project, snapshot, time));
   };
 
   const finish = React.useCallback(() => {
@@ -107,6 +113,7 @@ export function StageInteraction({
 
   const onDragStart = (id: string) => {
     patches.current = {};
+    gestureTime.current = useTransportStore.getState().time;
     dragStarts.current.clear();
     const moving = selectedIds.includes(id) ? selectedIds.filter(editable) : [id];
     for (const clipId of moving) {
@@ -188,7 +195,7 @@ export function StageInteraction({
             height={box.height}
             rotation={box.rotation}
             fill="rgba(0,0,0,0.001)"
-            draggable={!box.locked && !box.animated}
+            draggable={!box.locked}
             onMouseDown={(event) => select(box.clipId, event.evt.shiftKey)}
             onTouchStart={() => select(box.clipId, false)}
             onDblClick={() => box.isText && !box.locked && onEditText(box.clipId)}
@@ -198,6 +205,7 @@ export function StageInteraction({
             onDragEnd={finish}
             onTransformStart={() => {
               patches.current = {};
+              gestureTime.current = useTransportStore.getState().time;
             }}
             onTransform={(event) => onTransform(box.clipId, event.target as Konva.Rect)}
             onTransformEnd={finish}
