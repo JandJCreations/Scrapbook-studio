@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { useSupabaseStudioEnv } from "@/app/studio/[id]/supabase-env";
+import { useSupabaseStudioEnv } from "@/app/editor/[id]/supabase-env";
 import { StudioView } from "@/components/studio/studio-view";
 import { Skeleton } from "@/components/ui/skeleton";
 

@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const SupabaseStudio = dynamic(
-  () => import("@/app/studio/[id]/supabase-studio").then((m) => m.SupabaseStudio),
+  () => import("@/app/editor/[id]/supabase-studio").then((m) => m.SupabaseStudio),
   {
     ssr: false,
     loading: () => (
