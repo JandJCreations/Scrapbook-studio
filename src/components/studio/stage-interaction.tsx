@@ -199,6 +199,8 @@ export function StageInteraction({
             height={box.height}
             rotation={box.rotation}
             fill="rgba(0,0,0,0.001)"
+            // A locked clip is left alone by the pointer: clicks go through to what is behind it.
+            listening={!box.locked}
             draggable={!box.locked}
             onMouseDown={(event) => select(box.clipId, event.evt.shiftKey)}
             onTouchStart={() => select(box.clipId, false)}

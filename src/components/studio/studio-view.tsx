@@ -305,7 +305,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
           {pendingTemplate && (
             <div role="alertdialog" aria-label="Replace the project" className="space-y-2 border-t p-3 text-xs">
               <p>
-                Replace everything in this project with the {pendingTemplate.name} template? You can undo this.
+                Replace everything in this project with the {pendingTemplate.name} template? The frame size changes to match it.
               </p>
               <div className="flex gap-2">
                 <Button size="xs" onClick={() => applyTemplate(pendingTemplate)}>

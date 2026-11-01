@@ -1,7 +1,7 @@
 import { fitContain } from "@/lib/playback/scene";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { updateClip } from "@/lib/timeline/clip-edits";
-import { clipEnd } from "@/lib/timeline/clip-math";
+import { clipDuration, clipEnd } from "@/lib/timeline/clip-math";
 import { createId, type IdFn } from "@/lib/timeline/ids";
 import { clipsOnTrack } from "@/lib/timeline/lookup";
 import { insertClip } from "@/lib/timeline/place";
@@ -431,6 +431,9 @@ export function fillPlaceholder(
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   const still = media.kind === "image";
+  // The slot sits among clips that last as long as it does: the picture or video
+  // lasts no longer (trimming can stretch a video back out to its full length).
+  const slotLength = clipDuration(clip);
   const filled: Clip = {
     ...clip,
     kind: media.kind,
@@ -438,7 +441,7 @@ export function fillPlaceholder(
     mediaId: media.mediaId,
     sourceDuration: still ? null : media.duration,
     sourceIn: 0,
-    sourceOut: still ? STILL_SECONDS : media.duration,
+    sourceOut: still ? slotLength : Math.min(media.duration, slotLength),
     isPlaceholder: false,
     transform: {
       ...box,

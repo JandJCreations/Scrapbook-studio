@@ -34,14 +34,14 @@ export function templateToProject(
 
   const place = (
     result: { project: TimelineProject; clipId: string },
-    name: string,
+    name: string | undefined,
     box: { x: number; y: number; width: number; height: number; rotation?: number },
   ) => {
-    let next = setClipTransforms(result.project, {
+    const next = setClipTransforms(result.project, {
       [result.clipId]: { x: box.x, y: box.y, width: box.width, height: box.height, rotation: box.rotation ?? 0 },
     });
-    next = updateClip(next, result.clipId, { name });
-    return next;
+    // Text clips keep the short name editing gives them; the others take the template's name.
+    return name === undefined ? next : updateClip(next, result.clipId, { name });
   };
 
   if (BACKGROUND_ASSET) {
@@ -53,6 +53,8 @@ export function templateToProject(
       newId,
     );
     project = place(page, BACKGROUND_NAME, { x: 0, y: 0, width: frame.width, height: frame.height });
+    // Locked, so it neither catches clicks meant for the empty paper nor gets dragged away.
+    project = updateClip(project, page.clipId, { locked: true });
   }
 
   for (const object of template.objects) {
@@ -72,7 +74,7 @@ export function templateToProject(
       const text = addText(project, frame, 0, newId);
       // The template's own text settings over the stock style (not the studio's white default).
       project = patchTextAdjustments(text.project, text.clipId, { ...DEFAULT_TEXT_ADJUSTMENTS, ...object.text });
-      project = place({ project, clipId: text.clipId }, object.text?.content ?? object.name, object);
+      project = place({ project, clipId: text.clipId }, undefined, object);
       continue;
     }
 

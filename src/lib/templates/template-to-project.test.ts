@@ -43,6 +43,19 @@ describe("templateToProject", () => {
     }
   });
 
+  it("locks the page so it does not catch clicks meant for the empty paper", () => {
+    const { project } = templateToProject(TEMPLATE_CATALOG[0], "p1", seqIds("n"));
+    expect(project.clips.find((c) => c.name === BACKGROUND_NAME)?.locked).toBe(true);
+    expect(project.clips.filter((c) => c.name !== BACKGROUND_NAME).every((c) => !c.locked)).toBe(true);
+  });
+
+  it("keeps clip names short, like names made by editing", () => {
+    for (const template of TEMPLATE_CATALOG) {
+      const { project } = templateToProject(template, "p1", seqIds("n"));
+      for (const clip of project.clips) expect(clip.name.length).toBeLessThanOrEqual(24);
+    }
+  });
+
   it("stacks the objects in the template's order, later ones in front", () => {
     const template = TEMPLATE_CATALOG[0];
     const { project } = templateToProject(template, "p1", seqIds("n"));

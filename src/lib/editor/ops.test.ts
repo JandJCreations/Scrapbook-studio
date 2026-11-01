@@ -491,10 +491,33 @@ describe("fillPlaceholder", () => {
     const { project, clipId } = slot();
     const filled = fillPlaceholder(project, clipId, video("vid", { duration: 8, width: 800, height: 450 }));
     const clip = findClip(filled, clipId)!;
-    expect(clip).toMatchObject({ kind: "video", mediaId: "vid", sourceDuration: 8, sourceOut: 8, isPlaceholder: false });
-    expect(clipEnd(clip)).toBe(8);
+    // The slot lasts 5 s, so the video starts out that long; trimming can stretch it to its full 8 s.
+    expect(clip).toMatchObject({ kind: "video", mediaId: "vid", sourceDuration: 8, sourceOut: 5, isPlaceholder: false });
+    expect(clipEnd(clip)).toBe(5);
     expect(clip.transform.width).toBeCloseTo(400, 6);
     expect(clip.transform.height).toBeCloseTo(225, 6);
+  });
+
+  it("never runs longer than the slot: a short video keeps its length, a long one is cut to the slot", () => {
+    const { project, clipId } = slot();
+    const short = findClip(fillPlaceholder(project, clipId, video("a", { duration: 3 })), clipId)!;
+    expect(clipEnd(short)).toBe(3);
+    const long = findClip(fillPlaceholder(project, clipId, video("b", { duration: 30 })), clipId)!;
+    expect(clipEnd(long)).toBe(5);
+    expect(long.sourceDuration).toBe(30);
+  });
+
+  it("gives a picture only as long as a shortened slot", () => {
+    const { project, clipId } = slot();
+    const shortened = {
+      ...project,
+      clips: project.clips.map((c) => (c.id === clipId ? { ...c, sourceOut: 2 } : c)),
+    };
+    const filled = findClip(
+      fillPlaceholder(shortened, clipId, video("pic", { kind: "image", duration: 0, width: 10, height: 10 })),
+      clipId,
+    )!;
+    expect(clipEnd(filled)).toBe(2);
   });
 
   it("centres along the slot's own tilt", () => {
