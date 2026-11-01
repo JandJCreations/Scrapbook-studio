@@ -25,7 +25,7 @@ interface Entry {
 
 export function createMediaUrlStore(options: {
   deps: MediaUrlDeps;
-  /** Injected clock, e.g. Date.now. */
+  /** Injected clock (milliseconds). */
   now: () => number;
   ttlMs?: number;
   retryAfterMs?: number;
