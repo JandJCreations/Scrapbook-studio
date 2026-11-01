@@ -11,6 +11,7 @@ import { StudioToolbar } from "@/components/studio/studio-toolbar";
 import { EditTab } from "@/components/studio/edit-tab";
 import { TextTab } from "@/components/studio/text-tab";
 import { AssetsTab } from "@/components/studio/assets-tab";
+import { SlotFillPanel } from "@/components/studio/slot-fill-panel";
 import { LayersTab } from "@/components/studio/layers-tab";
 import { useStudioMedia } from "@/components/studio/use-studio-media";
 import { useNaturalSize } from "@/components/studio/use-natural-size";
@@ -23,12 +24,16 @@ import {
   addAudioClip,
   addSticker,
   addToSequence,
+  fillPlaceholder,
   type AddResult,
   type EditorMedia,
 } from "@/lib/editor/ops";
 import { assetMediaId } from "@/lib/assets/asset-keys";
 import { readMediaInfo } from "@/lib/playback/browser";
 import { withBundledAssets } from "@/lib/sync/bundled-assets";
+import { templateToProject } from "@/lib/templates/template-to-project";
+import { createId } from "@/lib/timeline/ids";
+import type { ScrapbookTemplate } from "@/types/template";
 import type { ScrapbookAsset } from "@/types/asset";
 import { projectDuration } from "@/lib/timeline/clip-math";
 import {
@@ -98,6 +103,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
   const natural = useNaturalSize(mediaSource, selectedClip);
   const [lastClipId, setLastClipId] = React.useState<string | null>(null);
   const [justAddedId, setJustAddedId] = React.useState<string | null>(null);
+  const [pendingTemplate, setPendingTemplate] = React.useState<ScrapbookTemplate | null>(null);
   if ((selectedClip?.id ?? null) !== lastClipId) {
     setLastClipId(selectedClip?.id ?? null);
     if (selectedClip && selectedClip.id === justAddedId) {
@@ -108,34 +114,67 @@ export function StudioView({ env }: { env: StudioEnv }) {
     }
   }
 
+  /** Looks up a library file and reads its size and length; null (with a message) if it cannot be used. */
+  async function loadEditorMedia(item: MediaItem): Promise<EditorMedia | null> {
+    await mediaSource.ensure([item.id]);
+    const url = mediaSource.urlFor(item.id) ?? item.url;
+    if (!url) {
+      say("That file isn't available right now.");
+      return null;
+    }
+    let info = { duration: item.duration ?? 0, width: 0, height: 0 };
+    try {
+      info = await readMediaInfo(url, item.type);
+    } catch {
+      if (item.type !== "image") {
+        say("Couldn't read that file.");
+        return null;
+      }
+    }
+    return {
+      mediaId: item.id,
+      name: item.name,
+      kind: item.type,
+      duration: info.duration || item.duration || 0,
+      width: info.width,
+      height: info.height,
+    };
+  }
+
+  async function fillSlot(item: MediaItem, slotId: string) {
+    try {
+      const media = await loadEditorMedia(item);
+      if (!media || !aliveRef.current) return;
+      useClipProjectStore.getState().apply((p) => fillPlaceholder(p, slotId, media));
+      const filled = selectProject(useClipProjectStore.getState()).clips.find((c) => c.id === slotId);
+      if (filled?.isPlaceholder !== false) say("Couldn't put that in the slot.");
+      else say(null);
+    } catch (error) {
+      say(error instanceof Error ? error.message : "Couldn't put that in the slot.");
+    }
+  }
+
+  function applyTemplate(template: ScrapbookTemplate) {
+    const { project: built, frame: templateFrame } = templateToProject(template, project.id, createId);
+    useClipProjectStore.getState().apply(() => built);
+    useClipProjectStore.getState().setSelectedClipIds([]);
+    setPendingTemplate(null);
+    if (!frame || frame.width !== templateFrame.width || frame.height !== templateFrame.height) {
+      changeFrame(templateFrame);
+    }
+  }
+
+  function chooseTemplate(template: ScrapbookTemplate) {
+    // Replacing a project that already has something in it needs a yes first.
+    if (project.clips.length > 0) setPendingTemplate(template);
+    else applyTemplate(template);
+  }
+
   async function addMedia(item: MediaItem, mode: "sequence" | "overlay") {
     if (!frame) return;
     try {
-      await mediaSource.ensure([item.id]);
-      const url = mediaSource.urlFor(item.id) ?? item.url;
-      if (!url) {
-        say("That file isn't available right now.");
-        return;
-      }
-      let info = { duration: item.duration ?? 0, width: 0, height: 0 };
-      try {
-        info = await readMediaInfo(url, item.type);
-      } catch {
-        if (item.type !== "image") {
-          say("Couldn't read that file.");
-          return;
-        }
-      }
-      if (!aliveRef.current) return;
-
-      const media: EditorMedia = {
-        mediaId: item.id,
-        name: item.name,
-        kind: item.type,
-        duration: info.duration || item.duration || 0,
-        width: info.width,
-        height: info.height,
-      };
+      const media = await loadEditorMedia(item);
+      if (!media || !aliveRef.current) return;
       const at = useTransportStore.getState().time;
       let result: AddResult | null = null;
       useClipProjectStore.getState().apply((p) => {
@@ -249,13 +288,34 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onUpload={env.uploadFiles}
             />
           ) : tab === "assets" ? (
-            <AssetsTab onAdd={addAsset} />
+            <AssetsTab onAdd={addAsset} onTemplate={chooseTemplate} />
           ) : tab === "layers" ? (
             <LayersTab />
           ) : tab === "text" ? (
             <TextTab frame={frame} selectedText={selectedText} onSeek={(t) => session?.seek(t)} />
+          ) : selectedClip?.isPlaceholder ? (
+            <SlotFillPanel
+              items={env.library}
+              loading={env.libraryLoading}
+              onFill={(item) => void fillSlot(item, selectedClip.id)}
+            />
           ) : (
             <EditTab clip={selectedClip} natural={natural} onSeek={(t) => session?.seek(t)} />
+          )}
+          {pendingTemplate && (
+            <div role="alertdialog" aria-label="Replace the project" className="space-y-2 border-t p-3 text-xs">
+              <p>
+                Replace everything in this project with the {pendingTemplate.name} template? You can undo this.
+              </p>
+              <div className="flex gap-2">
+                <Button size="xs" onClick={() => applyTemplate(pendingTemplate)}>
+                  Replace
+                </Button>
+                <Button size="xs" variant="outline" onClick={() => setPendingTemplate(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
           )}
           {message && (
             <p role="alert" className="border-t p-3 text-xs text-destructive">

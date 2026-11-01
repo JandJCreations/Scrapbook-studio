@@ -13,7 +13,7 @@ import { selectProject, useClipProjectStore } from "@/store/use-clip-project-sto
 describe("AssetsTab", () => {
   it("shows the catalog by category and adds the asset that is clicked", () => {
     const onAdd = vi.fn();
-    render(<AssetsTab onAdd={onAdd} />);
+    render(<AssetsTab onAdd={onAdd} onTemplate={vi.fn()} />);
     expect(screen.getByText("Stickers")).toBeTruthy();
     expect(screen.getByText("Washi tape")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Add Star, Stickers" }));
@@ -22,7 +22,7 @@ describe("AssetsTab", () => {
   });
 
   it("offers every asset in the catalog", () => {
-    render(<AssetsTab onAdd={vi.fn()} />);
+    render(<AssetsTab onAdd={vi.fn()} onTemplate={vi.fn()} />);
     expect(screen.getAllByRole("button", { name: /^Add / }).length).toBe(ASSET_CATALOG.length);
   });
 });

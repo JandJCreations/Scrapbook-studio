@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { StudioEnv } from "@/components/studio/studio-env";
 import { StudioView } from "@/components/studio/studio-view";
+import { TEMPLATE_CATALOG } from "@/lib/templates/template-catalog";
 import { createMemoryTimelineStorage } from "@/lib/sync/memory-timeline-storage";
 import type { TimelineStorage } from "@/lib/sync/timeline-storage";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
@@ -411,5 +412,61 @@ describe("StudioView assets and layers", () => {
     fireEvent.click(screen.getByRole("button", { name: "Select Star" }));
     expect(screen.getByRole("button", { name: "Select Star" })).toBeTruthy();
     expect(screen.queryByText("Edit sticker")).toBeNull();
+  });
+});
+
+describe("StudioView templates and slots", () => {
+  const withSlots = TEMPLATE_CATALOG.find((t) => t.objects.some((o) => o.placeholder))!;
+
+  async function openTemplates(overrides: Partial<StudioEnv> = {}) {
+    render(<StudioView env={env(overrides)} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("tab", { name: "assets" }));
+    // The templates group starts closed; its buttons are in the DOM all the same.
+  }
+
+  it("starts an empty project from a template at once, with its frame", async () => {
+    const saveFrame = vi.fn(async () => {});
+    await openTemplates({ saveFrame });
+    fireEvent.click(screen.getByRole("button", { name: "Use the Birthday Bash template" }));
+    const project = selectProject(useClipProjectStore.getState());
+    const birthday = TEMPLATE_CATALOG.find((t) => t.name === "Birthday Bash")!;
+    expect(project.clips).toHaveLength(birthday.objects.length + 1);
+    expect(saveFrame).toHaveBeenCalledWith(birthday.frame);
+    expect((screen.getByLabelText("Frame size") as HTMLSelectElement).value).toBe("square");
+  });
+
+  it("asks before replacing a project that has something in it, and can be undone", async () => {
+    await openTemplates();
+    fireEvent.click(screen.getByRole("button", { name: "Use the Birthday Bash template" }));
+    const first = selectProject(useClipProjectStore.getState()).clips.length;
+    fireEvent.click(screen.getByRole("button", { name: `Use the ${withSlots.name} template` }));
+    expect(screen.getByRole("alertdialog")).toBeTruthy();
+    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(first); // nothing yet
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(first);
+
+    fireEvent.click(screen.getByRole("button", { name: `Use the ${withSlots.name} template` }));
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(withSlots.objects.length + 1);
+    act(() => useClipProjectStore.getState().undo());
+    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(first);
+  });
+
+  it("fills an empty slot from the library and keeps its place", async () => {
+    await openTemplates();
+    fireEvent.click(screen.getByRole("button", { name: `Use the ${withSlots.name} template` }));
+    const slot = selectProject(useClipProjectStore.getState()).clips.find((c) => c.isPlaceholder)!;
+    const place = { x: slot.transform.x, y: slot.transform.y };
+    act(() => useClipProjectStore.getState().setSelectedClipIds([slot.id]));
+    fireEvent.click(await screen.findByRole("button", { name: "Put Beach in this slot" }));
+    await vi.waitFor(() => {
+      const filled = selectProject(useClipProjectStore.getState()).clips.find((c) => c.id === slot.id)!;
+      expect(filled).toMatchObject({ isPlaceholder: false, mediaId: photo.id, kind: "image" });
+    });
+    const filled = selectProject(useClipProjectStore.getState()).clips.find((c) => c.id === slot.id)!;
+    expect(filled.transform.x).toBeGreaterThanOrEqual(place.x);
+    expect(filled.transform.y).toBeGreaterThanOrEqual(place.y - 1e-6);
   });
 });
