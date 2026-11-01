@@ -7,6 +7,7 @@ import { PanelColor, PanelSlider, PanelToggleSection } from "@/components/studio
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import type { CustomFont } from "@/lib/fonts/custom-fonts";
 import { GOOGLE_FONTS } from "@/lib/fonts/google-fonts-catalog";
 import type { TextAdjustments, TextAlign } from "@/types/text-adjustments";
 
@@ -19,6 +20,8 @@ interface TextPanelProps {
   /** A change that is complete on its own (a switch, a button, a choice). */
   onApply(patch: Partial<TextAdjustments>): void;
   onReset(): void;
+  /** Present where the user may bring their own fonts. */
+  customFonts?: { fonts: CustomFont[]; add(file: File): Promise<void> };
 }
 
 const ALIGNS: Array<{ value: TextAlign; label: string; Icon: typeof AlignLeft }> = [
@@ -27,7 +30,9 @@ const ALIGNS: Array<{ value: TextAlign; label: string; Icon: typeof AlignLeft }>
   { value: "right", label: "Align right", Icon: AlignRight },
 ];
 
-export function TextPanel({ adjustments, onPreview, onCommit, onApply, onReset }: TextPanelProps) {
+export function TextPanel({ adjustments, onPreview, onCommit, onApply, onReset, customFonts }: TextPanelProps) {
+  const [fontError, setFontError] = React.useState<string | null>(null);
+  const mine = customFonts?.fonts.find((f) => f.family === adjustments.fontFamily);
   const slider = (
     label: string,
     value: number,
@@ -47,7 +52,7 @@ export function TextPanel({ adjustments, onPreview, onCommit, onApply, onReset }
     />
   );
 
-  const known = GOOGLE_FONTS.some((f) => f.family === adjustments.fontFamily);
+  const known = GOOGLE_FONTS.some((f) => f.family === adjustments.fontFamily) || mine !== undefined;
 
   return (
     <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
@@ -76,12 +81,45 @@ export function TextPanel({ adjustments, onPreview, onCommit, onApply, onReset }
           className="h-8 rounded-md border border-border bg-background px-2 text-xs"
         >
           {!known && <option value={adjustments.fontFamily}>{adjustments.fontFamily}</option>}
+          {customFonts && customFonts.fonts.length > 0 && (
+            <optgroup label="Your fonts">
+              {customFonts.fonts.map((f) => (
+                <option key={f.id} value={f.family}>
+                  {f.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
           {GOOGLE_FONTS.map((f) => (
             <option key={f.family} value={f.family}>
               {f.family}
             </option>
           ))}
         </select>
+        {customFonts && (
+          <>
+            <input
+              type="file"
+              aria-label="Upload a font"
+              accept=".ttf,.otf,.woff,.woff2,font/*"
+              className="block w-full text-xs"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) return;
+                setFontError(null);
+                customFonts.add(file).catch((error: unknown) => {
+                  setFontError(error instanceof Error ? error.message : "That font could not be added.");
+                });
+              }}
+            />
+            {fontError && (
+              <p role="alert" className="text-xs text-destructive">
+                {fontError}
+              </p>
+            )}
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-2">

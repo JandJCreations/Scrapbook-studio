@@ -662,3 +662,26 @@ describe("StudioView media extras", () => {
     expect(useClipProjectStore.getState().selectedClipIds).toHaveLength(1);
   });
 });
+
+describe("StudioView custom fonts", () => {
+  it("offers font upload in the Text tab only where the environment provides fonts", async () => {
+    mockPhone(false);
+    const add = vi.fn(async () => {});
+    const view = render(<StudioView env={env({ customFonts: { fonts: [], add } })} />);
+    await screen.findByText("My trip");
+    act(() => {
+      useClipProjectStore.getState().apply((p) => p);
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    expect(await screen.findByLabelText("Upload a font")).toBeTruthy();
+    view.unmount();
+
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("tab", { name: "text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    await screen.findByLabelText("Font");
+    expect(screen.queryByLabelText("Upload a font")).toBeNull();
+  });
+});

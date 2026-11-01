@@ -20,6 +20,7 @@ import {
   type AddResult,
 } from "@/lib/editor/ops";
 import type { FrameSize } from "@/lib/sync/timeline-document";
+import type { CustomFont } from "@/lib/fonts/custom-fonts";
 import { clipDuration } from "@/lib/timeline/clip-math";
 import { useClipProjectStore } from "@/store/use-clip-project-store";
 import { useTransportStore } from "@/store/use-transport-store";
@@ -31,9 +32,10 @@ interface TextTabProps {
   /** The single selected clip when it is a text clip. */
   selectedText: Clip | null;
   onSeek(time: number): void;
+  customFonts?: { fonts: CustomFont[]; add(file: File): Promise<void> };
 }
 
-export function TextTab({ frame, selectedText, onSeek }: TextTabProps) {
+export function TextTab({ frame, selectedText, onSeek, customFonts }: TextTabProps) {
   const textId = selectedText?.id ?? null;
   // Changes made while previewing; each preview is recomputed from the project
   // as it was before the gesture, so the patches must be sent together.
@@ -96,6 +98,7 @@ export function TextTab({ frame, selectedText, onSeek }: TextTabProps) {
       {textId && adjustments && frame ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <TextPanel
+            customFonts={customFonts}
             adjustments={adjustments}
             onPreview={(patch) => {
               pending.current = { ...pending.current, ...patch };

@@ -414,7 +414,12 @@ export function StudioView({ env }: { env: StudioEnv }) {
             ) : tab === "layers" ? (
               <LayersTab />
             ) : tab === "text" ? (
-              <TextTab frame={frame} selectedText={selectedText} onSeek={(t) => session?.seek(t)} />
+              <TextTab
+                frame={frame}
+                selectedText={selectedText}
+                onSeek={(t) => session?.seek(t)}
+                customFonts={env.customFonts}
+              />
             ) : selectedClip?.isPlaceholder ? (
               <SlotFillPanel
                 items={env.library}

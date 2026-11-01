@@ -1,3 +1,4 @@
+import type { CustomFont } from "@/lib/fonts/custom-fonts";
 import type { MediaUrlSource } from "@/lib/sync/media-url-store";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import type { TimelineStorage } from "@/lib/sync/timeline-storage";
@@ -22,6 +23,8 @@ export interface StudioEnv {
   welcomeTour?: boolean;
   /** Present where the project has somewhere to keep a dashboard thumbnail. */
   saveThumbnail?(dataUrl: string): Promise<void>;
+  /** Present where the user may bring their own fonts: the ones they have, and a way to add one. */
+  customFonts?: { fonts: CustomFont[]; add(file: File): Promise<void> };
   /** Present when the Media tab may offer an upload button. */
   uploadFiles?(files: File[]): void;
 }

@@ -80,3 +80,50 @@ describe("TextPanel", () => {
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("TextPanel custom fonts", () => {
+  const fonts = [{ id: "f1", name: "Hand Written", family: "custom-f1" }];
+
+  function setupFonts(add = vi.fn(async () => {}), overrides = {}) {
+    const handlers = { onPreview: vi.fn(), onCommit: vi.fn(), onApply: vi.fn(), onReset: vi.fn() };
+    render(
+      <TextPanel
+        adjustments={{ ...DEFAULT_TEXT_ADJUSTMENTS, ...overrides }}
+        customFonts={{ fonts, add }}
+        {...handlers}
+      />,
+    );
+    return { ...handlers, add };
+  }
+
+  it("lists the user's fonts by name and applies one by its family", () => {
+    const { onApply } = setupFonts();
+    const select = screen.getByLabelText("Font") as HTMLSelectElement;
+    const option = Array.from(select.options).find((o) => o.textContent === "Hand Written");
+    expect(option?.value).toBe("custom-f1");
+    fireEvent.change(select, { target: { value: "custom-f1" } });
+    expect(onApply).toHaveBeenCalledWith({ fontFamily: "custom-f1" });
+  });
+
+  it("shows the name of a custom font that is in use, not its internal family", () => {
+    setupFonts(vi.fn(async () => {}), { fontFamily: "custom-f1" });
+    expect((screen.getByLabelText("Font") as HTMLSelectElement).selectedOptions[0].textContent).toBe("Hand Written");
+  });
+
+  it("uploads a chosen font file and says when it cannot be used", async () => {
+    const add = vi.fn(async () => {
+      throw new Error("That file is not a font.");
+    });
+    setupFonts(add);
+    const file = new File(["x"], "Pretty.ttf", { type: "font/ttf" });
+    fireEvent.change(screen.getByLabelText("Upload a font"), { target: { files: [file] } });
+    expect(add).toHaveBeenCalledWith(file);
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("not a font");
+  });
+
+  it("has no upload where the environment offers none", () => {
+    setup();
+    expect(screen.queryByLabelText("Upload a font")).toBeNull();
+  });
+});
