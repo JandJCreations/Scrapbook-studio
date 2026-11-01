@@ -147,4 +147,25 @@ describe("StudioView", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(0);
   });
+
+  it("offers Try again when reloading after a conflict fails", async () => {
+    const memory = createMemoryTimelineStorage();
+    let loads = 0;
+    const storage: TimelineStorage = {
+      ...memory,
+      load: async (id) => {
+        loads += 1;
+        if (loads >= 2) throw new Error("offline");
+        return memory.load(id);
+      },
+      save: async () => ({ ok: false, reason: "conflict" }),
+    };
+    render(<StudioView env={env({ storage })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Reload" }, { timeout: 10000 }));
+    expect(
+      await screen.findByRole("button", { name: /try again/i }, { timeout: 15000 }),
+    ).toBeTruthy();
+  }, 40000);
 });

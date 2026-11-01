@@ -76,10 +76,6 @@ export function StudioView({ env }: { env: StudioEnv }) {
     if (aliveRef.current) setMessage(text);
   };
 
-  // Once the editor has been shown, a later save problem only changes the toolbar text.
-  const [loadedOnce, setLoadedOnce] = React.useState(false);
-  if (status.phase === "ready" && !loadedOnce) setLoadedOnce(true);
-
   async function addMedia(item: MediaItem, mode: "sequence" | "overlay") {
     if (!frame) return;
     try {
@@ -151,7 +147,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
       </div>
     );
   }
-  if (status.phase === "error" && !loadedOnce) {
+  // Save failures keep the phase "ready", so an "error" phase is always a failed load.
+  if (status.phase === "error") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-sm font-medium">Couldn&apos;t load this project</p>

@@ -65,13 +65,26 @@ export function StageInteraction({ width, height, frame, boxes, selectedIds }: S
     useClipProjectStore.getState().previewApply((project) => setClipTransforms(project, snapshot));
   };
 
-  const finish = () => {
+  const finish = React.useCallback(() => {
     const had = Object.keys(patches.current).length > 0;
     patches.current = {};
     dragStarts.current.clear();
     setGuides([]);
     if (had) useClipProjectStore.getState().endGesture();
-  };
+  }, []);
+
+  // Konva reports the end of a resize only for nodes still attached to the
+  // transformer, so Escape (which clears the selection) or a clip leaving the
+  // scene mid-resize would leave the gesture open and the edit unsaved. Any
+  // pointer release anywhere, and unmounting, close an open gesture.
+  React.useEffect(() => {
+    const events = ["pointerup", "mouseup", "touchend", "blur"] as const;
+    for (const name of events) window.addEventListener(name, finish);
+    return () => {
+      for (const name of events) window.removeEventListener(name, finish);
+      finish();
+    };
+  }, [finish]);
 
   const select = (id: string, additive: boolean) => {
     const store = useClipProjectStore.getState();
@@ -84,6 +97,7 @@ export function StageInteraction({ width, height, frame, boxes, selectedIds }: S
   };
 
   const onDragStart = (id: string) => {
+    patches.current = {};
     dragStarts.current.clear();
     const moving = selectedIds.includes(id) ? selectedIds.filter(editable) : [id];
     for (const clipId of moving) {
@@ -171,6 +185,9 @@ export function StageInteraction({ width, height, frame, boxes, selectedIds }: S
             onDragStart={() => onDragStart(box.clipId)}
             onDragMove={(event) => onDragMove(box.clipId, event.target as Konva.Rect)}
             onDragEnd={finish}
+            onTransformStart={() => {
+              patches.current = {};
+            }}
             onTransform={(event) => onTransform(box.clipId, event.target as Konva.Rect)}
             onTransformEnd={finish}
           />

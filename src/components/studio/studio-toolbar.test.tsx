@@ -65,4 +65,15 @@ describe("StudioToolbar", () => {
     render(<StudioToolbar {...base} frame={{ width: 777, height: 555 }} />);
     expect((screen.getByLabelText("Frame size") as HTMLSelectElement).value).toBe("custom");
   });
+
+  it("shows a save failure even though the sync phase stays ready", () => {
+    render(
+      <StudioToolbar
+        {...base}
+        status={{ phase: "ready", error: "Couldn't save your changes. Will retry on your next edit." }}
+      />,
+    );
+    expect(screen.queryByText("Saved")).toBeNull();
+    expect(screen.getByText(/couldn.t save your changes/i)).toBeTruthy();
+  });
 });

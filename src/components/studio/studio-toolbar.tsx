@@ -25,7 +25,8 @@ function statusText(status: SyncStatus): string {
     case "loading":
       return "Loading…";
     case "ready":
-      return "Saved";
+      // A failed save keeps the phase "ready" and only sets the message.
+      return status.error ?? "Saved";
     case "error":
       return status.error ? `Couldn't save: ${status.error}` : "Couldn't save";
     case "conflict":
