@@ -609,3 +609,15 @@ describe("StudioView tour targets", () => {
     }
   });
 });
+
+describe("StudioView messages on a phone", () => {
+  it("shows an error even though the Tools sheet is closed", async () => {
+    window.localStorage.clear();
+    mockPhone(true);
+    render(<StudioView env={env({ saveFrame: vi.fn(async () => { throw new Error("offline"); }) })} />);
+    await screen.findByText("My trip");
+    expect(screen.queryByRole("tablist")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Frame size"), { target: { value: "square" } });
+    expect(await screen.findByRole("alert")).toBeTruthy();
+  });
+});

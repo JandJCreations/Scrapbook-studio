@@ -31,8 +31,16 @@ export function useStudioThumbnail({ enabled, frame, urlFor, saveThumbnail, rend
   // Only committed edits count: a drag in progress is not saved, so it is not drawn either.
   const project = useClipProjectStore(selectSavableProject);
 
+  // The callbacks are read when the timer fires, not watched: saving a thumbnail
+  // changes the caller's state, which makes new callbacks, which must not start the wait over.
+  const latest = React.useRef({ urlFor, saveThumbnail, renderThumbnail });
   React.useEffect(() => {
-    if (!enabled || !frame || !saveThumbnail) return;
+    latest.current = { urlFor, saveThumbnail, renderThumbnail };
+  });
+  const canSave = Boolean(saveThumbnail);
+
+  React.useEffect(() => {
+    if (!enabled || !frame || !canSave) return;
     const shown = exportableProject(project);
     const time = thumbnailTime(shown);
     if (time === null) return;
@@ -40,9 +48,10 @@ export function useStudioThumbnail({ enabled, frame, urlFor, saveThumbnail, rend
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       try {
-        const render = renderThumbnail ?? (await import("@/lib/export/studio-thumbnail")).renderThumbnail;
-        const dataUrl = await render({ project: shown, frame, urlFor, time });
-        if (!cancelled) await saveThumbnail(dataUrl);
+        const { urlFor: urls, saveThumbnail: save, renderThumbnail: draw } = latest.current;
+        const render = draw ?? (await import("@/lib/export/studio-thumbnail")).renderThumbnail;
+        const dataUrl = await render({ project: shown, frame, urlFor: urls, time });
+        if (!cancelled) await save?.(dataUrl);
       } catch {
         // No thumbnail this time; the next edit tries again.
       }
@@ -52,5 +61,5 @@ export function useStudioThumbnail({ enabled, frame, urlFor, saveThumbnail, rend
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [enabled, frame, project, renderThumbnail, saveThumbnail, urlFor]);
+  }, [enabled, frame, project, canSave]);
 }

@@ -395,11 +395,6 @@ export function StudioView({ env }: { env: StudioEnv }) {
                 </div>
               </div>
             )}
-            {message && (
-              <p role="alert" className="border-t p-3 text-xs text-destructive">
-                {message}
-              </p>
-            )}
     </>
   );
 
@@ -485,6 +480,11 @@ export function StudioView({ env }: { env: StudioEnv }) {
               {formatClock(time)} / {formatClock(duration)}
             </span>
           </div>
+          {message && (
+            <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
+              {message}
+            </p>
+          )}
           <div data-tour="timeline" className="shrink-0 border-t p-2">
             <TimelineView
               fps={FPS}

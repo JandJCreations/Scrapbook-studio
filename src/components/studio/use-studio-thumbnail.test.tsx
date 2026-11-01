@@ -119,3 +119,36 @@ describe("useStudioThumbnail", () => {
     expect(saveThumbnail).not.toHaveBeenCalled();
   });
 });
+
+describe('useStudioThumbnail with changing callbacks', () => {
+  it('does not start over, or save again, when the caller passes new function identities', async () => {
+    const saves: string[] = [];
+    const view = renderHook(
+      ({ n }: { n: number }) =>
+        useStudioThumbnail({
+          enabled: true,
+          frame,
+          urlFor: () => null,
+          saveThumbnail: async (d) => {
+            saves.push(d + n);
+          },
+          renderThumbnail: async () => 'data:x',
+        }),
+      { initialProps: { n: 0 } },
+    );
+    act(() => useClipProjectStore.getState().load(withContent()));
+    // A save that updates the caller's state makes new callbacks; that must not re-arm the timer.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(THUMBNAIL_DELAY_MS - 100);
+    });
+    view.rerender({ n: 1 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(THUMBNAIL_DELAY_MS * 3);
+    });
+    view.rerender({ n: 2 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(THUMBNAIL_DELAY_MS * 3);
+    });
+    expect(saves).toHaveLength(1);
+  });
+});

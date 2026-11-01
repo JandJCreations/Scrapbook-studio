@@ -67,7 +67,7 @@ export function StudioToolbar({
       </Link>
       <h1 className="min-w-0 truncate text-sm font-medium">{projectName}</h1>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-1 sm:gap-2">
         <Button variant="ghost" size="sm" aria-label="Undo" disabled={!canUndo} onClick={onUndo}>
           <Undo2 className="size-4" />
         </Button>
@@ -77,7 +77,7 @@ export function StudioToolbar({
 
         <select
           aria-label="Frame size"
-          className="rounded border bg-background px-1 py-1 text-xs text-foreground"
+          className="w-28 rounded border bg-background px-1 py-1 text-xs text-foreground sm:w-auto"
           value={current}
           onChange={(event) => {
             const preset = FRAME_PRESETS.find((p) => p.id === event.target.value);
@@ -93,7 +93,7 @@ export function StudioToolbar({
         </select>
 
         {onOpenTour && (
-          <Button variant="ghost" size="sm" aria-label="Quick tour" onClick={onOpenTour}>
+          <Button variant="ghost" size="sm" className="hidden sm:inline-flex" aria-label="Quick tour" onClick={onOpenTour}>
             <CircleHelp className="size-4" />
           </Button>
         )}
@@ -105,11 +105,11 @@ export function StudioToolbar({
         {onOpenExport && (
           <Button variant="secondary" size="sm" aria-label="Export" data-tour="export-button" onClick={onOpenExport}>
             <Download className="size-4" />
-            Export
+            <span className="hidden sm:inline">Export</span>
           </Button>
         )}
 
-        <span className="w-40 truncate text-right text-xs text-muted-foreground" role="status">
+        <span className="sr-only text-xs text-muted-foreground sm:not-sr-only sm:w-40 sm:truncate sm:text-right" role="status">
           {statusText(status)}
         </span>
       </div>
