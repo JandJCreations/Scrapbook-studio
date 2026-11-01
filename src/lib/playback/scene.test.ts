@@ -97,6 +97,13 @@ describe("buildScene", () => {
     expect(byId.plain).toBeNull();
   });
 
+  it("draws an empty slot as a labelled stand-in, never as its (missing) media", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({ id: "slot", trackId: "t2", kind: "image", name: "Photo 1", mediaId: "", sourceDuration: null, isPlaceholder: true }),
+    ]);
+    expect(buildScene(project, 1, none)[0].content).toEqual({ type: "placeholder", label: "Photo 1" });
+  });
+
   it("uses the clip's local time for keyframes and fades", () => {
     const project = makeProject(makeStandardTracks(), [
       makeClip({

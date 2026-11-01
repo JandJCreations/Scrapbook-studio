@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   addAsOverlay,
   addAudioClip,
+  addPlaceholder,
   addSticker,
   addText,
   addToSequence,
@@ -12,6 +13,7 @@ import {
   patchTextAdjustments,
   patchVideoAdjustments,
   resetTextAdjustments,
+  fillPlaceholder,
   setClipOpacity,
   setClipTransforms,
   setCrop,
@@ -469,5 +471,51 @@ describe("addSticker", () => {
   it("never starts before zero", () => {
     const result = addSticker(base(), art, frame, -4, seqIds("n"));
     expect(findClip(result.project, result.clipId)?.start).toBe(0);
+  });
+});
+
+describe("fillPlaceholder", () => {
+  const slot = (rotation = 0) =>
+    addPlaceholder(base(), "Photo 1", { x: 100, y: 50, width: 400, height: 300, rotation }, 0, seqIds("n"));
+
+  it("puts a picture into the slot, fitted inside its box and centred", () => {
+    const { project, clipId } = slot();
+    const filled = fillPlaceholder(project, clipId, video("pic", { kind: "image", duration: 0, width: 200, height: 200 }));
+    const clip = findClip(filled, clipId)!;
+    expect(clip).toMatchObject({ kind: "image", mediaId: "pic", isPlaceholder: false, sourceDuration: null, sourceOut: STILL_SECONDS });
+    expect(clip.transform).toMatchObject({ x: 150, y: 50, width: 300, height: 300 });
+    expect(clip.trackId).toBe(findClip(project, clipId)!.trackId);
+  });
+
+  it("turns the slot into a video clip as long as the video", () => {
+    const { project, clipId } = slot();
+    const filled = fillPlaceholder(project, clipId, video("vid", { duration: 8, width: 800, height: 450 }));
+    const clip = findClip(filled, clipId)!;
+    expect(clip).toMatchObject({ kind: "video", mediaId: "vid", sourceDuration: 8, sourceOut: 8, isPlaceholder: false });
+    expect(clipEnd(clip)).toBe(8);
+    expect(clip.transform.width).toBeCloseTo(400, 6);
+    expect(clip.transform.height).toBeCloseTo(225, 6);
+  });
+
+  it("centres along the slot's own tilt", () => {
+    const { project, clipId } = slot(90);
+    const filled = fillPlaceholder(project, clipId, video("pic", { kind: "image", duration: 0, width: 200, height: 200 }));
+    const t = findClip(filled, clipId)!.transform;
+    // A 90 degree turn about the top-left: the box's own x axis points down the stage.
+    expect(t.rotation).toBe(90);
+    // The 300 x 300 picture sits 50 along the box's own x axis, which now points down the stage.
+    expect(t.x).toBeCloseTo(100, 6);
+    expect(t.y).toBeCloseTo(100, 6);
+  });
+
+  it("leaves everything else alone", () => {
+    const { project, clipId } = slot();
+    const media = video("pic", { kind: "image", duration: 0, width: 10, height: 10 });
+    expect(fillPlaceholder(project, "missing", media)).toBe(project);
+    expect(fillPlaceholder(project, clipId, video("m", { kind: "audio" }))).toBe(project);
+    const plain = addToSequence(base(), video("v"), frame, seqIds("c"));
+    expect(fillPlaceholder(plain.project, plain.clipId, media)).toBe(plain.project);
+    const locked = { ...project, clips: project.clips.map((c) => ({ ...c, locked: true })) };
+    expect(fillPlaceholder(locked, clipId, media)).toBe(locked);
   });
 });

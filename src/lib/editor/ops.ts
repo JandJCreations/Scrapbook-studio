@@ -408,3 +408,45 @@ export function addPlaceholder(
   const slot: Clip = { ...clip, isPlaceholder: true };
   return { project: insertClip(withTrack, slot), clipId: slot.id };
 }
+
+/**
+ * Puts a picture or video into an empty slot. It keeps the slot's place and
+ * tilt: the media is fitted inside the slot's box and centred, and the clip
+ * becomes an ordinary picture or video clip (5 s, or the video's own length).
+ */
+export function fillPlaceholder(
+  project: TimelineProject,
+  clipId: string,
+  media: EditorMedia,
+): TimelineProject {
+  const clip = project.clips.find((c) => c.id === clipId);
+  if (!clip || !clip.isPlaceholder || clip.locked || media.kind === "audio") return project;
+  const track = project.tracks.find((t) => t.id === clip.trackId);
+  if (!track || track.locked) return project;
+
+  const box = clip.transform;
+  const fit = fitContain(media.width, media.height, box.width, box.height);
+  // The box turns about its top-left corner, so its own offsets are turned with it.
+  const angle = (box.rotation * Math.PI) / 180;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const still = media.kind === "image";
+  const filled: Clip = {
+    ...clip,
+    kind: media.kind,
+    name: media.name,
+    mediaId: media.mediaId,
+    sourceDuration: still ? null : media.duration,
+    sourceIn: 0,
+    sourceOut: still ? STILL_SECONDS : media.duration,
+    isPlaceholder: false,
+    transform: {
+      ...box,
+      x: box.x + fit.x * cos - fit.y * sin,
+      y: box.y + fit.x * sin + fit.y * cos,
+      width: fit.width,
+      height: fit.height,
+    },
+  };
+  return { ...project, clips: project.clips.map((c) => (c.id === clipId ? filled : c)) };
+}

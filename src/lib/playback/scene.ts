@@ -24,6 +24,8 @@ function contentFor(
   clip: Clip,
   elementFor: (clipId: string) => PoolElement | undefined,
 ): SceneContent | null {
+  // An empty slot has no media to draw or play: show a labelled stand-in.
+  if (clip.isPlaceholder) return { type: "placeholder", label: clip.name };
   switch (clip.kind) {
     case "video": {
       const element = elementFor(clip.id);

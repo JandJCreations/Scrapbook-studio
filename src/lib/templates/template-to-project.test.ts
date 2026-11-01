@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { assetMediaId, findAssetByMediaId } from "@/lib/assets/asset-keys";
+import { parseTimeline, serializeTimeline } from "@/lib/sync/timeline-document";
 import { TEMPLATE_CATALOG } from "@/lib/templates/template-catalog";
 import { BACKGROUND_NAME, templateToProject } from "@/lib/templates/template-to-project";
 import { clipEnd } from "@/lib/timeline/clip-math";
@@ -97,4 +98,16 @@ describe("templateToProject", () => {
       }
     }
   });
+});
+
+describe("saving a template project", () => {
+  it.each(TEMPLATE_CATALOG.map((t) => [t.name, t] as const))(
+    "%s survives being saved and loaded again",
+    (_name, template) => {
+      const { project } = templateToProject(template, "p1", seqIds("n"));
+      const loaded = parseTimeline("p1", JSON.parse(JSON.stringify(serializeTimeline(project))));
+      expect(loaded.clips).toEqual(project.clips);
+      expect(loaded.tracks).toEqual(project.tracks);
+    },
+  );
 });
