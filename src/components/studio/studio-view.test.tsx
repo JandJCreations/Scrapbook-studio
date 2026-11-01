@@ -470,3 +470,40 @@ describe("StudioView templates and slots", () => {
     expect(filled.transform.y).toBeGreaterThanOrEqual(place.y - 1e-6);
   });
 });
+
+describe("StudioView export and history", () => {
+  async function open() {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+  }
+  const addPhoto = async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
+    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips.length).toBeGreaterThan(0));
+  };
+
+  it("opens the export dialog from the toolbar", async () => {
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    expect(await screen.findByRole("radio", { name: "MP4" })).toBeTruthy();
+  });
+
+  it("saves a version, then restores it as one undoable step", async () => {
+    await open();
+    await addPhoto();
+    fireEvent.click(screen.getByRole("button", { name: "Version history" }));
+    fireEvent.change(await screen.findByLabelText("Version name"), { target: { value: "One photo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save version" }));
+    await screen.findByText("One photo");
+    // Close the dialog and add a second photo.
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await vi.waitFor(() => expect(screen.queryByLabelText("Version name")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
+    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(2));
+
+    fireEvent.click(screen.getByRole("button", { name: "Version history" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Restore One photo" }));
+    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1));
+    act(() => useClipProjectStore.getState().undo());
+    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(2);
+  });
+});

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Redo2, Undo2 } from "lucide-react";
+import { ArrowLeft, Download, History, Redo2, Undo2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FRAME_PRESETS } from "@/lib/export/frame-presets";
@@ -18,6 +18,8 @@ interface StudioToolbarProps {
   onRedo(): void;
   frame: { width: number; height: number } | null;
   onFrameChange(preset: { width: number; height: number }): void;
+  onOpenHistory?(): void;
+  onOpenExport?(): void;
 }
 
 function statusText(status: SyncStatus): string {
@@ -44,6 +46,8 @@ export function StudioToolbar({
   onRedo,
   frame,
   onFrameChange,
+  onOpenHistory,
+  onOpenExport,
 }: StudioToolbarProps) {
   const current = frame
     ? (FRAME_PRESETS.find((p) => p.width === frame.width && p.height === frame.height)?.id ??
@@ -85,6 +89,18 @@ export function StudioToolbar({
           ))}
           {current === "custom" && <option value="custom">Custom</option>}
         </select>
+
+        {onOpenHistory && (
+          <Button variant="ghost" size="sm" aria-label="Version history" onClick={onOpenHistory}>
+            <History className="size-4" />
+          </Button>
+        )}
+        {onOpenExport && (
+          <Button variant="secondary" size="sm" aria-label="Export" onClick={onOpenExport}>
+            <Download className="size-4" />
+            Export
+          </Button>
+        )}
 
         <span className="w-40 truncate text-right text-xs text-muted-foreground" role="status">
           {statusText(status)}

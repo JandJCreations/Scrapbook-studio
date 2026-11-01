@@ -11,6 +11,8 @@ import { StudioToolbar } from "@/components/studio/studio-toolbar";
 import { EditTab } from "@/components/studio/edit-tab";
 import { TextTab } from "@/components/studio/text-tab";
 import { AssetsTab } from "@/components/studio/assets-tab";
+import { ExportDialog } from "@/components/studio/export-dialog";
+import { VersionHistoryDialog } from "@/components/studio/version-history-dialog";
 import { SlotFillPanel } from "@/components/studio/slot-fill-panel";
 import { LayersTab } from "@/components/studio/layers-tab";
 import { useStudioMedia } from "@/components/studio/use-studio-media";
@@ -40,8 +42,11 @@ import {
   selectCanRedo,
   selectCanUndo,
   selectProject,
+  selectSavableProject,
   useClipProjectStore,
 } from "@/store/use-clip-project-store";
+import type { FrameSize } from "@/lib/sync/timeline-document";
+import type { TimelineProject } from "@/types/timeline";
 import { useTransportStore } from "@/store/use-transport-store";
 import type { MediaItem } from "@/types/media";
 
@@ -103,6 +108,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
   const natural = useNaturalSize(mediaSource, selectedClip);
   const [lastClipId, setLastClipId] = React.useState<string | null>(null);
   const [justAddedId, setJustAddedId] = React.useState<string | null>(null);
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   const [pendingTemplate, setPendingTemplate] = React.useState<ScrapbookTemplate | null>(null);
   if ((selectedClip?.id ?? null) !== lastClipId) {
     setLastClipId(selectedClip?.id ?? null);
@@ -216,6 +223,14 @@ export function StudioView({ env }: { env: StudioEnv }) {
     setJustAddedId(added.clipId);
   }
 
+  function restoreVersion(restored: TimelineProject, restoredFrame: FrameSize) {
+    useClipProjectStore.getState().apply(() => restored);
+    useClipProjectStore.getState().setSelectedClipIds([]);
+    if (!frame || frame.width !== restoredFrame.width || frame.height !== restoredFrame.height) {
+      changeFrame(restoredFrame);
+    }
+  }
+
   function changeFrame(preset: { width: number; height: number }) {
     const previous = frame;
     setFrame(preset);
@@ -260,7 +275,30 @@ export function StudioView({ env }: { env: StudioEnv }) {
         onRedo={() => useClipProjectStore.getState().redo()}
         frame={frame}
         onFrameChange={changeFrame}
+        onOpenHistory={() => setHistoryOpen(true)}
+        onOpenExport={() => setExportOpen(true)}
       />
+      {frame && (
+        <>
+          <ExportDialog
+            open={exportOpen}
+            onOpenChange={setExportOpen}
+            projectName={env.projectName}
+            project={project}
+            frame={frame}
+            urlFor={mediaSource.urlFor}
+            playhead={time}
+          />
+          <VersionHistoryDialog
+            open={historyOpen}
+            onOpenChange={setHistoryOpen}
+            storage={env.storage}
+            projectId={env.projectId}
+            getSnapshot={() => ({ project: selectSavableProject(useClipProjectStore.getState()), frame })}
+            onRestore={restoreVersion}
+          />
+        </>
+      )}
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-72 shrink-0 flex-col border-r sm:flex">
           <div role="tablist" className="flex shrink-0 border-b">
