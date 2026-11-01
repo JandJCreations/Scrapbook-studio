@@ -38,7 +38,7 @@ export function LayersTab() {
           <li key={track.id} className="rounded-lg border border-border p-2">
             <div className="flex items-center gap-1">
               <span className="min-w-0 flex-1 truncate text-xs font-medium" title={name}>
-                {TYPE_LABEL[track.type]}: {name}
+                {clips[0] ? `${TYPE_LABEL[track.type]}: ${name}` : name}
               </span>
               {track.type === "overlay" && (
                 <>
