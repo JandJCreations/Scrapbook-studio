@@ -81,6 +81,18 @@ describe("stageBoxes", () => {
   });
 });
 
+describe("stageBoxes text", () => {
+  it("flags text clips so the stage can edit them in place", () => {
+    const project = makeProject(tracks, [
+      makeClip({ id: "t", trackId: "o", kind: "text", sourceDuration: null }),
+      makeClip({ id: "v", trackId: "v" }),
+    ]);
+    const byId = Object.fromEntries(stageBoxes(project, 1).map((b) => [b.clipId, b]));
+    expect(byId.t.isText).toBe(true);
+    expect(byId.v.isText).toBe(false);
+  });
+});
+
 describe("nodeToTransform", () => {
   it("turns a stretched node back into a real size with scale 1", () => {
     expect(
@@ -114,6 +126,7 @@ describe("snapMove", () => {
     rotation: 0,
     locked: false,
     animated: false,
+    isText: false,
   });
 
   it("snaps to the frame's edges", () => {

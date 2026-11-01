@@ -17,6 +17,8 @@ export interface StageBox {
   locked: boolean;
   /** Has keyframes: selectable, but dragging waits for the keyframes slice. */
   animated: boolean;
+  /** A text clip: double-clicking it edits the words in place. */
+  isText: boolean;
 }
 
 /** The boxes on the stage at `time`, bottom first, exactly as the painter draws them. */
@@ -35,6 +37,7 @@ export function stageBoxes(project: TimelineProject, time: number): StageBox[] {
       rotation: item.draw.rotation,
       locked: isClipLocked(project, clip),
       animated: clip.keyframes.length > 0,
+      isText: clip.kind === "text",
     });
   }
   return boxes;

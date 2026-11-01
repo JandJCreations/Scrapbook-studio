@@ -20,6 +20,8 @@ interface StageInteractionProps {
   frame: FrameSize;
   boxes: StageBox[];
   selectedIds: string[];
+  /** A text clip was double-clicked: edit its words in place. */
+  onEditText(clipId: string): void;
 }
 
 type Patches = Record<string, Partial<ClipTransform>>;
@@ -29,7 +31,14 @@ type Patches = Record<string, Partial<ClipTransform>>;
  * clip on the stage plus a transformer. Every change goes through the clip
  * store's gesture API, so a drag or resize is one undo step.
  */
-export function StageInteraction({ width, height, frame, boxes, selectedIds }: StageInteractionProps) {
+export function StageInteraction({
+  width,
+  height,
+  frame,
+  boxes,
+  selectedIds,
+  onEditText,
+}: StageInteractionProps) {
   const fit = fitFrame(width, height, frame.width, frame.height);
   const transformerRef = React.useRef<Konva.Transformer>(null);
   const nodes = React.useRef(new Map<string, Konva.Rect>());
@@ -182,6 +191,8 @@ export function StageInteraction({ width, height, frame, boxes, selectedIds }: S
             draggable={!box.locked && !box.animated}
             onMouseDown={(event) => select(box.clipId, event.evt.shiftKey)}
             onTouchStart={() => select(box.clipId, false)}
+            onDblClick={() => box.isText && !box.locked && onEditText(box.clipId)}
+            onDblTap={() => box.isText && !box.locked && onEditText(box.clipId)}
             onDragStart={() => onDragStart(box.clipId)}
             onDragMove={(event) => onDragMove(box.clipId, event.target as Konva.Rect)}
             onDragEnd={finish}
