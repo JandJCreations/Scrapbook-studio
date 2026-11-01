@@ -18,6 +18,7 @@ import { LayersTab } from "@/components/studio/layers-tab";
 import { useStudioMedia } from "@/components/studio/use-studio-media";
 import { useNaturalSize } from "@/components/studio/use-natural-size";
 import { useStudioPlayback } from "@/components/studio/use-studio-playback";
+import { useStudioThumbnail } from "@/components/studio/use-studio-thumbnail";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTimelineSync } from "@/hooks/use-timeline-sync";
@@ -84,6 +85,12 @@ export function StudioView({ env }: { env: StudioEnv }) {
   const mediaSource = React.useMemo(() => withBundledAssets(env.media), [env.media]);
   useStudioMedia(mediaSource, project);
   const { containerRef, session, visuals } = useStudioPlayback({ media: mediaSource, frame });
+  useStudioThumbnail({
+    enabled: status.phase === "ready",
+    frame,
+    urlFor: mediaSource.urlFor,
+    saveThumbnail: env.saveThumbnail,
+  });
 
   // Add and save work can outlive the page; it must not touch shared state after that.
   const aliveRef = React.useRef(false);

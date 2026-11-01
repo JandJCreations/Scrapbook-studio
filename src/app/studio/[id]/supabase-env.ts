@@ -62,6 +62,7 @@ export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null
       library,
       libraryLoading,
       saveFrame: (frame) => saveFrame(projectId, frame),
+      saveThumbnail: (dataUrl) => useProjectStore.getState().saveProjectThumbnail(projectId, dataUrl),
       uploadFiles: (files) => {
         useMediaStore.getState().addFiles(files, null);
       },
