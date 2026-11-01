@@ -111,8 +111,9 @@ export function StageInteraction({ width, height, frame, boxes, selectedIds }: S
     for (const [clipId, origin] of dragStarts.current) {
       const x = origin.x + dx;
       const y = origin.y + dy;
+      // The other selected nodes are moved by the transformer itself while one
+      // of them is dragged; repositioning them here would count the move twice.
       patches.current[clipId] = { x, y };
-      if (clipId !== id) nodes.current.get(clipId)?.position({ x, y });
     }
     preview();
   };

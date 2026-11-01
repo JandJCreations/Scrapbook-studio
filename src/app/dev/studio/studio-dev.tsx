@@ -13,6 +13,7 @@ import type { MediaUrlSource } from "@/lib/sync/media-url-store";
 import { createMemoryTimelineStorage } from "@/lib/sync/memory-timeline-storage";
 import { makeToneWav } from "@/lib/timeline-ui/tone-wav";
 import { createId } from "@/lib/timeline/ids";
+import { useClipProjectStore } from "@/store/use-clip-project-store";
 import type { MediaItem, MediaType } from "@/types/media";
 
 function typeOf(file: Blob): MediaType | null {
@@ -38,6 +39,15 @@ export function StudioDev() {
       registry.revokeAll();
     };
   }, [registry]);
+
+  // A debug handle so a browser session can read the project and its history.
+  React.useEffect(() => {
+    (window as unknown as { __clipStore?: typeof useClipProjectStore }).__clipStore =
+      useClipProjectStore;
+    return () => {
+      delete (window as unknown as { __clipStore?: unknown }).__clipStore;
+    };
+  }, []);
 
   // Ids here are not UUIDs, so the studio never asks Storage for them.
   const media = React.useMemo<MediaUrlSource>(
