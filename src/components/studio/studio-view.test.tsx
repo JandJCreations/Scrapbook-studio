@@ -296,3 +296,63 @@ describe("StudioView edit tab", () => {
     expect(after.transform.opacity).toBe(1);
   });
 });
+
+describe("StudioView keyframes and crop", () => {
+  it("adds and removes a keyframe on a text clip", async () => {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("tab", { name: "text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    await screen.findByLabelText("Text content");
+    const before = useClipProjectStore.getState().history.past.length;
+    fireEvent.click(screen.getByRole("button", { name: "Add keyframe" }));
+    let clip = selectProject(useClipProjectStore.getState()).clips[0];
+    expect(clip.keyframes).toHaveLength(1);
+    expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
+    fireEvent.click(screen.getByRole("button", { name: /Delete keyframe at/ }));
+    clip = selectProject(useClipProjectStore.getState()).clips[0];
+    expect(clip.keyframes).toEqual([]);
+  });
+
+  async function selectedPhoto() {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
+    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1));
+    const clip = selectProject(useClipProjectStore.getState()).clips[0];
+    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
+    act(() => useClipProjectStore.getState().setSelectedClipIds([clip.id]));
+    return clip;
+  }
+
+  it("crops a picture to a square and reshapes its box", async () => {
+    const clip = await selectedPhoto();
+    const square = await screen.findByRole("button", { name: "1:1" });
+    fireEvent.click(square);
+    const cropped = selectProject(useClipProjectStore.getState()).clips[0];
+    // The mocked file is 1920 x 1080, so the biggest square is 1080 x 1080, centred.
+    expect(cropped.adjustments.photo?.crop).toEqual({ x: 420, y: 0, width: 1080, height: 1080 });
+    expect(cropped.transform.height).toBe(cropped.transform.width);
+    expect(cropped.transform.width).toBe(clip.transform.width);
+  });
+
+  it("clears the crop when going back to the original shape at 1x", async () => {
+    await selectedPhoto();
+    fireEvent.click(await screen.findByRole("button", { name: "1:1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Original" }));
+    const clip = selectProject(useClipProjectStore.getState()).clips[0];
+    expect(clip.adjustments.photo?.crop).toBeNull();
+    expect(clip.transform.height).toBeCloseTo((clip.transform.width * 1080) / 1920, 3);
+  });
+
+  it("fades an animated clip with a keyframe rather than its static opacity", async () => {
+    const clip = await selectedPhoto();
+    fireEvent.click(await screen.findByRole("button", { name: "Add keyframe" }));
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Opacity" }), { key: "ArrowLeft" });
+    await vi.waitFor(() => {
+      const after = selectProject(useClipProjectStore.getState()).clips[0];
+      expect(after.keyframes.some((k) => k.opacity === 0.99)).toBe(true);
+    });
+    expect(selectProject(useClipProjectStore.getState()).clips[0].transform.opacity).toBe(clip.transform.opacity);
+  });
+});

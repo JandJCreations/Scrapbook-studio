@@ -3,8 +3,14 @@
 import * as React from "react";
 import { Type } from "lucide-react";
 
+import { KeyframesSection } from "@/components/studio/keyframes-section";
 import { TextPanel } from "@/components/studio/text-panel";
 import { Button } from "@/components/ui/button";
+import {
+  clearKeyframes,
+  removeKeyframe,
+  upsertKeyframe,
+} from "@/lib/editor/keyframes";
 import {
   addText,
   patchTextAdjustments,
@@ -14,16 +20,17 @@ import {
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { useClipProjectStore } from "@/store/use-clip-project-store";
 import { useTransportStore } from "@/store/use-transport-store";
-import type { Clip } from "@/types/timeline";
+import type { Clip, TimelineProject } from "@/types/timeline";
 import type { TextAdjustments } from "@/types/text-adjustments";
 
 interface TextTabProps {
   frame: FrameSize | null;
   /** The single selected clip when it is a text clip. */
   selectedText: Clip | null;
+  onSeek(time: number): void;
 }
 
-export function TextTab({ frame, selectedText }: TextTabProps) {
+export function TextTab({ frame, selectedText, onSeek }: TextTabProps) {
   const textId = selectedText?.id ?? null;
   // Changes made while previewing; each preview is recomputed from the project
   // as it was before the gesture, so the patches must be sent together.
@@ -57,40 +64,95 @@ export function TextTab({ frame, selectedText }: TextTabProps) {
       return result.project;
     });
     const added = result as AddResult | null;
-    if (added) useClipProjectStore.getState().setSelectedClipIds([added.clipId]);
+    if (added)
+      useClipProjectStore.getState().setSelectedClipIds([added.clipId]);
   }
 
   const adjustments = selectedText?.adjustments.text ?? null;
+  const apply = (op: (project: TimelineProject) => TimelineProject) => {
+    commit();
+    useClipProjectStore.getState().apply(op);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="p-3">
-        <Button className="w-full gap-2" variant="secondary" disabled={!frame} onClick={addNewText}>
+        <Button
+          className="w-full gap-2"
+          variant="secondary"
+          disabled={!frame}
+          onClick={addNewText}
+        >
           <Type className="size-4" />
           Add text
         </Button>
       </div>
 
       {textId && adjustments && frame ? (
-        <TextPanel
-          adjustments={adjustments}
-          onPreview={(patch) => {
-            pending.current = { ...pending.current, ...patch };
-            const merged = pending.current;
-            useClipProjectStore
-              .getState()
-              .previewApply((project) => patchTextAdjustments(project, textId, merged));
-          }}
-          onCommit={commit}
-          onApply={(patch) => {
-            commit();
-            useClipProjectStore.getState().apply((project) => patchTextAdjustments(project, textId, patch));
-          }}
-          onReset={() => {
-            commit();
-            useClipProjectStore.getState().apply((project) => resetTextAdjustments(project, textId, frame));
-          }}
-        />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <TextPanel
+            adjustments={adjustments}
+            onPreview={(patch) => {
+              pending.current = { ...pending.current, ...patch };
+              const merged = pending.current;
+              useClipProjectStore
+                .getState()
+                .previewApply((project) =>
+                  patchTextAdjustments(project, textId, merged),
+                );
+            }}
+            onCommit={commit}
+            onApply={(patch) => {
+              commit();
+              useClipProjectStore
+                .getState()
+                .apply((project) =>
+                  patchTextAdjustments(project, textId, patch),
+                );
+            }}
+            onReset={() => {
+              commit();
+              useClipProjectStore
+                .getState()
+                .apply((project) =>
+                  resetTextAdjustments(project, textId, frame),
+                );
+            }}
+          />
+          {selectedText && (
+            <div className="px-3 pb-3">
+              <KeyframesSection
+                clip={selectedText}
+                playhead={useTransportStore.getState().time}
+                onSeek={onSeek}
+                onAdd={() =>
+                  apply((project) =>
+                    upsertKeyframe(
+                      project,
+                      textId,
+                      useTransportStore.getState().time - selectedText.start,
+                      {},
+                    ),
+                  )
+                }
+                onRemove={(keyframeId) =>
+                  apply((project) =>
+                    removeKeyframe(project, textId, keyframeId),
+                  )
+                }
+                onClear={() =>
+                  apply((project) =>
+                    clearKeyframes(
+                      project,
+                      textId,
+                      useTransportStore.getState().time - selectedText.start,
+                    ),
+                  )
+                }
+              />
+            </div>
+          )}
+        </div>
       ) : (
         <p className="px-3 text-sm text-muted-foreground">
           Add text, or select a text clip on the stage or timeline to edit it.

@@ -11,6 +11,7 @@ import { StudioToolbar } from "@/components/studio/studio-toolbar";
 import { EditTab } from "@/components/studio/edit-tab";
 import { TextTab } from "@/components/studio/text-tab";
 import { useStudioMedia } from "@/components/studio/use-studio-media";
+import { useNaturalSize } from "@/components/studio/use-natural-size";
 import { useStudioPlayback } from "@/components/studio/use-studio-playback";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,6 +87,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
   const selectedClip =
     selectedIds.length === 1 ? (project.clips.find((c) => c.id === selectedIds[0]) ?? null) : null;
   const selectedText = selectedClip?.kind === "text" ? selectedClip : null;
+  const natural = useNaturalSize(env.media, selectedClip);
   const [lastClipId, setLastClipId] = React.useState<string | null>(null);
   const [justAddedId, setJustAddedId] = React.useState<string | null>(null);
   if ((selectedClip?.id ?? null) !== lastClipId) {
@@ -223,9 +225,9 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onUpload={env.uploadFiles}
             />
           ) : tab === "text" ? (
-            <TextTab frame={frame} selectedText={selectedText} />
+            <TextTab frame={frame} selectedText={selectedText} onSeek={(t) => session?.seek(t)} />
           ) : (
-            <EditTab clip={selectedClip} />
+            <EditTab clip={selectedClip} natural={natural} onSeek={(t) => session?.seek(t)} />
           )}
           {message && (
             <p role="alert" className="border-t p-3 text-xs text-destructive">
