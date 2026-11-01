@@ -7,7 +7,9 @@ import { clipsOnTrack } from "@/lib/timeline/lookup";
 import { insertClip } from "@/lib/timeline/place";
 import { addTrack } from "@/lib/timeline/tracks";
 import type { Clip, ClipTransform, TimelineProject, TrackType } from "@/types/timeline";
+import { DEFAULT_PHOTO_ADJUSTMENTS, type PhotoAdjustments } from "@/types/photo-adjustments";
 import { DEFAULT_TEXT_ADJUSTMENTS, type TextAdjustments } from "@/types/text-adjustments";
+import { createDefaultVideoAdjustments, type VideoAdjustments } from "@/types/video-adjustments";
 
 export const STILL_SECONDS = 5;
 export const OVERLAY_SCALE = 0.4;
@@ -253,4 +255,50 @@ export function resetTextAdjustments(
   const current = project.clips.find((c) => c.id === clipId)?.adjustments.text;
   if (!current) return project;
   return patchTextAdjustments(project, clipId, defaultTextFor(frame, current.content));
+}
+
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Changes a picture's look. The first change starts from the default adjustments. */
+export function patchPhotoAdjustments(
+  project: TimelineProject,
+  clipId: string,
+  patch: Partial<PhotoAdjustments>,
+): TimelineProject {
+  const clip = project.clips.find((c) => c.id === clipId);
+  if (!clip || clip.kind !== "image") return project;
+  const base = clip.adjustments.photo ?? DEFAULT_PHOTO_ADJUSTMENTS;
+  const next: PhotoAdjustments = { ...base, ...patch };
+  if (sameValue(next, base)) return project;
+  return updateClip(project, clipId, { adjustments: { ...clip.adjustments, photo: next } });
+}
+
+/** Changes a video's look. The first change starts from the default adjustments. */
+export function patchVideoAdjustments(
+  project: TimelineProject,
+  clipId: string,
+  patch: Partial<VideoAdjustments>,
+): TimelineProject {
+  const clip = project.clips.find((c) => c.id === clipId);
+  if (!clip || clip.kind !== "video") return project;
+  const base = clip.adjustments.video ?? createDefaultVideoAdjustments(clip.sourceDuration ?? 0);
+  const next: VideoAdjustments = { ...base, ...patch };
+  if (sameValue(next, base)) return project;
+  return updateClip(project, clipId, { adjustments: { ...clip.adjustments, video: next } });
+}
+
+/** Sets how see-through a clip is (0 to 1). */
+export function setClipOpacity(project: TimelineProject, clipId: string, opacity: number): TimelineProject {
+  return setClipTransforms(project, { [clipId]: { opacity: Math.min(1, Math.max(0, opacity)) } });
+}
+
+/** Volume, mute and fades for clips that carry sound (video and audio). */
+export function patchAudio(
+  project: TimelineProject,
+  clipId: string,
+  patch: { volume?: number; muted?: boolean; fadeIn?: number; fadeOut?: number },
+): TimelineProject {
+  const clip = project.clips.find((c) => c.id === clipId);
+  if (!clip || (clip.kind !== "video" && clip.kind !== "audio")) return project;
+  return updateClip(project, clipId, patch);
 }

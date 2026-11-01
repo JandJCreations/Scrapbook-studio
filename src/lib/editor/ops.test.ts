@@ -6,8 +6,12 @@ import {
   addText,
   addToSequence,
   OVERLAY_SCALE,
+  patchAudio,
+  patchPhotoAdjustments,
   patchTextAdjustments,
+  patchVideoAdjustments,
   resetTextAdjustments,
+  setClipOpacity,
   setClipTransforms,
   STILL_SECONDS,
   TEXT_SECONDS,
@@ -283,5 +287,95 @@ describe("resetTextAdjustments", () => {
       fontSize: 76,
     });
     expect(reset.name).toBe("Keep me");
+  });
+});
+
+describe("patchPhotoAdjustments", () => {
+  const withPhoto = () =>
+    addToSequence(base(), video("p", { kind: "image", duration: 0 }), frame, seqIds("c"));
+
+  it("creates the default adjustments on first use and merges the patch", () => {
+    const { project, clipId } = withPhoto();
+    expect(findClip(project, clipId)?.adjustments.photo).toBeNull();
+    const result = patchPhotoAdjustments(project, clipId, { brightness: 25 });
+    expect(findClip(result, clipId)?.adjustments.photo).toMatchObject({
+      brightness: 25,
+      contrast: 0,
+      borderColor: "#ffffff",
+    });
+  });
+
+  it("returns the same project when nothing changes, for other kinds and for locked clips", () => {
+    const { project, clipId } = withPhoto();
+    expect(patchPhotoAdjustments(project, clipId, { brightness: 0 })).toBe(project);
+    expect(patchPhotoAdjustments(project, "missing", { brightness: 5 })).toBe(project);
+    const clip = addToSequence(base(), video("v"), frame, seqIds("d"));
+    expect(patchPhotoAdjustments(clip.project, clip.clipId, { brightness: 5 })).toBe(clip.project);
+    const locked = { ...project, clips: project.clips.map((c) => ({ ...c, locked: true })) };
+    expect(patchPhotoAdjustments(locked, clipId, { brightness: 5 })).toBe(locked);
+  });
+});
+
+describe("patchVideoAdjustments", () => {
+  it("creates defaults sized to the source on first use", () => {
+    const { project, clipId } = addToSequence(base(), video("v", { duration: 8 }), frame, seqIds("c"));
+    const result = patchVideoAdjustments(project, clipId, { saturation: -30 });
+    expect(findClip(result, clipId)?.adjustments.video).toMatchObject({
+      saturation: -30,
+      duration: 8,
+      brightness: 0,
+    });
+  });
+
+  it("ignores pictures and unchanged values", () => {
+    const photo = addToSequence(base(), video("p", { kind: "image", duration: 0 }), frame, seqIds("c"));
+    expect(patchVideoAdjustments(photo.project, photo.clipId, { blur: 2 })).toBe(photo.project);
+    const vid = addToSequence(base(), video("v"), frame, seqIds("d"));
+    expect(patchVideoAdjustments(vid.project, vid.clipId, { blur: 0 })).toBe(vid.project);
+  });
+});
+
+describe("setClipOpacity", () => {
+  it("sets and clamps the clip opacity", () => {
+    const { project, clipId } = addToSequence(base(), video("v"), frame, seqIds("c"));
+    expect(findClip(setClipOpacity(project, clipId, 0.4), clipId)?.transform.opacity).toBe(0.4);
+    expect(findClip(setClipOpacity(project, clipId, 3), clipId)?.transform.opacity).toBe(1);
+    expect(findClip(setClipOpacity(project, clipId, -1), clipId)?.transform.opacity).toBe(0);
+    expect(setClipOpacity(project, clipId, 1)).toBe(project);
+  });
+});
+
+describe("patchAudio", () => {
+  it("changes volume, mute and fades on sound-carrying clips", () => {
+    const { project, clipId } = addAudioClip(
+      base(),
+      video("m", { kind: "audio", duration: 30 }),
+      frame,
+      0,
+      seqIds("c"),
+    );
+    const result = patchAudio(project, clipId, { volume: 40, muted: true, fadeIn: 2, fadeOut: 3 });
+    expect(findClip(result, clipId)).toMatchObject({ volume: 40, muted: true, fadeIn: 2, fadeOut: 3 });
+  });
+
+  it("clamps fades to the clip length", () => {
+    const { project, clipId } = addAudioClip(
+      base(),
+      video("m", { kind: "audio", duration: 4 }),
+      frame,
+      0,
+      seqIds("c"),
+    );
+    expect(findClip(patchAudio(project, clipId, { fadeIn: 99 }), clipId)?.fadeIn).toBe(4);
+  });
+
+  it("leaves pictures and text alone", () => {
+    const { project, clipId } = addToSequence(
+      base(),
+      video("p", { kind: "image", duration: 0 }),
+      frame,
+      seqIds("c"),
+    );
+    expect(patchAudio(project, clipId, { volume: 10 })).toBe(project);
   });
 });
