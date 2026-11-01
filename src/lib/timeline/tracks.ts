@@ -63,3 +63,26 @@ export function pruneEmptyTracks(project: TimelineProject): TimelineProject {
     .map((track, index) => (track.order === index ? track : { ...track, order: index }));
   return { ...project, tracks };
 }
+
+/**
+ * Moves an overlay track one place up (in front) or down (behind) among the
+ * overlays. The main video track stays below every overlay, so an overlay can
+ * never go behind it. Returns the same project when it cannot move.
+ */
+export function moveTrack(
+  project: TimelineProject,
+  trackId: string,
+  direction: "up" | "down",
+): TimelineProject {
+  const overlays = project.tracks.filter((t) => t.type === "overlay").sort((a, b) => a.order - b.order);
+  const index = overlays.findIndex((t) => t.id === trackId);
+  const neighbour = overlays[index + (direction === "up" ? -1 : 1)];
+  if (index < 0 || !neighbour) return project;
+  const mine = overlays[index];
+  return {
+    ...project,
+    tracks: project.tracks.map((t) =>
+      t.id === mine.id ? { ...t, order: neighbour.order } : t.id === neighbour.id ? { ...t, order: mine.order } : t,
+    ),
+  };
+}

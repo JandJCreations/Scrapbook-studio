@@ -36,7 +36,10 @@ function contentFor(
         ? { type: "text", adjustments: clip.adjustments.text }
         : { type: "placeholder", label: clip.name };
     case "sticker":
-      return { type: "placeholder", label: clip.name };
+      // Catalog art is a picture like any other; a sticker with no art shows a stand-in.
+      return clip.mediaId.startsWith("asset:")
+        ? { type: "image", mediaId: clip.mediaId }
+        : { type: "placeholder", label: clip.name };
     case "audio":
       return null;
   }

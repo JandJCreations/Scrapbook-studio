@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   addAsOverlay,
   addAudioClip,
+  addSticker,
   addText,
   addToSequence,
   OVERLAY_SCALE,
@@ -433,5 +434,40 @@ describe("setCrop", () => {
     );
     const locked = { ...project, clips: project.clips.map((c) => ({ ...c, locked: true })) };
     expect(setCrop(locked, clipId, { x: 0, y: 0, width: 10, height: 10 }, natural)).toBe(locked);
+  });
+});
+
+describe("addSticker", () => {
+  const art = { mediaId: "asset:stickers/Star", name: "Star", width: 160, height: 160 };
+
+  it("puts the sticker on its own new top overlay track at the playhead for five seconds", () => {
+    const first = addSticker(base(), art, frame, 1, seqIds("n"));
+    const second = addSticker(first.project, art, frame, 3, seqIds("m"));
+    const clip = findClip(second.project, second.clipId)!;
+    expect(clip).toMatchObject({
+      kind: "sticker",
+      mediaId: "asset:stickers/Star",
+      name: "Star",
+      sourceDuration: null,
+      start: 3,
+    });
+    expect(clipEnd(clip)).toBe(8);
+    const order = (trackId: string) => second.project.tracks.find((t) => t.id === trackId)!.order;
+    expect(order(clip.trackId)).toBeLessThan(order(findClip(second.project, first.clipId)!.trackId));
+    expect(second.project.tracks.find((t) => t.id === clip.trackId)?.type).toBe("overlay");
+  });
+
+  it("fits inside 30% of the frame, keeping its shape, centred", () => {
+    const wide = addSticker(base(), { ...art, width: 400, height: 100 }, frame, 0, seqIds("n"));
+    const t = findClip(wide.project, wide.clipId)!.transform;
+    expect(t.width).toBeCloseTo(1920 * 0.3, 6);
+    expect(t.height).toBeCloseTo((1920 * 0.3) / 4, 6);
+    expect(t.x).toBeCloseTo((1920 - t.width) / 2, 6);
+    expect(t.y).toBeCloseTo((1080 - t.height) / 2, 6);
+  });
+
+  it("never starts before zero", () => {
+    const result = addSticker(base(), art, frame, -4, seqIds("n"));
+    expect(findClip(result.project, result.clipId)?.start).toBe(0);
   });
 });

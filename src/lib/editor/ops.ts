@@ -336,3 +336,45 @@ export function setCrop(
     [clipId]: { height: nextHeight, y: y + (height - nextHeight) / 2 },
   });
 }
+
+export const STICKER_SECONDS = 5;
+const STICKER_FRAME_SCALE = 0.3;
+
+/** A picture to place as a sticker: the id a clip stores for it, its name and its own shape. */
+export interface StickerArt {
+  mediaId: string;
+  name: string;
+  width: number;
+  height: number;
+}
+
+/** Adds a sticker on its own new top overlay track, fitted inside 30% of the frame and centred, at the playhead. */
+export function addSticker(
+  project: TimelineProject,
+  art: StickerArt,
+  frame: FrameSize,
+  at: number,
+  newId: IdFn = createId,
+): AddResult {
+  const withTrack = addTrack(project, "overlay", newId);
+  const created = withTrack.tracks.find((track) => !project.tracks.some((old) => old.id === track.id));
+  if (!created) throw new Error("addTrack did not add a track");
+
+  const box = fitContain(art.width, art.height, frame.width * STICKER_FRAME_SCALE, frame.height * STICKER_FRAME_SCALE);
+  const clip = buildClip(
+    { mediaId: art.mediaId, name: art.name, kind: "image", duration: 0, width: art.width, height: art.height },
+    created.id,
+    Math.max(0, at),
+    {
+      x: (frame.width - box.width) / 2,
+      y: (frame.height - box.height) / 2,
+      width: box.width,
+      height: box.height,
+      rotation: 0,
+      opacity: 1,
+    },
+    newId,
+  );
+  const sticker: Clip = { ...clip, kind: "sticker", sourceOut: STICKER_SECONDS };
+  return { project: insertClip(withTrack, sticker), clipId: sticker.id };
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { addTrack, pruneEmptyTracks, updateTrack } from "@/lib/timeline/tracks";
-import { makeClip, makeProject, makeStandardTracks, seqIds } from "@/lib/timeline/test-utils";
+import { addTrack, moveTrack, pruneEmptyTracks, updateTrack } from "@/lib/timeline/tracks";
+import { makeClip, makeProject, makeStandardTracks, makeTrack, seqIds } from "@/lib/timeline/test-utils";
 
 const ids = (project: ReturnType<typeof makeProject>) =>
   [...project.tracks].sort((a, b) => a.order - b.order).map((t) => t.id);
@@ -82,5 +82,46 @@ describe("pruneEmptyTracks", () => {
   it("returns the same project when nothing is empty", () => {
     const project = makeProject([makeStandardTracks()[1]], [makeClip({ id: "a", trackId: "t1" })]);
     expect(pruneEmptyTracks(project)).toBe(project);
+  });
+});
+
+describe("moveTrack", () => {
+  // o3 (0), o2 (1), o1 (2) overlays, then video v (3), audio a (4)
+  const stacked = () =>
+    makeProject(
+      [
+        makeTrack({ id: "o3", type: "overlay", order: 0 }),
+        makeTrack({ id: "o2", type: "overlay", order: 1 }),
+        makeTrack({ id: "o1", type: "overlay", order: 2 }),
+        makeTrack({ id: "v", type: "video", order: 3 }),
+        makeTrack({ id: "a", type: "audio", order: 4 }),
+      ],
+      [makeClip({ id: "c", trackId: "o2", kind: "image", sourceDuration: null })],
+    );
+  const order = (p: ReturnType<typeof stacked>) =>
+    [...p.tracks].sort((x, y) => x.order - y.order).map((t) => t.id);
+
+  it("moves an overlay up or down one place among the overlays", () => {
+    expect(order(moveTrack(stacked(), "o2", "up"))).toEqual(["o2", "o3", "o1", "v", "a"]);
+    expect(order(moveTrack(stacked(), "o2", "down"))).toEqual(["o3", "o1", "o2", "v", "a"]);
+  });
+
+  it("keeps the order numbers 0 to n-1 and leaves the clips alone", () => {
+    const moved = moveTrack(stacked(), "o1", "up");
+    expect(moved.tracks.map((t) => t.order).sort()).toEqual([0, 1, 2, 3, 4]);
+    expect(moved.clips.map((c) => [c.id, c.trackId])).toEqual([["c", "o2"]]);
+  });
+
+  it("stops at the top and bottom of the overlays", () => {
+    const p = stacked();
+    expect(moveTrack(p, "o3", "up")).toBe(p);
+    expect(moveTrack(p, "o1", "down")).toBe(p); // the main video track stays below every overlay
+  });
+
+  it("only moves overlays, and ignores unknown tracks", () => {
+    const p = stacked();
+    expect(moveTrack(p, "v", "up")).toBe(p);
+    expect(moveTrack(p, "a", "up")).toBe(p);
+    expect(moveTrack(p, "nope", "up")).toBe(p);
   });
 });

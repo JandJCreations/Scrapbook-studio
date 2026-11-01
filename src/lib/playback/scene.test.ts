@@ -68,6 +68,15 @@ describe("buildScene", () => {
     expect(byId.stk).toEqual({ type: "placeholder", label: "Star" });
   });
 
+  it("draws a sticker of bundled art as a picture, and a sticker with no art as a placeholder", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({ id: "art", trackId: "t2", kind: "sticker", mediaId: "asset:stickers/Star", sourceDuration: null }),
+    ]);
+    const art = buildScene(project, 1, none)[0];
+    expect(art.content).toEqual({ type: "image", mediaId: "asset:stickers/Star" });
+    expect(art.look).toBeNull();
+  });
+
   it("carries the look of an adjusted picture and nothing for a plain one", () => {
     const project = makeProject(makeStandardTracks(), [
       makeClip({
