@@ -17,9 +17,11 @@ interface StudioStageProps {
   /** Receives the painter's container; owned by useStudioPlayback. */
   containerRef: React.RefCallback<HTMLDivElement>;
   frame: FrameSize | null;
+  /** A drag or resize on the stage is starting. */
+  onGestureStart(): void;
 }
 
-export function StudioStage({ containerRef, frame }: StudioStageProps) {
+export function StudioStage({ containerRef, frame, onGestureStart }: StudioStageProps) {
   const { ref: sizeRef, size } = useElementSize<HTMLDivElement>();
   const project = useClipProjectStore(selectProject);
   const selectedIds = useClipProjectStore((s) => s.selectedClipIds);
@@ -52,6 +54,7 @@ export function StudioStage({ containerRef, frame }: StudioStageProps) {
             boxes={boxes}
             selectedIds={selectedIds}
             onEditText={setEditingId}
+            onGestureStart={onGestureStart}
           />
           {editingId && editingBox && editingText && fit && (
             <TextEditOverlay

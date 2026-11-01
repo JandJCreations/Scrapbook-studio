@@ -23,6 +23,8 @@ interface StageInteractionProps {
   selectedIds: string[];
   /** A text clip was double-clicked: edit its words in place. */
   onEditText(clipId: string): void;
+  /** A drag or resize is starting; playback stops so the picture stays under the pointer. */
+  onGestureStart(): void;
 }
 
 type Patches = Record<string, Partial<ClipTransform>>;
@@ -39,6 +41,7 @@ export function StageInteraction({
   boxes,
   selectedIds,
   onEditText,
+  onGestureStart,
 }: StageInteractionProps) {
   const fit = fitFrame(width, height, frame.width, frame.height);
   const transformerRef = React.useRef<Konva.Transformer>(null);
@@ -112,6 +115,7 @@ export function StageInteraction({
   };
 
   const onDragStart = (id: string) => {
+    onGestureStart();
     patches.current = {};
     gestureTime.current = useTransportStore.getState().time;
     dragStarts.current.clear();
@@ -204,6 +208,7 @@ export function StageInteraction({
             onDragMove={(event) => onDragMove(box.clipId, event.target as Konva.Rect)}
             onDragEnd={finish}
             onTransformStart={() => {
+              onGestureStart();
               patches.current = {};
               gestureTime.current = useTransportStore.getState().time;
             }}

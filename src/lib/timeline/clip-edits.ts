@@ -53,6 +53,10 @@ export function setSpeed(project: TimelineProject, clipId: string, speed: number
 
   const resized: Clip = { ...clip, speed: next };
   const duration = clipDuration(resized);
+  // Keyframes are seconds from the clip's start, and the picture they animate
+  // now takes a different time: keep each one on the same moment of it.
+  const stretch = clip.speed / next;
+  resized.keyframes = clip.keyframes.map((k) => ({ ...k, time: Math.min(k.time * stretch, duration) }));
   resized.fadeIn = Math.min(resized.fadeIn, duration);
   resized.fadeOut = Math.min(resized.fadeOut, duration);
   return packMagneticTracks(replaceClip(project, resized));

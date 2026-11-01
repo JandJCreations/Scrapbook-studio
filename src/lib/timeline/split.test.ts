@@ -76,6 +76,46 @@ describe("splitClip", () => {
     expect(getClip(result, "id-1").keyframes.map((k) => k.time)).toEqual([0, 2]);
   });
 
+  describe("an animated clip", () => {
+    const at = (id: string, time: number, x: number) => ({ id, time, x, y: 0, rotation: 0, opacity: 1 });
+    const animated = (keyframes: ReturnType<typeof at>[]) =>
+      makeProject(makeStandardTracks(), [
+        makeClip({
+          id: "a",
+          keyframes,
+          transform: { x: 0, y: 0, width: 100, height: 100, rotation: 0, opacity: 1 },
+        }),
+      ]);
+
+    it("keeps moving through the cut: a half with no keyframes of its own starts where the motion is", () => {
+      // x runs 100 at 2 s to 500 at 4 s; the cut at 1 s is before both keyframes.
+      const result = splitClip(animated([at("k1", 2, 100), at("k2", 4, 500)]), "a", 1, seqIds());
+      const left = getClip(result, "a");
+      expect(left.keyframes.map((k) => [k.time, k.x])).toEqual([[1, 100]]);
+      const right = getClip(result, "id-1");
+      expect(right.keyframes.map((k) => [k.time, k.x])).toEqual([[1, 100], [3, 500]]);
+    });
+
+    it("ends the left half and starts the right half at the interpolated position", () => {
+      const result = splitClip(animated([at("k1", 0, 0), at("k2", 4, 400)]), "a", 2, seqIds());
+      expect(getClip(result, "a").keyframes.map((k) => [k.time, k.x])).toEqual([[0, 0], [2, 200]]);
+      expect(getClip(result, "id-1").keyframes.map((k) => [k.time, k.x])).toEqual([[0, 200], [2, 400]]);
+    });
+
+    it("adds nothing when each half already shows the right motion", () => {
+      const result = splitClip(animated([at("k1", 0, 50), at("k2", 9, 50)]), "a", 4, seqIds());
+      expect(getClip(result, "a").keyframes).toHaveLength(1);
+      expect(getClip(result, "id-1").keyframes).toHaveLength(1);
+    });
+
+    it("leaves a plain clip without keyframes", () => {
+      const project = makeProject(makeStandardTracks(), [makeClip({ id: "a" })]);
+      const result = splitClip(project, "a", 4, seqIds());
+      expect(getClip(result, "a").keyframes).toEqual([]);
+      expect(getClip(result, "id-1").keyframes).toEqual([]);
+    });
+  });
+
   it("inserts the new clip right after the original in the clip list", () => {
     const project = makeProject(makeStandardTracks(), [
       makeClip({ id: "a", start: 0, sourceOut: 10 }),

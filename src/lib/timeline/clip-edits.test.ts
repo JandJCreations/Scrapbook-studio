@@ -47,6 +47,26 @@ describe("duplicateClip", () => {
   });
 });
 
+describe("setSpeed and keyframes", () => {
+  const key = (id: string, time: number) => ({ id, time, x: 0, y: 0, rotation: 0, opacity: 1 });
+
+  it("moves keyframes with the picture: doubling the speed halves their times", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({ id: "a", sourceOut: 8, keyframes: [key("k1", 4), key("k2", 8)] }),
+    ]);
+    const result = getClip(setSpeed(project, "a", 2), "a");
+    expect(result.keyframes.map((k) => k.time)).toEqual([2, 4]);
+    expect(clipDuration(result)).toBe(4);
+  });
+
+  it("stretches them when slowing down", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({ id: "a", sourceOut: 4, keyframes: [key("k1", 1), key("k2", 4)] }),
+    ]);
+    expect(getClip(setSpeed(project, "a", 0.5), "a").keyframes.map((k) => k.time)).toEqual([2, 8]);
+  });
+});
+
 describe("setSpeed", () => {
   it("halves the duration at double speed and ripples the main track", () => {
     const result = setSpeed(mainProject(), "A", 2);

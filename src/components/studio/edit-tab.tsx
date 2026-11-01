@@ -25,6 +25,7 @@ import {
   setClipOpacity,
   setCrop,
 } from "@/lib/editor/ops";
+import { clipBaseState } from "@/lib/playback/draw-state";
 import { setSpeed } from "@/lib/timeline/clip-edits";
 import { clipDuration } from "@/lib/timeline/clip-math";
 import { useClipProjectStore } from "@/store/use-clip-project-store";
@@ -132,6 +133,12 @@ export function EditTab({
     );
   }
   const id = clip.id;
+  // An animated clip's opacity is whatever its keyframes give at the playhead; the
+  // slider shows (and steps from) that, not the unused static value.
+  const shownOpacity =
+    clip.keyframes.length > 0
+      ? clipBaseState(clip, useTransportStore.getState().time - clip.start).opacity
+      : clip.transform.opacity;
 
   const preview = (patch: Pending) => {
     pending.current = {
@@ -233,7 +240,7 @@ export function EditTab({
         <>
           <PhotoPanel
             adjustments={clip.adjustments.photo ?? DEFAULT_PHOTO_ADJUSTMENTS}
-            opacity={clip.transform.opacity}
+            opacity={shownOpacity}
             onPreview={(photo) => preview({ photo })}
             onCommit={commit}
             onApply={(photo) =>
@@ -265,7 +272,7 @@ export function EditTab({
               clip.adjustments.video ??
               createDefaultVideoAdjustments(clip.sourceDuration ?? 0)
             }
-            opacity={clip.transform.opacity}
+            opacity={shownOpacity}
             onPreview={(video) => preview({ video })}
             onCommit={commit}
             onApply={(video) =>

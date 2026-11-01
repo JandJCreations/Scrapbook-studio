@@ -354,5 +354,9 @@ describe("StudioView keyframes and crop", () => {
       expect(after.keyframes.some((k) => k.opacity === 0.99)).toBe(true);
     });
     expect(selectProject(useClipProjectStore.getState()).clips[0].transform.opacity).toBe(clip.transform.opacity);
+    // The slider shows the animated value, so the next step goes on from it.
+    await vi.waitFor(() =>
+      expect(screen.getByRole("slider", { name: "Opacity" }).getAttribute("aria-valuenow")).toBe("99"),
+    );
   });
 });
