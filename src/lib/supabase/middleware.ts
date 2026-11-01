@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 
 import type { Database } from "@/lib/supabase/database.types";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/editor"];
+const PROTECTED_PREFIXES = ["/dashboard", "/editor", "/studio"];
 const AUTH_ROUTES = ["/login", "/signup"];
 
 export async function updateSession(request: NextRequest) {
