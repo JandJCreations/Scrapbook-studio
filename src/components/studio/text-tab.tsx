@@ -34,6 +34,17 @@ export function TextTab({ frame, selectedText }: TextTabProps) {
     useClipProjectStore.getState().endGesture();
   }, []);
 
+  // Any other gesture that starts (a timeline drag, a touch on the stage) must
+  // not rebuild from before a panel edit that never lost focus, so an open
+  // panel edit is closed the moment any pointer goes down.
+  React.useEffect(() => {
+    const closeOpenEdit = () => {
+      if (Object.keys(pending.current).length > 0) commit();
+    };
+    window.addEventListener("pointerdown", closeOpenEdit, true);
+    return () => window.removeEventListener("pointerdown", closeOpenEdit, true);
+  }, [commit]);
+
   // Changing the selection closes a change that is still open.
   React.useEffect(() => commit, [textId, commit]);
 

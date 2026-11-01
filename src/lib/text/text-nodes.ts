@@ -26,8 +26,9 @@ export function buildTextNodes(
   const box = {
     x: 0,
     y: 0,
+    // No fixed height: a Konva.Text with one silently drops lines that do not
+    // fit. The painter centres the node vertically in the clip box instead.
     width: size.width,
-    height: size.height,
     align: adj.align,
     verticalAlign: "middle",
     letterSpacing: adj.letterSpacing,

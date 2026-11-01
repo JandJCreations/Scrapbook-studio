@@ -149,7 +149,12 @@ export function createScenePainter({
               )
             : [];
         for (const attrs of buildTextNodes(text, draw, curved)) {
-          entry.textGroup.add(new Konva.Text(attrs));
+          const node = new Konva.Text(attrs);
+          // Straight text has no fixed height (so nothing is cut off): centre it in the box.
+          if (attrs.height === undefined && attrs.width !== undefined) {
+            node.y((draw.height - node.height()) / 2);
+          }
+          entry.textGroup.add(node);
         }
       }
     }

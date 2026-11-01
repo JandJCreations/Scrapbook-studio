@@ -213,6 +213,17 @@ describe("StudioView text", () => {
     expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
   });
 
+  it("keeps a typed edit when another gesture starts before the box loses focus", async () => {
+    await withText();
+    const before = useClipProjectStore.getState().history.past.length;
+    fireEvent.change(screen.getByLabelText("Text content"), { target: { value: "Typed" } });
+    // A timeline drag or a stage touch begins without blurring the panel.
+    fireEvent.pointerDown(document.body);
+    expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
+    expect(useClipProjectStore.getState().history.gestureBase).toBeNull();
+    expect(selectProject(useClipProjectStore.getState()).clips[0].adjustments.text?.content).toBe("Typed");
+  });
+
   it("opens the Text tab when a text clip is selected", async () => {
     const project = await withText();
     fireEvent.click(screen.getByRole("tab", { name: "media" }));

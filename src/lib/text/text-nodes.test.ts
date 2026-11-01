@@ -19,7 +19,6 @@ describe("buildTextNodes", () => {
       x: 0,
       y: 0,
       width: 400,
-      height: 100,
       align: "center",
       verticalAlign: "middle",
       fontSize: 42,
@@ -30,6 +29,10 @@ describe("buildTextNodes", () => {
       fill: "#1f2937",
       opacity: 1,
     });
+  });
+
+  it("leaves the height free so no line is cut off; the painter centres it", () => {
+    expect(buildTextNodes(adj(), size, [])[0].height).toBeUndefined();
   });
 
   it("uses normal weight below 700", () => {
