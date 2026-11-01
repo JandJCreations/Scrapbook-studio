@@ -20,6 +20,7 @@ import { createVideoFrameExtractor, loadPeaksFromUrl } from "@/lib/timeline-ui/b
 import { createThumbnailService } from "@/lib/timeline-ui/thumbnail-service";
 import { createWaveformService } from "@/lib/timeline-ui/waveform-service";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
+import { useStageViewStore } from "@/store/use-stage-view-store";
 import { useTransportStore } from "@/store/use-transport-store";
 
 /**
@@ -106,6 +107,10 @@ export function useStudioPlayback(options: { media: MediaUrlSource; frame: Frame
     const observer = new ResizeObserver(resize);
     observer.observe(container);
     resize();
+    painter.setView(useStageViewStore.getState().view);
+    const unsubscribeView = useStageViewStore.subscribe((state, previous) => {
+      if (state.view !== previous.view) painter.setView(state.view);
+    });
 
     // An edit, or new media URLs arriving, re-plans and redraws once.
     const unsubscribeProject = useClipProjectStore.subscribe(() => created.wake());
@@ -125,6 +130,7 @@ export function useStudioPlayback(options: { media: MediaUrlSource; frame: Frame
       sessionHolder.current = null;
       unsubscribeProject();
       unsubscribeMedia();
+      unsubscribeView();
       observer.disconnect();
       thumbnails.dispose();
       waveforms.dispose();

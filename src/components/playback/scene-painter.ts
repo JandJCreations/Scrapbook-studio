@@ -2,7 +2,8 @@ import Konva from "konva";
 
 import type { Look } from "@/lib/appearance/look";
 import { layoutCurvedText } from "@/lib/canvas/curved-text";
-import { fitFrame, type SceneItem } from "@/lib/playback/scene";
+import { DEFAULT_VIEW, viewFit, type ViewState } from "@/lib/editor/view";
+import type { SceneItem } from "@/lib/playback/scene";
 import { buildTextNodes, textKey } from "@/lib/text/text-nodes";
 import type { TextAdjustments } from "@/types/text-adjustments";
 
@@ -31,6 +32,8 @@ export interface ScenePainter {
   /** Forget the drawn text so the next render lays it out again (after a font loads). */
   invalidateText(): void;
   resize(width: number, height: number): void;
+  /** Zooms and pans what the stage shows; the frame itself, and captures of it, are unchanged. */
+  setView(view: ViewState): void;
   /** Number of clip nodes currently on the stage (for the debug panel). */
   nodeCount(): number;
   destroy(): void;
@@ -115,8 +118,10 @@ export function createScenePainter({
 
   const nodes = new Map<string, ClipNodes>();
 
+  let view: ViewState = DEFAULT_VIEW;
+
   function fit(width: number, height: number) {
-    const placement = fitFrame(width, height, frame.width, frame.height);
+    const placement = viewFit({ width, height, frameWidth: frame.width, frameHeight: frame.height }, view);
     stage.size({ width, height });
     stage.scale({ x: placement.scale, y: placement.scale });
     stage.position({ x: placement.x, y: placement.y });
@@ -380,6 +385,12 @@ export function createScenePainter({
     resize(width, height) {
       if (width <= 0 || height <= 0) return;
       fit(width, height);
+      layer.batchDraw();
+    },
+
+    setView(next) {
+      view = next;
+      fit(stage.width(), stage.height());
       layer.batchDraw();
     },
 

@@ -8,7 +8,10 @@ import { TextEditOverlay } from "@/components/studio/text-edit-overlay";
 import { useElementSize } from "@/hooks/use-element-size";
 import { patchTextAdjustments } from "@/lib/editor/ops";
 import { stageBoxes } from "@/lib/editor/stage";
-import { fitFrame } from "@/lib/playback/scene";
+import { StageViewControls } from "@/components/studio/stage-view-controls";
+import { useStageGestures } from "@/components/studio/use-stage-gestures";
+import { viewFit } from "@/lib/editor/view";
+import { useStageViewStore } from "@/store/use-stage-view-store";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 import { useTransportStore } from "@/store/use-transport-store";
@@ -35,7 +38,20 @@ export function StudioStage({ containerRef, frame, onGestureStart }: StudioStage
     ? project.clips.find((c) => c.id === editingId)?.adjustments.text
     : undefined;
   if (editingId && !editingBox) setEditingId(null);
-  const fit = frame ? fitFrame(size.width, size.height, frame.width, frame.height) : null;
+  const view = useStageViewStore((s) => s.view);
+  const geometry = {
+    width: size.width,
+    height: size.height,
+    frameWidth: frame?.width ?? 1,
+    frameHeight: frame?.height ?? 1,
+  };
+  const fit = frame ? viewFit(geometry, view) : null;
+  useStageGestures(sizeRef, geometry);
+  // A project always opens at the fit.
+  React.useEffect(() => {
+    useStageViewStore.getState().reset();
+    return () => useStageViewStore.getState().reset();
+  }, []);
 
   return (
     <div
@@ -45,6 +61,7 @@ export function StudioStage({ containerRef, frame, onGestureStart }: StudioStage
     >
       <div ref={containerRef} className="absolute inset-0" />
       {frame && <SelectionToolbar />}
+      {frame && size.width > 0 && <StageViewControls geometry={geometry} />}
       {frame && size.width > 0 && size.height > 0 && (
         <div className="absolute inset-0 z-10">
           <StageInteraction

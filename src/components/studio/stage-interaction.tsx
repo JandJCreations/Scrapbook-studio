@@ -8,7 +8,8 @@ import { AlignmentGuidesLayer } from "@/components/canvas/alignment-guides-layer
 import type { GuideLine } from "@/lib/canvas/alignment";
 import { applyStagePatches } from "@/lib/editor/stage-patches";
 import { MIN_BOX_SIZE, nodeToTransform, snapMove, type StageBox } from "@/lib/editor/stage";
-import { fitFrame } from "@/lib/playback/scene";
+import { viewFit } from "@/lib/editor/view";
+import { useStageViewStore } from "@/store/use-stage-view-store";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { nextSelection } from "@/lib/timeline-ui/interactions";
 import { useClipProjectStore } from "@/store/use-clip-project-store";
@@ -43,7 +44,8 @@ export function StageInteraction({
   onEditText,
   onGestureStart,
 }: StageInteractionProps) {
-  const fit = fitFrame(width, height, frame.width, frame.height);
+  const view = useStageViewStore((s) => s.view);
+  const fit = viewFit({ width, height, frameWidth: frame.width, frameHeight: frame.height }, view);
   const transformerRef = React.useRef<Konva.Transformer>(null);
   const nodes = React.useRef(new Map<string, Konva.Rect>());
   // Patches for every clip in the gesture. previewApply recomputes from the
