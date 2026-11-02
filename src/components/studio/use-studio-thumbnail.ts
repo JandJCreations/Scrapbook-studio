@@ -46,6 +46,8 @@ export function useStudioThumbnail({ enabled, frame, urlFor, saveThumbnail, rend
   React.useEffect(() => {
     if (!enabled) opened.current = null;
     else if (opened.current === null) opened.current = { project, hadThumbnail: hasThumbnail ?? false };
+    // Once edited, the saved thumbnail shows an edit: coming back to the opened state (undo) needs a new one.
+    else if (opened.current.project !== project) opened.current.hadThumbnail = false;
   });
 
   React.useEffect(() => {

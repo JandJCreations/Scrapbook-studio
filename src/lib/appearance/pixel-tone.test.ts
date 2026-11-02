@@ -56,6 +56,18 @@ describe("applySharpness", () => {
     expect(Array.from(data.slice(0, 4))).toEqual([100, 100, 100, 255]);
   });
 
+  it("does not draw a bright ring where the picture meets transparent pixels", () => {
+    // A 3x3 picture: opaque flat grey in the middle column, fully transparent (rgb 0) on the left.
+    const data = new Uint8ClampedArray(3 * 3 * 4);
+    for (let y = 0; y < 3; y++) {
+      data.set([0, 0, 0, 0], (y * 3 + 0) * 4);
+      data.set([100, 100, 100, 255], (y * 3 + 1) * 4);
+      data.set([100, 100, 100, 255], (y * 3 + 2) * 4);
+    }
+    applySharpness(data, 3, 3, 100);
+    expect(data[(1 * 3 + 1) * 4]).toBe(100); // the centre next to the transparent column is unchanged
+  });
+
   it("does not move a flat area", () => {
     const flat = new Uint8ClampedArray(5 * 5 * 4).fill(90);
     applySharpness(flat, 5, 5, 100);

@@ -125,6 +125,12 @@ describe("SelectionToolbar group buttons in mixed selections", () => {
     expect(new Set(clips().map((c) => c.groupId)).size).toBe(1);
   });
 
+  it("does not offer Group for a whole group plus a locked clip outside it", () => {
+    loadClips(grouped("a", "g"), grouped("b", "g"), grouped("c", null, true));
+    render(<SelectionToolbar />);
+    expect(screen.queryByRole("button", { name: "Group" })).toBeNull();
+  });
+
   it("offers only Ungroup when the whole selection is one group, and no Group when too few can be grouped", () => {
     loadClips(grouped("a", "g"), grouped("b", "g"));
     const view = render(<SelectionToolbar />);

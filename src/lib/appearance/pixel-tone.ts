@@ -31,18 +31,29 @@ export function applyShadows(data: Uint8ClampedArray, amount: number): void {
   shift(data, amount * 0.6, (l) => (1 - l) * (1 - l));
 }
 
-/** A 3x3 sharpen blended in by `amount` (0..100); the one-pixel border is left as it was. */
+/**
+ * A 3x3 sharpen blended in by `amount` (0..100); the one-pixel border is left as
+ * it was. A fully transparent neighbour counts as the pixel itself (its colour is
+ * not real), so the edge of a rounded corner or a cut-out picture gets no bright ring.
+ */
 export function applySharpness(data: Uint8ClampedArray, width: number, height: number, amount: number): void {
   if (amount <= 0) return;
   const mix = Math.min(1, amount / 100);
   const source = new Uint8ClampedArray(data);
+  const row = width * 4;
   for (let y = 1; y < height - 1; y++) {
     for (let x = 1; x < width - 1; x++) {
+      const here = (y * width + x) * 4;
+      if (source[here + 3] === 0) continue;
+      const up = source[here - row + 3] === 0 ? here : here - row;
+      const down = source[here + row + 3] === 0 ? here : here + row;
+      const left = source[here - 4 + 3] === 0 ? here : here - 4;
+      const right = source[here + 4 + 3] === 0 ? here : here + 4;
       for (let channel = 0; channel < 3; channel++) {
-        const at = (px: number, py: number) => source[(py * width + px) * 4 + channel];
+        const centre = source[here + channel];
         const sharp =
-          5 * at(x, y) - at(x, y - 1) - at(x, y + 1) - at(x - 1, y) - at(x + 1, y);
-        data[(y * width + x) * 4 + channel] = at(x, y) * (1 - mix) + sharp * mix;
+          5 * centre - source[up + channel] - source[down + channel] - source[left + channel] - source[right + channel];
+        data[here + channel] = centre * (1 - mix) + sharp * mix;
       }
     }
   }

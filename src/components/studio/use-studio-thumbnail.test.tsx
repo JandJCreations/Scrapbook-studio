@@ -168,6 +168,20 @@ describe("useStudioThumbnail when the project already has one", () => {
     expect(saveThumbnail).toHaveBeenCalledTimes(1);
   });
 
+  it("makes a new one after an edit is undone, since the saved one showed the edit", async () => {
+    const saveThumbnail = vi.fn(async () => {});
+    act(() => useClipProjectStore.getState().load(withContent()));
+    renderHook(() =>
+      useStudioThumbnail({ enabled: true, frame, urlFor: () => null, saveThumbnail, renderThumbnail: async () => "data:x", hasThumbnail: true }),
+    );
+    act(() => useClipProjectStore.getState().apply((p) => ({ ...p, clips: [...p.clips, makeClip({ id: "b", trackId: "t1", start: 9 })] })));
+    await settle();
+    expect(saveThumbnail).toHaveBeenCalledTimes(1);
+    act(() => useClipProjectStore.getState().undo());
+    await settle();
+    expect(saveThumbnail).toHaveBeenCalledTimes(2);
+  });
+
   it("still makes the first one for a project that has none", async () => {
     const saveThumbnail = vi.fn(async () => {});
     act(() => useClipProjectStore.getState().load(withContent()));

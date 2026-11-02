@@ -24,7 +24,7 @@ export function SelectionToolbar() {
   // Group needs two clips that can be grouped, and is pointless if they are already one group together.
   const usable = selected.filter((clip) => !isClipLocked(project, clip));
   const oneGroupAlone =
-    selected.every((clip) => clip.groupId !== null) && new Set(selected.map((clip) => clip.groupId)).size === 1;
+    usable.every((clip) => clip.groupId !== null) && new Set(usable.map((clip) => clip.groupId)).size === 1;
   const canGroup = usable.length >= 2 && !oneGroupAlone;
 
   function duplicate() {

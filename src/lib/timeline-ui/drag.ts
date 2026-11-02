@@ -57,24 +57,43 @@ const unchanged = (project: TimelineProject): DragResult => ({ project, guide: n
 
 /**
  * Moves a clip, and with it the rest of its group: every other unlocked member
- * shifts by the same amount of time, staying on its own track (never before 0).
+ * on a free track shifts by the same amount of time, staying on its own track.
+ * Members on the main track stay put (it packs clips end to end, so a time shift
+ * would reorder it), the group never moves past the start (it stops together,
+ * keeping its spacing), and the clip does not snap to the edges of its own group.
  */
 export function computeMove(project: TimelineProject, input: MoveInput): DragResult {
-  const result = computeSingleMove(project, input);
   const clip = findClip(project, input.clipId);
-  const landed = findClip(result.project, input.clipId);
-  if (!clip || !landed || clip.groupId === null || result.project === project) return result;
-  const shift = landed.start - clip.start;
-  if (shift === 0) return result;
-  let next = result.project;
-  for (const mate of project.clips) {
-    if (mate.id === clip.id || mate.groupId !== clip.groupId) continue;
-    next = moveClip(next, mate.id, { start: Math.max(0, mate.start + shift) });
+  if (!clip) return unchanged(project);
+  const members = clip.groupId === null ? [clip] : project.clips.filter((c) => c.groupId === clip.groupId);
+  const memberIds = members.map((c) => c.id);
+  const mates = members.filter((mate) => {
+    if (mate.id === clip.id || isClipLocked(project, mate)) return false;
+    const track = findTrack(project, mate.trackId);
+    return track !== undefined && !isMagnetic(track);
+  });
+
+  let result = computeSingleMove(project, input, memberIds);
+  let landed = findClip(result.project, input.clipId);
+  if (mates.length === 0 || !landed || result.project === project) return result;
+
+  let shift = landed.start - clip.start;
+  const floor = -Math.min(...mates.map((mate) => mate.start));
+  if (shift < floor) {
+    // A member would go before the start: stop the whole group there instead.
+    result = computeSingleMove(project, { ...input, pointerTime: input.pointerTime + (floor - shift) }, memberIds);
+    landed = findClip(result.project, input.clipId);
+    if (!landed) return result;
+    shift = landed.start - clip.start;
   }
+  if (shift === 0) return result;
+
+  let next = result.project;
+  for (const mate of mates) next = moveClip(next, mate.id, { start: Math.max(0, mate.start + shift) });
   return { ...result, project: next };
 }
 
-function computeSingleMove(project: TimelineProject, input: MoveInput): DragResult {
+function computeSingleMove(project: TimelineProject, input: MoveInput, snapExclude: string[]): DragResult {
   const clip = findClip(project, input.clipId);
   if (!clip || isClipLocked(project, clip)) return unchanged(project);
 
@@ -106,7 +125,7 @@ function computeSingleMove(project: TimelineProject, input: MoveInput): DragResu
     return { project: next, guide: landed ? { kind: "insert", time: landed.start } : null };
   }
 
-  const targets = collectSnapTargets(working, [clip.id], input.playhead);
+  const targets = collectSnapTargets(working, snapExclude, input.playhead);
   const snapped = snapClipStart(
     desired,
     clipDuration(clip),
