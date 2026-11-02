@@ -23,89 +23,71 @@ const item = (overrides: Partial<MediaItem>): MediaItem => ({
   ...overrides,
 });
 
+const panel = (items: MediaItem[], extra: Partial<React.ComponentProps<typeof StudioMediaPanel>> = {}) =>
+  render(<StudioMediaPanel items={items} loading={false} onAdd={vi.fn()} onAddMany={vi.fn()} {...extra} />);
+
 describe("StudioMediaPanel", () => {
-  it("adds a photo to the sequence or as an overlay", () => {
+  it("adds one photo to the video", () => {
     const onAdd = vi.fn();
     const photo = item({});
-    render(<StudioMediaPanel items={[photo]} loading={false} onAdd={onAdd} />);
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach as an overlay" }));
-    expect(onAdd).toHaveBeenNthCalledWith(1, photo, "sequence");
-    expect(onAdd).toHaveBeenNthCalledWith(2, photo, "overlay");
+    panel([photo], { onAdd });
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    expect(onAdd).toHaveBeenCalledWith(photo);
   });
 
-  it("offers a single Add for music", () => {
-    const onAdd = vi.fn();
-    const song = item({ id: "s1", name: "Song", type: "audio", mimeType: "audio/mpeg", duration: 30 });
-    render(<StudioMediaPanel items={[song]} loading={false} onAdd={onAdd} />);
-    expect(screen.queryByRole("button", { name: /overlay/i })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Add Song as music" }));
-    expect(onAdd).toHaveBeenCalledWith(song, "sequence");
+  it("shows photos and videos, but not songs, and skips files that are not ready", () => {
+    panel([
+      item({ id: "a", name: "Beach" }),
+      item({ id: "b", name: "Clip", type: "video" }),
+      item({ id: "c", name: "Song", type: "audio" }),
+      item({ id: "d", name: "Uploading", status: "processing" }),
+    ]);
+    expect(screen.getByText("Beach")).toBeTruthy();
+    expect(screen.getByText("Clip")).toBeTruthy();
+    expect(screen.queryByText("Song")).toBeNull();
+    expect(screen.queryByText("Uploading")).toBeNull();
   });
 
-  it("leaves out items that are not ready yet", () => {
-    render(
-      <StudioMediaPanel
-        items={[item({ id: "a", name: "Ready" }), item({ id: "b", name: "Busy", status: "processing" })]}
-        loading={false}
-        onAdd={vi.fn()}
-      />,
-    );
-    expect(screen.queryByText("Busy")).toBeNull();
-    expect(screen.getByText("Ready")).toBeTruthy();
+  it("explains an empty library, and a loading one", () => {
+    const view = panel([]);
+    expect(screen.getByText(/import some/i)).toBeTruthy();
+    view.unmount();
+    render(<StudioMediaPanel items={[]} loading onAdd={vi.fn()} onAddMany={vi.fn()} />);
+    expect(screen.getByText(/loading your media/i)).toBeTruthy();
   });
 
-  it("explains an empty library and offers upload", () => {
+  it("offers import only where the environment allows it, and hands over the chosen files", () => {
+    const view = panel([]);
+    expect(screen.queryByText("Import")).toBeNull();
+    view.unmount();
     const onUpload = vi.fn();
-    render(<StudioMediaPanel items={[]} loading={false} onAdd={vi.fn()} onUpload={onUpload} />);
-    expect(screen.getByText(/no media yet/i)).toBeTruthy();
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const { container } = panel([], { onUpload });
+    const input = container.querySelector("input[type=file]") as HTMLInputElement;
     const file = new File(["x"], "a.jpg", { type: "image/jpeg" });
     fireEvent.change(input, { target: { files: [file] } });
     expect(onUpload).toHaveBeenCalledWith([file]);
   });
 
-  it("says it is loading while the library loads", () => {
-    render(<StudioMediaPanel items={[]} loading onAdd={vi.fn()} />);
-    expect(screen.getByText(/loading your media/i)).toBeTruthy();
-  });
-
-  it("selects several items and adds them together, in the order of the list", () => {
+  it("ticks several and adds them together in the order of the list, then clears", () => {
     const onAddMany = vi.fn();
     const a = item({ id: "a", name: "Beach" });
     const b = item({ id: "b", name: "Forest" });
     const c = item({ id: "c", name: "Lake" });
-    render(<StudioMediaPanel items={[a, b, c]} loading={false} onAdd={vi.fn()} onAddMany={onAddMany} />);
-    expect(screen.queryByRole("button", { name: /^Add d+ / })).toBeNull();
+    panel([a, b, c], { onAddMany });
+    expect(screen.queryByRole("button", { name: /^Add \d+ / })).toBeNull();
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Lake" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the sequence" }));
-    expect(onAddMany).toHaveBeenCalledWith([a, c], "sequence");
-    // The selection is spent once added.
-    expect(screen.queryByRole("button", { name: /^Add d+ / })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the video" }));
+    expect(onAddMany).toHaveBeenCalledWith([a, c]);
+    expect(screen.queryByRole("button", { name: /^Add \d+ / })).toBeNull();
   });
 
-  it("adds the selection as overlays, and can be cleared", () => {
+  it("can clear a selection without adding", () => {
     const onAddMany = vi.fn();
-    const a = item({ id: "a", name: "Beach" });
-    const b = item({ id: "b", name: "Forest" });
-    render(<StudioMediaPanel items={[a, b]} loading={false} onAdd={vi.fn()} onAddMany={onAddMany} />);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add 2 as overlays" }));
-    expect(onAddMany).toHaveBeenCalledWith([a, b], "overlay");
+    panel([item({ id: "a", name: "Beach" })], { onAddMany });
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
     fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
-    expect(screen.queryByRole("button", { name: /^Add d+ / })).toBeNull();
-  });
-
-  it("offers a picture as a sticker, but not a video or a song", () => {
-    const onAddSticker = vi.fn();
-    const photo = item({ id: "p", name: "Beach" });
-    const clip = item({ id: "v", name: "Clip", type: "video" });
-    render(<StudioMediaPanel items={[photo, clip]} loading={false} onAdd={vi.fn()} onAddSticker={onAddSticker} />);
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach as a sticker" }));
-    expect(onAddSticker).toHaveBeenCalledWith(photo);
-    expect(screen.queryByRole("button", { name: "Add Clip as a sticker" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Add \d+ / })).toBeNull();
+    expect(onAddMany).not.toHaveBeenCalled();
   });
 });

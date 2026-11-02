@@ -22,7 +22,6 @@ import {
   ZOOM_DEFAULT,
   zoomAround,
 } from "@/lib/timeline-ui/geometry";
-import { dropGroupOf } from "@/lib/timeline/groups";
 import { commandForKey, nextSelection } from "@/lib/timeline-ui/interactions";
 import { viewWindow } from "@/lib/timeline-ui/visuals";
 import {
@@ -504,16 +503,11 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals }: TimelineView
       if (!(event.shiftKey || event.ctrlKey || event.metaKey)) store.setSelectedClipIds([]);
       return;
     }
-    const clicked = chipEl.dataset.clipId;
-    const next = nextSelection(store.selectedClipIds, clicked, {
-      shift: event.shiftKey,
-      ctrl: event.ctrlKey || event.metaKey,
-    });
-    // Toggling a grouped clip off takes its whole group off.
     store.setSelectedClipIds(
-      store.selectedClipIds.includes(clicked) && !next.includes(clicked)
-        ? dropGroupOf(selectProject(store), next, clicked)
-        : next,
+      nextSelection(store.selectedClipIds, chipEl.dataset.clipId, {
+        shift: event.shiftKey,
+        ctrl: event.ctrlKey || event.metaKey,
+      }),
     );
   };
 

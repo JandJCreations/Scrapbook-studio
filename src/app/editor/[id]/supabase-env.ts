@@ -3,9 +3,6 @@
 import * as React from "react";
 
 import type { StudioEnv } from "@/components/studio/studio-env";
-import { createCustomFontService } from "@/lib/fonts/custom-font-service";
-import type { CustomFont } from "@/lib/fonts/custom-fonts";
-import { createSupabaseFontStore, loadBrowserFontFace } from "@/lib/fonts/supabase-font-store";
 import { createClient } from "@/lib/supabase/client";
 import { createMediaUrlStore, type MediaUrlStore } from "@/lib/sync/media-url-store";
 import { saveProjectFrameChecked } from "@/lib/sync/project-frame";
@@ -24,38 +21,6 @@ const saveFrame = (projectId: string, frame: { width: number; height: number }) 
  */
 export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null; missing: boolean } {
   const storage = React.useMemo(() => createSupabaseTimelineStorage(createClient()), []);
-
-  const fontService = React.useMemo(
-    () =>
-      createCustomFontService({
-        store: createSupabaseFontStore(createClient()),
-        loadFace: loadBrowserFontFace,
-        newId: () => crypto.randomUUID(),
-      }),
-    [],
-  );
-  const [fonts, setFonts] = React.useState<CustomFont[]>([]);
-  React.useEffect(() => {
-    let alive = true;
-    fontService
-      .list()
-      .then((list) => {
-        if (alive) setFonts(list);
-      })
-      .catch(() => {
-        // No fonts of their own this time; text in them falls back until the next visit.
-      });
-    return () => {
-      alive = false;
-    };
-  }, [fontService]);
-  const addFont = React.useCallback(
-    async (file: File) => {
-      const font = await fontService.add(file);
-      setFonts((current) => [font, ...current]);
-    },
-    [fontService],
-  );
 
   const [media, setMedia] = React.useState<MediaUrlStore | null>(null);
   React.useEffect(() => {
@@ -97,7 +62,6 @@ export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null
       backHref: "/dashboard",
       welcomeTour: true,
       hasThumbnail,
-      customFonts: { fonts, add: addFont },
       storage,
       media,
       library,
@@ -108,7 +72,7 @@ export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null
         useMediaStore.getState().addFiles(files, null);
       },
     };
-  }, [media, projectName, hasThumbnail, projectId, storage, library, libraryLoading, fonts, addFont]);
+  }, [media, projectName, hasThumbnail, projectId, storage, library, libraryLoading]);
 
   return { env, missing: projectsLoaded && projectName === undefined };
 }

@@ -9,19 +9,19 @@ import type { MediaItem } from "@/types/media";
 interface StudioMediaPanelProps {
   items: MediaItem[];
   loading: boolean;
-  onAdd(item: MediaItem, mode: "sequence" | "overlay"): void;
-  /** Present where several items may be ticked and added together. */
-  onAddMany?(items: MediaItem[], mode: "sequence" | "overlay"): void;
-  /** Present where a picture may be added as a sticker. */
-  onAddSticker?(item: MediaItem): void;
+  /** Puts one photo or video at the end of the video. */
+  onAdd(item: MediaItem): void;
+  /** Puts several, in the order of the list. */
+  onAddMany(items: MediaItem[]): void;
   onUpload?(files: File[]): void;
 }
 
-export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onAddSticker, onUpload }: StudioMediaPanelProps) {
-  const ready = items.filter((item) => item.status === "ready");
+/** The user's photos and videos: tick any number and add them to the end of the video. */
+export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onUpload }: StudioMediaPanelProps) {
+  const pictures = items.filter((item) => item.status === "ready" && item.type !== "audio");
   const [ticked, setTicked] = React.useState<Set<string>>(new Set());
   // In the order of the list, whatever order they were ticked in; items that went away drop out.
-  const chosen = ready.filter((item) => ticked.has(item.id));
+  const chosen = pictures.filter((item) => ticked.has(item.id));
   const toggle = (id: string) =>
     setTicked((current) => {
       const next = new Set(current);
@@ -33,7 +33,7 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onAddSticke
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
       {onUpload && (
         <label className="block text-xs text-muted-foreground">
-          <span className="mb-1 block font-medium text-foreground">Upload</span>
+          <span className="mb-1 block font-medium text-foreground">Import</span>
           <input
             type="file"
             multiple
@@ -48,33 +48,23 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onAddSticke
         </label>
       )}
 
-      {ready.length === 0 && (
+      {pictures.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          {loading ? "Loading your media…" : "No media yet. Upload photos, videos or music to start."}
+          {loading ? "Loading your media…" : "No photos or videos yet. Import some to start."}
         </p>
       )}
 
-      {onAddMany && chosen.length > 0 && (
+      {chosen.length > 0 && (
         <div className="flex flex-wrap items-center gap-1 rounded-md border bg-muted/40 p-2">
           <Button
             size="xs"
             variant="secondary"
             onClick={() => {
-              onAddMany(chosen, "sequence");
+              onAddMany(chosen);
               setTicked(new Set());
             }}
           >
-            Add {chosen.length} to the sequence
-          </Button>
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={() => {
-              onAddMany(chosen, "overlay");
-              setTicked(new Set());
-            }}
-          >
-            Add {chosen.length} as overlays
+            Add {chosen.length} to the video
           </Button>
           <Button size="xs" variant="ghost" onClick={() => setTicked(new Set())}>
             Clear selection
@@ -82,60 +72,25 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onAddSticke
         </div>
       )}
 
-      <ul className="flex flex-col gap-2">
-        {ready.map((item) => (
-          <li key={item.id} className="flex items-center gap-2 rounded-md border p-2">
-            {onAddMany && (
-              <input
-                type="checkbox"
-                aria-label={`Select ${item.name}`}
-                checked={ticked.has(item.id)}
-                onChange={() => toggle(item.id)}
-              />
-            )}
-            <MediaThumbnail item={item} className="size-12 shrink-0 rounded" />
-            <span className="min-w-0 flex-1 truncate text-sm" title={item.name}>
-              {item.name}
-            </span>
-            {item.type === "audio" ? (
-              <Button
-                size="xs"
-                variant="secondary"
-                aria-label={`Add ${item.name} as music`}
-                onClick={() => onAdd(item, "sequence")}
-              >
+      <ul className="grid grid-cols-2 gap-2">
+        {pictures.map((item) => (
+          <li key={item.id} className="relative overflow-hidden rounded-md border">
+            <MediaThumbnail item={item} className="aspect-square w-full" />
+            <input
+              type="checkbox"
+              aria-label={`Select ${item.name}`}
+              checked={ticked.has(item.id)}
+              onChange={() => toggle(item.id)}
+              className="absolute left-1.5 top-1.5 size-4"
+            />
+            <div className="flex items-center gap-1 p-1">
+              <span className="min-w-0 flex-1 truncate text-[11px]" title={item.name}>
+                {item.name}
+              </span>
+              <Button size="xs" variant="secondary" aria-label={`Add ${item.name} to the video`} onClick={() => onAdd(item)}>
                 Add
               </Button>
-            ) : (
-              <span className="flex gap-1">
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  aria-label={`Add ${item.name} to the sequence`}
-                  onClick={() => onAdd(item, "sequence")}
-                >
-                  Add
-                </Button>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  aria-label={`Add ${item.name} as an overlay`}
-                  onClick={() => onAdd(item, "overlay")}
-                >
-                  Overlay
-                </Button>
-                {item.type === "image" && onAddSticker && (
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    aria-label={`Add ${item.name} as a sticker`}
-                    onClick={() => onAddSticker(item)}
-                  >
-                    Sticker
-                  </Button>
-                )}
-              </span>
-            )}
+            </div>
           </li>
         ))}
       </ul>

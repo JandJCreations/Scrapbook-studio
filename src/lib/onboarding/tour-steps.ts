@@ -3,10 +3,9 @@ import {
   Download,
   ImagePlus,
   type LucideIcon,
-  MousePointerClick,
+  Music,
+  Play,
   Sparkles,
-  Sticker,
-  Type,
 } from "lucide-react";
 
 export interface TourStep {
@@ -22,53 +21,43 @@ export interface TourStep {
 export const TOUR_STEPS: TourStep[] = [
   {
     icon: Sparkles,
-    title: "Welcome to Scrapbook Studio",
+    title: "Make a video from your photos and clips",
     description:
-      "Here's a quick, skippable look around before you start. Each step points at the real button.",
+      "Here's a quick, skippable look around. Pick your photos and videos, choose some music, and export a finished video.",
   },
   {
     icon: ImagePlus,
-    title: "Add your photos and video",
+    title: "Add your photos and videos",
     description:
-      "Your uploads live in the Media tab. Add puts a photo or video on the main track; Overlay lays it on top, like a collage piece.",
+      "Import your files in the Media tab, then press Add. Tick several to add them all at once. They play one after another, in order.",
     targetSelector: "tab-media",
     mobileTargetSelector: "tools-button",
   },
   {
-    icon: Sticker,
-    title: "Stickers, music and templates",
+    icon: Music,
+    title: "Choose your music",
     description:
-      "The Assets tab has stickers, frames, washi tape, papers, a music library, and templates to start from.",
-    targetSelector: "tab-assets",
+      "The Audio tab has your own songs and a built-in music library. Preview a track, then add it. It is cut to fit the length of your video.",
+    targetSelector: "tab-audio",
     mobileTargetSelector: "tools-button",
   },
   {
-    icon: Type,
-    title: "Add text",
-    description:
-      "Add text from the Text tab, then double-click it on the stage to type. The panel changes the font, colour, curve and more.",
-    targetSelector: "tab-text",
-    mobileTargetSelector: "tools-button",
-  },
-  {
-    icon: MousePointerClick,
-    title: "Arrange anything",
-    description:
-      "Click something on the stage to select it, then drag to move it, pull the corners to resize, or use the handle above to turn it.",
+    icon: Play,
+    title: "Watch it play",
+    description: "The preview shows your video exactly as it will export. Press Space or the play button to watch it through.",
     targetSelector: "stage",
   },
   {
     icon: Clapperboard,
     title: "Your timeline",
     description:
-      "Every layer is a row. Drag clips to move them, drag their edges to trim, and press Space to play. Undo is always there.",
+      "Drag clips to reorder them, drag their edges to trim, and use Split, Duplicate and Delete above it. Click a clip to change how long it shows, its colours or its sound.",
     targetSelector: "timeline",
   },
   {
     icon: Download,
     title: "Export when you're ready",
-    description:
-      "Save your project as a picture, GIF or video, in whatever size fits where you're sharing it.",
+    description: "Save your video in the size that fits where you're sharing it.",
     targetSelector: "export-button",
   },
 ];

@@ -10,7 +10,6 @@ import {
   undo,
   type HistoryState,
 } from "@/lib/timeline/history";
-import { expandToGroups } from "@/lib/timeline/groups";
 import type { TimelineProject } from "@/types/timeline";
 
 export const EMPTY_PROJECT: TimelineProject = { id: "", tracks: [], clips: [] };
@@ -60,8 +59,7 @@ export const useClipProjectStore = create<ClipProjectStore>((set) => ({
   cancelGesture: () => set((s) => withHistory(s, cancelGesture(s.history))),
   undo: () => set((s) => withHistory(s, undo(s.history))),
   redo: () => set((s) => withHistory(s, redo(s.history))),
-  // Selecting any clip of a group selects the whole group, wherever the selection came from.
-  setSelectedClipIds: (ids) => set((s) => ({ selectedClipIds: expandToGroups(s.history.present, ids) })),
+  setSelectedClipIds: (ids) => set({ selectedClipIds: ids }),
 }));
 
 export const selectProject = (s: ClipProjectStore) => s.history.present;

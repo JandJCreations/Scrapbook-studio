@@ -1,5 +1,3 @@
-import { isCustomFontFamily, whenCustomFontReady } from "@/lib/fonts/custom-fonts";
-
 const loadedFonts = new Set<string>();
 
 /** Resolves when the stylesheet has loaded (or failed, or taken too long to matter). */
@@ -13,8 +11,6 @@ function stylesheetSettled(link: HTMLLinkElement): Promise<void> {
 }
 
 export function loadGoogleFont(family: string): Promise<void> {
-  // The user's own fonts are not on Google: they are registered by the environment.
-  if (isCustomFontFamily(family)) return whenCustomFontReady(family);
   if (family === "Inter" || loadedFonts.has(family)) {
     return Promise.resolve();
   }

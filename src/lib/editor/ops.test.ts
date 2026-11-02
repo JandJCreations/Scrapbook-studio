@@ -7,6 +7,7 @@ import {
   addSticker,
   addText,
   addToSequence,
+  fitMusicToVideo,
   OVERLAY_SCALE,
   patchAudio,
   patchFades,
@@ -560,5 +561,29 @@ describe("patchFades", () => {
     expect(patchFades(project, clipId, {})).toBe(project);
     const locked = { ...project, clips: project.clips.map((c) => ({ ...c, locked: true })) };
     expect(patchFades(locked, clipId, { fadeIn: 1 })).toBe(locked);
+  });
+});
+
+describe("fitMusicToVideo", () => {
+  const photo = (name: string): EditorMedia => ({ mediaId: name, name, kind: "image", duration: 0, width: 1000, height: 1000 });
+  const song: EditorMedia = { mediaId: "song", name: "Song", kind: "audio", duration: 180, width: 0, height: 0 };
+
+  it("cuts a long song to the length of the video", () => {
+    const ids = seqIds("c");
+    let project = addToSequence(emptyTimeline("p"), photo("a"), frame, ids).project;
+    project = addToSequence(project, photo("b"), frame, ids).project;
+    const videoEnd = 2 * STILL_SECONDS;
+    const added = addAudioClip(project, song, frame, 0, ids);
+    const fitted = fitMusicToVideo(added.project, added.clipId);
+    expect(clipEnd(findClip(fitted, added.clipId)!)).toBeCloseTo(videoEnd);
+  });
+
+  it("leaves a song that is already shorter than the video, and an empty video, alone", () => {
+    const ids = seqIds("c");
+    const empty = addAudioClip(emptyTimeline("p"), song, frame, 0, ids);
+    expect(fitMusicToVideo(empty.project, empty.clipId)).toBe(empty.project);
+    const project = addToSequence(emptyTimeline("p"), photo("a"), frame, ids).project;
+    const short = addAudioClip(project, { ...song, duration: 1 }, frame, 0, ids);
+    expect(fitMusicToVideo(short.project, short.clipId)).toBe(short.project);
   });
 });

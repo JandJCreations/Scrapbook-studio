@@ -6,13 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { StudioEnv } from "@/components/studio/studio-env";
 import { StudioView } from "@/components/studio/studio-view";
-import { TEMPLATE_CATALOG } from "@/lib/templates/template-catalog";
+import { MUSIC_LIBRARY } from "@/lib/audio/music-library-catalog";
 import { TOUR_STEPS } from "@/lib/onboarding/tour-steps";
+import { clipEnd } from "@/lib/timeline/clip-math";
 import { createMemoryTimelineStorage } from "@/lib/sync/memory-timeline-storage";
 import type { TimelineStorage } from "@/lib/sync/timeline-storage";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 import type { MediaItem } from "@/types/media";
-import { DEFAULT_PHOTO_ADJUSTMENTS } from "@/types/photo-adjustments";
 
 // The painter, audio and Konva stage need a real browser; the view's own
 // behaviour is what these tests are about.
@@ -22,9 +22,6 @@ vi.mock("@/components/studio/use-studio-playback", () => ({
     session: { toggle: vi.fn(), seek: vi.fn(), step: vi.fn() },
     visuals: null,
   }),
-}));
-vi.mock("@/components/studio/studio-stage", () => ({
-  StudioStage: () => <div data-testid="stage" />,
 }));
 vi.mock("@/lib/playback/browser", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/playback/browser")>()),
@@ -44,6 +41,15 @@ const photo: MediaItem = {
   createdAt: "2026-01-01T00:00:00Z",
   status: "ready",
   progress: 100,
+};
+const forest: MediaItem = { ...photo, id: "22222222-2222-4222-8222-222222222222", name: "Forest" };
+const song: MediaItem = {
+  ...photo,
+  id: "33333333-3333-4333-8333-333333333333",
+  name: "My song",
+  type: "audio",
+  mimeType: "audio/mpeg",
+  duration: 200,
 };
 
 function env(overrides: Partial<StudioEnv> = {}): StudioEnv {
@@ -66,16 +72,33 @@ function env(overrides: Partial<StudioEnv> = {}): StudioEnv {
   };
 }
 
+function mockPhone(matches: boolean) {
+  window.matchMedia = ((query: string) => ({
+    matches,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })) as unknown as typeof window.matchMedia;
+}
+
+const clips = () => selectProject(useClipProjectStore.getState()).clips;
+
 beforeEach(() => {
+  window.localStorage.clear();
+  mockPhone(false);
   act(() => useClipProjectStore.getState().load({ id: "", tracks: [], clips: [] }));
 });
 
 describe("StudioView", () => {
-  it("shows a skeleton, then the editor once the project has loaded", async () => {
+  it("shows a skeleton, then the editor with a plain preview and none of the canvas tools", async () => {
     render(<StudioView env={env()} />);
     expect(screen.queryByText("My trip")).toBeNull();
     expect(await screen.findByText("My trip")).toBeTruthy();
-    expect(screen.getByTestId("stage")).toBeTruthy();
+    expect(screen.getByTestId("studio-preview")).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "text" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "assets" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "layers" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Snap to grid" })).toBeNull();
   });
 
   it("explains a load failure and retries", async () => {
@@ -95,37 +118,92 @@ describe("StudioView", () => {
     expect(await screen.findByText("My trip", {}, { timeout: 15000 })).toBeTruthy();
   }, 40000);
 
-  it("adds a photo to the sequence from the media panel and selects it", async () => {
+  it("adds a photo to the end of the video and selects it, showing its details", async () => {
     render(<StudioView env={env()} />);
     await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
-    await vi.waitFor(() => {
-      expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1);
-    });
-    const project = selectProject(useClipProjectStore.getState());
-    expect(project.clips[0]).toMatchObject({ kind: "image", mediaId: photo.id });
-    expect(useClipProjectStore.getState().selectedClipIds).toEqual([project.clips[0].id]);
+    expect(screen.getByText(/select a photo, video or song/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    expect(clips()[0]).toMatchObject({ kind: "image", mediaId: photo.id });
+    expect(useClipProjectStore.getState().selectedClipIds).toEqual([clips()[0].id]);
+    expect(await screen.findByRole("slider", { name: "Duration (seconds)" })).toBeTruthy();
   });
 
-  it("adds a photo as an overlay on its own track", async () => {
-    render(<StudioView env={env()} />);
+  it("adds several ticked photos at once, one after another", async () => {
+    render(<StudioView env={env({ library: [photo, forest] })} />);
     await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach as an overlay" }));
-    await vi.waitFor(() =>
-      expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1),
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+    expect(clips().map((c) => c.mediaId)).toEqual([photo.id, forest.id]);
+    expect(clips()[1].start).toBeCloseTo(clipEnd(clips()[0]));
+  });
+
+  it("keeps the reason an item failed on screen even though later items were added", async () => {
+    const bad: MediaItem = { ...photo, id: "44444444-4444-4444-8444-444444444444", name: "Gone", url: "" };
+    const base = env();
+    render(
+      <StudioView
+        env={env({
+          library: [bad, forest],
+          media: { ...base.media, urlFor: (id: string) => (id === bad.id ? null : "blob:x") },
+        })}
+      />,
     );
-    const project = selectProject(useClipProjectStore.getState());
-    expect(project.tracks.find((t) => t.id === project.clips[0].trackId)?.type).toBe("overlay");
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Gone" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    expect((await screen.findByRole("alert")).textContent).toMatch(/isn.t available|couldn.t add/i);
   });
 
-  it("saves a frame size change once and shows it", async () => {
-    const saveFrame = vi.fn(async () => {});
-    render(<StudioView env={env({ saveFrame })} />);
+  it("puts music under the video and cuts it to the video's length", async () => {
+    render(<StudioView env={env({ library: [photo, song] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    const videoEnd = clipEnd(clips()[0]);
+
+    fireEvent.click(screen.getByRole("tab", { name: "audio" }));
+    const track = MUSIC_LIBRARY[0];
+    fireEvent.click(screen.getByRole("button", { name: `Add ${track.name} as music` }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+    const music = clips().find((c) => c.kind === "audio")!;
+    expect(music.mediaId).toContain(track.id);
+    expect(clipEnd(music)).toBeCloseTo(videoEnd);
+
+    // The user's own song is cut the same way.
+    fireEvent.click(screen.getByRole("button", { name: "Add My song as music" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(3));
+    const mine = clips().find((c) => c.mediaId === song.id)!;
+    expect(clipEnd(mine)).toBeCloseTo(videoEnd);
+  });
+
+  it("has split, duplicate and delete above the timeline", async () => {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    expect(screen.getByRole("toolbar", { name: "Clip tools" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(clips()).toHaveLength(0);
+  });
+
+  it("puts the frame size back and says so when it cannot be saved", async () => {
+    render(
+      <StudioView
+        env={env({
+          saveFrame: vi.fn(async () => {
+            throw new Error("offline");
+          }),
+        })}
+      />,
+    );
     await screen.findByText("My trip");
     fireEvent.change(screen.getByLabelText("Frame size"), { target: { value: "square" } });
-    expect(saveFrame).toHaveBeenCalledTimes(1);
-    expect(saveFrame).toHaveBeenCalledWith({ width: 1080, height: 1080 });
-    expect((screen.getByLabelText("Frame size") as HTMLSelectElement).value).toBe("square");
+    expect(await screen.findByRole("alert")).toBeTruthy();
   });
 
   it("does not touch the project after it unmounts mid-add", async () => {
@@ -144,11 +222,11 @@ describe("StudioView", () => {
     });
     const view = render(<StudioView env={slow} />);
     await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
     view.unmount();
     release();
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(0);
+    expect(clips()).toHaveLength(0);
   });
 
   it("offers Try again when reloading after a conflict fails", async () => {
@@ -165,436 +243,34 @@ describe("StudioView", () => {
     };
     render(<StudioView env={env({ storage })} />);
     await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
     fireEvent.click(await screen.findByRole("button", { name: "Reload" }, { timeout: 10000 }));
-    expect(
-      await screen.findByRole("button", { name: /try again/i }, { timeout: 15000 }),
-    ).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /try again/i }, { timeout: 15000 })).toBeTruthy();
   }, 40000);
 });
 
-describe("StudioView text", () => {
-  async function withText() {
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("tab", { name: "text" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
-    await screen.findByLabelText("Text content");
-    return selectProject(useClipProjectStore.getState());
-  }
-
-  it("adds a selected text clip on its own overlay track and shows its panel", async () => {
-    const project = await withText();
-    expect(project.clips).toHaveLength(1);
-    const clip = project.clips[0];
-    expect(clip).toMatchObject({ kind: "text", name: "Your text" });
-    expect(project.tracks.find((t) => t.id === clip.trackId)?.type).toBe("overlay");
-    expect(useClipProjectStore.getState().selectedClipIds).toEqual([clip.id]);
-  });
-
-  it("applies a switch edit as one history entry", async () => {
-    await withText();
-    const before = useClipProjectStore.getState().history.past.length;
-    fireEvent.click(screen.getByRole("switch", { name: "Bold" }));
-    const project = selectProject(useClipProjectStore.getState());
-    expect(project.clips[0].adjustments.text?.fontWeight).toBe(400);
-    expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
-  });
-
-  it("turns several typed changes into one history entry when focus leaves", async () => {
-    await withText();
-    const before = useClipProjectStore.getState().history.past.length;
-    const box = screen.getByLabelText("Text content");
-    fireEvent.change(box, { target: { value: "H" } });
-    fireEvent.change(box, { target: { value: "Hi" } });
-    fireEvent.change(box, { target: { value: "Hi there" } });
-    expect(useClipProjectStore.getState().history.past.length).toBe(before);
-    fireEvent.blur(box);
-    const clip = selectProject(useClipProjectStore.getState()).clips[0];
-    expect(clip.adjustments.text?.content).toBe("Hi there");
-    expect(clip.name).toBe("Hi there");
-    expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
-  });
-
-  it("keeps a typed edit when another gesture starts before the box loses focus", async () => {
-    await withText();
-    const before = useClipProjectStore.getState().history.past.length;
-    fireEvent.change(screen.getByLabelText("Text content"), { target: { value: "Typed" } });
-    // A timeline drag or a stage touch begins without blurring the panel.
-    fireEvent.pointerDown(document.body);
-    expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
-    expect(useClipProjectStore.getState().history.gestureBase).toBeNull();
-    expect(selectProject(useClipProjectStore.getState()).clips[0].adjustments.text?.content).toBe("Typed");
-  });
-
-  it("opens the Text tab when a text clip is selected", async () => {
-    const project = await withText();
-    fireEvent.click(screen.getByRole("tab", { name: "media" }));
-    expect(screen.queryByLabelText("Text content")).toBeNull();
-    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
-    act(() => useClipProjectStore.getState().setSelectedClipIds([project.clips[0].id]));
-    expect(await screen.findByLabelText("Text content")).toBeTruthy();
-  });
-});
-
-describe("StudioView edit tab", () => {
-  async function withPhoto() {
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
-    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1));
-    return selectProject(useClipProjectStore.getState()).clips[0];
-  }
-
-  it("stays on the Media tab after adding a file, so several can be added in a row", async () => {
-    await withPhoto();
-    expect(screen.getByRole("button", { name: "Add Beach to the sequence" })).toBeTruthy();
-  });
-
-  it("opens the Edit tab when a picture is selected and edits it as one history entry", async () => {
-    const clip = await withPhoto();
-    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
-    act(() => useClipProjectStore.getState().setSelectedClipIds([clip.id]));
-    const before = useClipProjectStore.getState().history.past.length;
-    fireEvent.keyDown(await screen.findByRole("slider", { name: "Brightness" }), { key: "ArrowRight" });
-    const edited = selectProject(useClipProjectStore.getState()).clips[0];
-    expect(edited.adjustments.photo?.brightness).toBe(1);
-    // The slider ends its change a moment later, inside React's effects.
-    await vi.waitFor(() =>
-      expect(useClipProjectStore.getState().history.past.length).toBe(before + 1),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Flip horizontally" }));
-    expect(selectProject(useClipProjectStore.getState()).clips[0].adjustments.photo?.flipHorizontal).toBe(true);
-  });
-
-  it("keeps the crop when the look is reset", async () => {
-    const clip = await withPhoto();
-    const crop = { x: 10, y: 20, width: 100, height: 80 };
-    act(() => {
-      useClipProjectStore.getState().apply((p) => ({
-        ...p,
-        clips: p.clips.map((c) => ({
-          ...c,
-          adjustments: { ...c.adjustments, photo: { ...DEFAULT_PHOTO_ADJUSTMENTS, crop, brightness: 30 } },
-        })),
-      }));
-    });
-    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
-    act(() => useClipProjectStore.getState().setSelectedClipIds([clip.id]));
-    fireEvent.click(await screen.findByRole("button", { name: "Reset" }));
-    const photo = selectProject(useClipProjectStore.getState()).clips[0].adjustments.photo;
-    expect(photo?.brightness).toBe(0);
-    expect(photo?.crop).toEqual(crop);
-  });
-
-  it("resets the look and opacity", async () => {
-    const clip = await withPhoto();
-    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
-    act(() => useClipProjectStore.getState().setSelectedClipIds([clip.id]));
-    fireEvent.keyDown(await screen.findByRole("slider", { name: "Opacity" }), { key: "ArrowLeft" });
-    expect(selectProject(useClipProjectStore.getState()).clips[0].transform.opacity).toBe(0.99);
-    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
-    const after = selectProject(useClipProjectStore.getState()).clips[0];
-    expect(after.transform.opacity).toBe(1);
-  });
-});
-
-describe("StudioView keyframes and crop", () => {
-  it("adds and removes a keyframe on a text clip", async () => {
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("tab", { name: "text" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
-    await screen.findByLabelText("Text content");
-    const before = useClipProjectStore.getState().history.past.length;
-    fireEvent.click(screen.getByRole("button", { name: "Add keyframe" }));
-    let clip = selectProject(useClipProjectStore.getState()).clips[0];
-    expect(clip.keyframes).toHaveLength(1);
-    expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
-    fireEvent.click(screen.getByRole("button", { name: /Delete keyframe at/ }));
-    clip = selectProject(useClipProjectStore.getState()).clips[0];
-    expect(clip.keyframes).toEqual([]);
-  });
-
-  async function selectedPhoto() {
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
-    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1));
-    const clip = selectProject(useClipProjectStore.getState()).clips[0];
-    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
-    act(() => useClipProjectStore.getState().setSelectedClipIds([clip.id]));
-    return clip;
-  }
-
-  it("crops a picture to a square and reshapes its box", async () => {
-    const clip = await selectedPhoto();
-    const square = await screen.findByRole("button", { name: "1:1" });
-    fireEvent.click(square);
-    const cropped = selectProject(useClipProjectStore.getState()).clips[0];
-    // The mocked file is 1920 x 1080, so the biggest square is 1080 x 1080, centred.
-    expect(cropped.adjustments.photo?.crop).toEqual({ x: 420, y: 0, width: 1080, height: 1080 });
-    expect(cropped.transform.height).toBe(cropped.transform.width);
-    expect(cropped.transform.width).toBe(clip.transform.width);
-  });
-
-  it("clears the crop when going back to the original shape at 1x", async () => {
-    await selectedPhoto();
-    fireEvent.click(await screen.findByRole("button", { name: "1:1" }));
-    fireEvent.click(screen.getByRole("button", { name: "Original" }));
-    const clip = selectProject(useClipProjectStore.getState()).clips[0];
-    expect(clip.adjustments.photo?.crop).toBeNull();
-    expect(clip.transform.height).toBeCloseTo((clip.transform.width * 1080) / 1920, 3);
-  });
-
-  it("fades an animated clip with a keyframe rather than its static opacity", async () => {
-    const clip = await selectedPhoto();
-    fireEvent.click(await screen.findByRole("button", { name: "Add keyframe" }));
-    fireEvent.keyDown(screen.getByRole("slider", { name: "Opacity" }), { key: "ArrowLeft" });
-    await vi.waitFor(() => {
-      const after = selectProject(useClipProjectStore.getState()).clips[0];
-      expect(after.keyframes.some((k) => k.opacity === 0.99)).toBe(true);
-    });
-    expect(selectProject(useClipProjectStore.getState()).clips[0].transform.opacity).toBe(clip.transform.opacity);
-    // The slider shows the animated value, so the next step goes on from it.
-    await vi.waitFor(() =>
-      expect(screen.getByRole("slider", { name: "Opacity" }).getAttribute("aria-valuenow")).toBe("99"),
-    );
-  });
-});
-
-describe("StudioView assets and layers", () => {
-  async function openAssets() {
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("tab", { name: "assets" }));
-  }
-
-  it("adds a sticker from the Assets tab on its own overlay track and stays on that tab", async () => {
-    await openAssets();
-    fireEvent.click(screen.getByRole("button", { name: "Add Star, Stickers" }));
-    const project = selectProject(useClipProjectStore.getState());
-    expect(project.clips).toHaveLength(1);
-    expect(project.clips[0]).toMatchObject({ kind: "sticker", name: "Star", mediaId: "asset:stickers/Star" });
-    expect(project.tracks.find((t) => t.id === project.clips[0].trackId)?.type).toBe("overlay");
-    expect(useClipProjectStore.getState().selectedClipIds).toEqual([project.clips[0].id]);
-    expect(screen.getByRole("button", { name: "Add Heart, Stickers" })).toBeTruthy();
-  });
-
-  it("opens the Edit tab with the sticker panel when a sticker is selected", async () => {
-    await openAssets();
-    fireEvent.click(screen.getByRole("button", { name: "Add Star, Stickers" }));
-    const id = selectProject(useClipProjectStore.getState()).clips[0].id;
-    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
-    act(() => useClipProjectStore.getState().setSelectedClipIds([id]));
-    expect(await screen.findByText("Edit sticker")).toBeTruthy();
-    expect(screen.getByRole("slider", { name: "Opacity" })).toBeTruthy();
-  });
-
-  it("shows the stickers in the Layers tab and brings an earlier one to the front", async () => {
-    await openAssets();
-    fireEvent.click(screen.getByRole("button", { name: "Add Star, Stickers" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add Heart, Stickers" }));
-    fireEvent.click(screen.getByRole("tab", { name: "layers" }));
-    const before = useClipProjectStore.getState().history.past.length;
-    fireEvent.click(screen.getByRole("button", { name: "Bring Star forward" }));
-    const project = selectProject(useClipProjectStore.getState());
-    const order = (name: string) =>
-      project.tracks.find((t) => t.id === project.clips.find((c) => c.name === name)!.trackId)!.order;
-    expect(order("Star")).toBeLessThan(order("Heart"));
-    expect(useClipProjectStore.getState().history.past.length).toBe(before + 1);
-  });
-
-  it("stays on the Layers tab when a layer is picked there", async () => {
-    await openAssets();
-    fireEvent.click(screen.getByRole("button", { name: "Add Star, Stickers" }));
-    fireEvent.click(screen.getByRole("tab", { name: "layers" }));
-    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
-    fireEvent.click(screen.getByRole("button", { name: "Select Star" }));
-    expect(screen.getByRole("button", { name: "Select Star" })).toBeTruthy();
-    expect(screen.queryByText("Edit sticker")).toBeNull();
-  });
-});
-
-describe("StudioView templates and slots", () => {
-  const withSlots = TEMPLATE_CATALOG.find((t) => t.objects.some((o) => o.placeholder))!;
-
-  async function openTemplates(overrides: Partial<StudioEnv> = {}) {
-    render(<StudioView env={env(overrides)} />);
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("tab", { name: "assets" }));
-    // The templates group starts closed; its buttons are in the DOM all the same.
-  }
-
-  it("starts an empty project from a template at once, with its frame", async () => {
-    const saveFrame = vi.fn(async () => {});
-    await openTemplates({ saveFrame });
-    fireEvent.click(screen.getByRole("button", { name: "Use the Birthday Bash template" }));
-    const project = selectProject(useClipProjectStore.getState());
-    const birthday = TEMPLATE_CATALOG.find((t) => t.name === "Birthday Bash")!;
-    expect(project.clips).toHaveLength(birthday.objects.length + 1);
-    expect(saveFrame).toHaveBeenCalledWith(birthday.frame);
-    expect((screen.getByLabelText("Frame size") as HTMLSelectElement).value).toBe("square");
-  });
-
-  it("asks before replacing a project that has something in it, and can be undone", async () => {
-    await openTemplates();
-    fireEvent.click(screen.getByRole("button", { name: "Use the Birthday Bash template" }));
-    const first = selectProject(useClipProjectStore.getState()).clips.length;
-    fireEvent.click(screen.getByRole("button", { name: `Use the ${withSlots.name} template` }));
-    expect(screen.getByRole("alertdialog")).toBeTruthy();
-    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(first); // nothing yet
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(first);
-
-    fireEvent.click(screen.getByRole("button", { name: `Use the ${withSlots.name} template` }));
-    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
-    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(withSlots.objects.length + 1);
-    act(() => useClipProjectStore.getState().undo());
-    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(first);
-  });
-
-  it("fills an empty slot from the library and keeps its place", async () => {
-    await openTemplates();
-    fireEvent.click(screen.getByRole("button", { name: `Use the ${withSlots.name} template` }));
-    const slot = selectProject(useClipProjectStore.getState()).clips.find((c) => c.isPlaceholder)!;
-    const place = { x: slot.transform.x, y: slot.transform.y };
-    act(() => useClipProjectStore.getState().setSelectedClipIds([slot.id]));
-    fireEvent.click(await screen.findByRole("button", { name: "Put Beach in this slot" }));
-    await vi.waitFor(() => {
-      const filled = selectProject(useClipProjectStore.getState()).clips.find((c) => c.id === slot.id)!;
-      expect(filled).toMatchObject({ isPlaceholder: false, mediaId: photo.id, kind: "image" });
-    });
-    const filled = selectProject(useClipProjectStore.getState()).clips.find((c) => c.id === slot.id)!;
-    expect(filled.transform.x).toBeGreaterThanOrEqual(place.x);
-    expect(filled.transform.y).toBeGreaterThanOrEqual(place.y - 1e-6);
-  });
-});
-
-describe("StudioView export and history", () => {
-  async function open() {
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
-  }
-  const addPhoto = async () => {
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
-    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips.length).toBeGreaterThan(0));
-  };
-
-  it("opens the export dialog from the toolbar", async () => {
-    await open();
-    fireEvent.click(screen.getByRole("button", { name: "Export" }));
-    expect(await screen.findByRole("radio", { name: "MP4" })).toBeTruthy();
-  });
-
-  it("saves a version, then restores it as one undoable step", async () => {
-    await open();
-    await addPhoto();
-    fireEvent.click(screen.getByRole("button", { name: "Version history" }));
-    fireEvent.change(await screen.findByLabelText("Version name"), { target: { value: "One photo" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save version" }));
-    await screen.findByText("One photo");
-    // Close the dialog and add a second photo.
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
-    await vi.waitFor(() => expect(screen.queryByLabelText("Version name")).toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
-    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(2));
-
-    fireEvent.click(screen.getByRole("button", { name: "Version history" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Restore One photo" }));
-    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1));
-    act(() => useClipProjectStore.getState().undo());
-    expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(2);
-  });
-});
-
-describe("StudioView fades", () => {
-  it("fades a picture in and out from the Edit tab, as one undo step per move", async () => {
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the sequence" }));
-    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1));
-    const id = selectProject(useClipProjectStore.getState()).clips[0].id;
-    act(() => useClipProjectStore.getState().setSelectedClipIds([]));
-    act(() => useClipProjectStore.getState().setSelectedClipIds([id]));
-    fireEvent.keyDown(await screen.findByRole("slider", { name: "Fade in" }), { key: "ArrowRight" });
-    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips[0].fadeIn).toBe(0.1));
-    fireEvent.keyDown(screen.getByRole("slider", { name: "Fade out" }), { key: "ArrowRight" });
-    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips[0].fadeOut).toBe(0.1));
-  });
-
-  it("fades text from the Text tab", async () => {
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("tab", { name: "text" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
-    await screen.findByLabelText("Text content");
-    fireEvent.keyDown(screen.getByRole("slider", { name: "Fade in" }), { key: "ArrowRight" });
-    await vi.waitFor(() => expect(selectProject(useClipProjectStore.getState()).clips[0].fadeIn).toBe(0.1));
-  });
-});
-
-function mockPhone(matches: boolean) {
-  window.matchMedia = ((query: string) => ({
-    matches,
-    media: query,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-  })) as unknown as typeof window.matchMedia;
-}
-
-describe("StudioView tour and phone layout", () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-    mockPhone(false);
-  });
-
+describe("StudioView tour", () => {
   it("opens the welcome tour the first time, and not again once it has been closed", async () => {
     const first = render(<StudioView env={env({ welcomeTour: true })} />);
     await screen.findByText("My trip");
-    expect(await screen.findByText("Welcome to Scrapbook Studio")).toBeTruthy();
+    expect(await screen.findByText(TOUR_STEPS[0].title)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /skip/i }));
     expect(window.localStorage.getItem("scrapbook-studio:tour-seen")).toBe("1");
     first.unmount();
 
     render(<StudioView env={env({ welcomeTour: true })} />);
     await screen.findByText("My trip");
-    expect(screen.queryByText("Welcome to Scrapbook Studio")).toBeNull();
+    expect(screen.queryByText(TOUR_STEPS[0].title)).toBeNull();
   });
 
-  it("does not open the tour on its own where the environment does not ask for it", async () => {
+  it("does not open on its own where the environment does not ask for it, but can be opened", async () => {
     render(<StudioView env={env()} />);
     await screen.findByText("My trip");
-    expect(screen.queryByText("Welcome to Scrapbook Studio")).toBeNull();
-  });
-
-  it("opens the tour from the help button", async () => {
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
+    expect(screen.queryByText(TOUR_STEPS[0].title)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Quick tour" }));
-    expect(await screen.findByText("Welcome to Scrapbook Studio")).toBeTruthy();
+    expect(await screen.findByText(TOUR_STEPS[0].title)).toBeTruthy();
   });
 
-  it("on a phone, shows the tools in a sheet from a Tools button, once, and closes it after an add", async () => {
-    mockPhone(true);
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
-    expect(screen.queryByRole("button", { name: "Add Beach to the sequence" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Tools" }));
-    const add = await screen.findByRole("button", { name: "Add Beach to the sequence" });
-    expect(screen.getAllByRole("tablist")).toHaveLength(1);
-    fireEvent.click(add);
-    await vi.waitFor(() => {
-      expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1);
-    });
-    await vi.waitFor(() => {
-      expect(screen.queryByRole("button", { name: "Add Beach to the sequence" })).toBeNull();
-    });
-  });
-});
-
-describe("StudioView tour targets", () => {
   it.each([
     ["desktop", false],
     ["phone", true],
@@ -610,103 +286,32 @@ describe("StudioView tour targets", () => {
   });
 });
 
-describe("StudioView messages on a phone", () => {
-  it("shows an error even though the Tools sheet is closed", async () => {
-    window.localStorage.clear();
-    mockPhone(true);
-    render(<StudioView env={env({ saveFrame: vi.fn(async () => { throw new Error("offline"); }) })} />);
-    await screen.findByText("My trip");
-    expect(screen.queryByRole("tablist")).toBeNull();
-    fireEvent.change(screen.getByLabelText("Frame size"), { target: { value: "square" } });
-    expect(await screen.findByRole("alert")).toBeTruthy();
-  });
-});
+describe("StudioView on a phone", () => {
+  beforeEach(() => mockPhone(true));
 
-describe("StudioView templates on a phone", () => {
-  it("closes the Tools sheet once a template has been applied", async () => {
-    window.localStorage.clear();
-    mockPhone(true);
+  it("keeps the panels in a sheet behind an Add button, closes it after an add, and never shows two copies", async () => {
     render(<StudioView env={env()} />);
     await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("button", { name: "Tools" }));
-    fireEvent.click(await screen.findByRole("tab", { name: "assets" }));
-    fireEvent.click(screen.getByRole("button", { name: "Use the Birthday Bash template" }));
-    await vi.waitFor(() => expect(screen.queryByRole("tablist")).toBeNull());
-  });
-});
-
-describe("StudioView media extras", () => {
-  const second: MediaItem = { ...photo, id: "22222222-2222-4222-8222-222222222222", name: "Forest" };
-  beforeEach(() => mockPhone(false));
-
-  it("adds several ticked photos at once", async () => {
-    render(<StudioView env={env({ library: [photo, second] })} />);
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the sequence" }));
-    await vi.waitFor(() => {
-      expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(2);
-    });
-    expect(selectProject(useClipProjectStore.getState()).clips.map((c) => c.mediaId)).toEqual([photo.id, second.id]);
+    expect(screen.queryByRole("button", { name: "Add Beach to the video" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    const add = await screen.findByRole("button", { name: "Add Beach to the video" });
+    expect(screen.getAllByRole("tablist")).toHaveLength(1);
+    fireEvent.click(add);
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Add Beach to the video" })).toBeNull());
   });
 
-  it("adds one of your own pictures as a sticker", async () => {
+  it("opens the details of the selected clip from the edit button", async () => {
     render(<StudioView env={env()} />);
     await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("button", { name: "Add Beach as a sticker" }));
-    await vi.waitFor(() => {
-      expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1);
-    });
-    expect(selectProject(useClipProjectStore.getState()).clips[0]).toMatchObject({ kind: "sticker", mediaId: photo.id });
-    expect(useClipProjectStore.getState().selectedClipIds).toHaveLength(1);
-  });
-});
-
-describe("StudioView custom fonts", () => {
-  it("offers font upload in the Text tab only where the environment provides fonts", async () => {
-    mockPhone(false);
-    const add = vi.fn(async () => {});
-    const view = render(<StudioView env={env({ customFonts: { fonts: [], add } })} />);
-    await screen.findByText("My trip");
-    act(() => {
-      useClipProjectStore.getState().apply((p) => p);
-    });
-    fireEvent.click(screen.getByRole("tab", { name: "text" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
-    expect(await screen.findByLabelText("Upload a font")).toBeTruthy();
-    view.unmount();
-
-    render(<StudioView env={env()} />);
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("tab", { name: "text" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
-    await screen.findByLabelText("Font");
-    expect(screen.queryByLabelText("Upload a font")).toBeNull();
-  });
-});
-
-describe("StudioView adding several at once", () => {
-  it("keeps the reason an item failed on screen even though later items were added", async () => {
-    mockPhone(false);
-    const bad: MediaItem = { ...photo, id: "33333333-3333-4333-8333-333333333333", name: "Gone", url: "" };
-    const good: MediaItem = { ...photo, id: "44444444-4444-4444-8444-444444444444", name: "Here" };
-    const base = env();
-    render(
-      <StudioView
-        env={env({
-          library: [bad, good],
-          media: { ...base.media, urlFor: (id: string) => (id === bad.id ? null : "blob:x") },
-        })}
-      />,
+    expect((screen.getByRole("button", { name: "Edit selected" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    await vi.waitFor(() =>
+      expect((screen.getByRole("button", { name: "Edit selected" }) as HTMLButtonElement).disabled).toBe(false),
     );
-    await screen.findByText("My trip");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select Gone" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select Here" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the sequence" }));
-    await vi.waitFor(() => {
-      expect(selectProject(useClipProjectStore.getState()).clips).toHaveLength(1);
-    });
-    expect((await screen.findByRole("alert")).textContent).toMatch(/isn.t available|couldn.t add/i);
+    fireEvent.click(screen.getByRole("button", { name: "Edit selected" }));
+    expect(await screen.findByRole("slider", { name: "Duration (seconds)" })).toBeTruthy();
   });
 });

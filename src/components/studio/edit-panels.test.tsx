@@ -13,29 +13,35 @@ const handlers = () => ({
   onPreview: vi.fn(),
   onCommit: vi.fn(),
   onApply: vi.fn(),
-  onOpacity: vi.fn(),
   onReset: vi.fn(),
 });
 
 describe("PhotoPanel", () => {
   it("applies a filter preset at once", () => {
     const h = handlers();
-    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} opacity={1} {...h} />);
+    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} {...h} />);
     fireEvent.change(screen.getByLabelText("Filter"), { target: { value: "mono" } });
     expect(h.onApply).toHaveBeenCalledWith({ filterPreset: "mono" });
   });
 
   it("previews a slider move and commits it", async () => {
     const h = handlers();
-    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} opacity={1} {...h} />);
+    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} {...h} />);
     fireEvent.keyDown(screen.getByRole("slider", { name: "Brightness" }), { key: "ArrowRight" });
     expect(h.onPreview).toHaveBeenCalledWith({ brightness: 1 });
     await vi.waitFor(() => expect(h.onCommit).toHaveBeenCalled());
   });
 
+  it("resets the look", () => {
+    const h = handlers();
+    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} {...h} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    expect(h.onReset).toHaveBeenCalledTimes(1);
+  });
+
   it("has highlights, shadows and sharpness sliders that preview their own setting", async () => {
     const h = handlers();
-    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} opacity={1} {...h} />);
+    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} {...h} />);
     fireEvent.keyDown(screen.getByRole("slider", { name: "Highlights" }), { key: "ArrowRight" });
     expect(h.onPreview).toHaveBeenCalledWith({ highlights: 1 });
     fireEvent.keyDown(screen.getByRole("slider", { name: "Shadows" }), { key: "ArrowRight" });
@@ -44,56 +50,20 @@ describe("PhotoPanel", () => {
     expect(h.onPreview).toHaveBeenCalledWith({ sharpness: 1 });
   });
 
-  it("flips with the flip buttons", () => {
+  it("resets the look", () => {
     const h = handlers();
-    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} opacity={1} {...h} />);
-    fireEvent.click(screen.getByRole("button", { name: "Flip horizontally" }));
-    expect(h.onApply).toHaveBeenCalledWith({ flipHorizontal: true });
-    fireEvent.click(screen.getByRole("button", { name: "Flip vertically" }));
-    expect(h.onApply).toHaveBeenCalledWith({ flipVertical: true });
-  });
-
-  it("turns the shadow on with its whole nested setting and shows its controls only then", () => {
-    const h = handlers();
-    const { rerender } = render(
-      <PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} opacity={1} {...h} />,
-    );
-    expect(screen.queryByLabelText("Shadow colour")).toBeNull();
-    fireEvent.click(screen.getByRole("switch", { name: "Shadow" }));
-    expect(h.onApply).toHaveBeenCalledWith({
-      shadow: { ...DEFAULT_PHOTO_ADJUSTMENTS.shadow, enabled: true },
-    });
-    rerender(
-      <PhotoPanel
-        adjustments={{
-          ...DEFAULT_PHOTO_ADJUSTMENTS,
-          shadow: { ...DEFAULT_PHOTO_ADJUSTMENTS.shadow, enabled: true },
-        }}
-        opacity={1}
-        {...h}
-      />,
-    );
-    expect(screen.getByLabelText("Shadow colour")).toBeTruthy();
-  });
-
-  it("reports opacity as a fraction and resets", () => {
-    const h = handlers();
-    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} opacity={1} {...h} />);
-    fireEvent.keyDown(screen.getByRole("slider", { name: "Opacity" }), { key: "ArrowLeft" });
-    expect(h.onOpacity).toHaveBeenCalledWith(0.99);
+    render(<PhotoPanel adjustments={DEFAULT_PHOTO_ADJUSTMENTS} {...h} />);
     fireEvent.click(screen.getByRole("button", { name: "Reset" }));
     expect(h.onReset).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("VideoPanel", () => {
-  it("edits the video look and offers no flip or border", () => {
+  it("edits the video look", () => {
     const h = handlers();
-    render(<VideoPanel adjustments={createDefaultVideoAdjustments(6)} opacity={1} {...h} />);
+    render(<VideoPanel adjustments={createDefaultVideoAdjustments(6)} {...h} />);
     fireEvent.keyDown(screen.getByRole("slider", { name: "Saturation" }), { key: "ArrowRight" });
     expect(h.onPreview).toHaveBeenCalledWith({ saturation: 1 });
-    expect(screen.queryByRole("button", { name: "Flip horizontally" })).toBeNull();
-    expect(screen.queryByRole("slider", { name: "Border width" })).toBeNull();
   });
 });
 

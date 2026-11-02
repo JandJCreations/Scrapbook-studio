@@ -73,6 +73,6 @@ describe("WelcomeTour", () => {
 
   it("has a step for each place it points at, which exist as data-tour targets in the view", () => {
     const targets = TOUR_STEPS.map((s) => s.targetSelector).filter(Boolean);
-    expect(targets).toEqual(["tab-media", "tab-assets", "tab-text", "stage", "timeline", "export-button"]);
+    expect(targets).toEqual(["tab-media", "tab-audio", "stage", "timeline", "export-button"]);
   });
 });

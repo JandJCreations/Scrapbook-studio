@@ -5,6 +5,7 @@ import { clipDuration, clipEnd } from "@/lib/timeline/clip-math";
 import { createId, type IdFn } from "@/lib/timeline/ids";
 import { clipsOnTrack } from "@/lib/timeline/lookup";
 import { insertClip } from "@/lib/timeline/place";
+import { trimClip } from "@/lib/timeline/trim";
 import { addTrack } from "@/lib/timeline/tracks";
 import type { Clip, ClipTransform, TimelineProject, TrackType } from "@/types/timeline";
 import {
@@ -462,4 +463,18 @@ export function patchFades(
 ): TimelineProject {
   if (!project.clips.some((c) => c.id === clipId)) return project;
   return updateClip(project, clipId, patch);
+}
+
+/**
+ * Cuts a song at the end of the video, so a long song does not stretch a short
+ * slideshow with black. A song already shorter than the video (or no video yet) is left as it is.
+ */
+export function fitMusicToVideo(project: TimelineProject, clipId: string): TimelineProject {
+  const song = project.clips.find((clip) => clip.id === clipId);
+  if (!song) return project;
+  const videoEnd = project.clips
+    .filter((clip) => clip.kind !== "audio")
+    .reduce((latest, clip) => Math.max(latest, clipEnd(clip)), 0);
+  if (videoEnd <= song.start || clipEnd(song) <= videoEnd) return project;
+  return trimClip(project, clipId, "end", videoEnd);
 }
