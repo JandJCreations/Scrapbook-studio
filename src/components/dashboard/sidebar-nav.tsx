@@ -6,7 +6,6 @@ import {
   Clock,
   FolderKanban,
   Images,
-  LayoutTemplate,
   Settings,
   Trash2,
 } from "lucide-react";
@@ -17,7 +16,6 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Projects", icon: FolderKanban },
   { href: "/dashboard/recent", label: "Recent", icon: Clock },
   { href: "/dashboard/media", label: "Media Library", icon: Images },
-  { href: "/dashboard/templates", label: "Templates", icon: LayoutTemplate },
   { href: "/dashboard/trash", label: "Trash", icon: Trash2 },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
