@@ -336,3 +336,17 @@ describe("addToSequenceAt", () => {
     expect(starts).toEqual([0, STILL_SECONDS, 2 * STILL_SECONDS]);
   });
 });
+
+describe("music and text that runs past the pictures", () => {
+  it("cuts music at the last picture, not at the end of a caption", () => {
+    const photo: EditorMedia = { mediaId: "a", name: "a", kind: "image", duration: 0, width: 1000, height: 1000 };
+    const ids = seqIds("c");
+    let project = addToSequence(emptyTimeline("p"), photo, frame, ids).project;
+    const text = { ...project.clips[0], id: "t", kind: "text" as const, trackId: "txt", start: 0, sourceOut: 30, mediaId: "" };
+    project = { ...project, tracks: [...project.tracks, { id: "txt", type: "overlay", order: 9, muted: false, locked: false, hidden: false, solo: false }], clips: [...project.clips, text] };
+    const song: EditorMedia = { mediaId: "s", name: "s", kind: "audio", duration: 100, width: 0, height: 0 };
+    const added = addAudioClip(project, song, frame, 0, ids);
+    const fitted = fitMusicToVideo(added.project, added.clipId);
+    expect(clipEnd(findClip(fitted, added.clipId)!)).toBeCloseTo(STILL_SECONDS);
+  });
+});

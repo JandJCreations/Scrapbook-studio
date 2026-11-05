@@ -92,12 +92,11 @@ beforeEach(() => {
 });
 
 describe("StudioView", () => {
-  it("shows a skeleton, then the editor with a plain preview and none of the canvas tools", async () => {
+  it("shows a skeleton, then the editor with a plain preview and none of the free-placement canvas tools", async () => {
     render(<StudioView env={env()} />);
     expect(screen.queryByText("My trip")).toBeNull();
     expect(await screen.findByText("My trip")).toBeTruthy();
     expect(screen.getByTestId("studio-preview")).toBeTruthy();
-    expect(screen.queryByRole("tab", { name: "text" })).toBeNull();
     expect(screen.queryByRole("tab", { name: "assets" })).toBeNull();
     expect(screen.queryByRole("tab", { name: "layers" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Snap to grid" })).toBeNull();
@@ -123,7 +122,7 @@ describe("StudioView", () => {
   it("adds a photo to the end of the video and selects it, showing its details", async () => {
     render(<StudioView env={env()} />);
     await screen.findByText("My trip");
-    expect(screen.getByText(/select a photo, video or song/i)).toBeTruthy();
+    expect(screen.getByText(/select a photo, video, song or text/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
     await vi.waitFor(() => expect(clips()).toHaveLength(1));
     expect(clips()[0]).toMatchObject({ kind: "image", mediaId: photo.id });
@@ -538,5 +537,62 @@ describe("StudioView first drop and music dropped late", () => {
     });
     await vi.waitFor(() => expect(clips()).toHaveLength(2));
     expect(clips().find((c) => c.kind === "audio")!.start).toBeCloseTo(30);
+  });
+});
+
+describe("StudioView text and captions", () => {
+  async function withSlides() {
+    render(<StudioView env={env({ library: [photo, forest] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+  }
+  const texts = () => clips().filter((c) => c.kind === "text");
+
+  it("adds text at the playhead from the Text tab and lets its words be edited in Details", async () => {
+    await withSlides();
+    fireEvent.click(screen.getByRole("tab", { name: "text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    await vi.waitFor(() => expect(texts()).toHaveLength(1));
+    expect(useClipProjectStore.getState().selectedClipIds).toEqual([texts()[0].id]);
+    const box = await screen.findByLabelText("Text");
+    fireEvent.change(box, { target: { value: "Summer 2026" } });
+    fireEvent.blur(box);
+    expect(texts()[0].adjustments.text?.content).toBe("Summer 2026");
+    expect(texts()[0].name).toBe("Summer 2026");
+  });
+
+  it("adds a styled text from a style tile, then restyles it from another tile while it is selected", async () => {
+    await withSlides();
+    fireEvent.click(screen.getByRole("tab", { name: "text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Text style Neon" }));
+    await vi.waitFor(() => expect(texts()).toHaveLength(1));
+    expect(texts()[0].adjustments.text?.fontFamily).toBe("Bebas Neue");
+    fireEvent.click(screen.getByRole("button", { name: "Text style Elegant" }));
+    expect(texts()).toHaveLength(1);
+    expect(texts()[0].adjustments.text?.fontFamily).toBe("Playfair Display");
+  });
+
+  it("adds a caption that lasts as long as the selected slide", async () => {
+    await withSlides();
+    const slide = clips().find((c) => c.kind === "image")!;
+    act(() => useClipProjectStore.getState().setSelectedClipIds([slide.id]));
+    fireEvent.click(screen.getByRole("tab", { name: "text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Caption for selected slide" }));
+    await vi.waitFor(() => expect(texts()).toHaveLength(1));
+    expect(texts()[0].start).toBeCloseTo(slide.start);
+    expect(clipEnd(texts()[0])).toBeCloseTo(clipEnd(slide));
+  });
+
+  it("does not make the video longer when text runs past the last slide", async () => {
+    await withSlides();
+    const videoLength = projectDuration(selectProject(useClipProjectStore.getState()));
+    act(() => useTransportStore.getState().setFrame(videoLength - 0.5, false));
+    fireEvent.click(screen.getByRole("tab", { name: "text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add text" }));
+    await vi.waitFor(() => expect(texts()).toHaveLength(1));
+    expect(projectDuration(selectProject(useClipProjectStore.getState()))).toBeCloseTo(videoLength);
   });
 });

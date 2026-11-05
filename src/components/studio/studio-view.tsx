@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeftRight, Image as ImageIcon, Music, Palette, Pause, Play, SlidersHorizontal } from "lucide-react";
+import { ArrowLeftRight, Image as ImageIcon, Music, Palette, Pause, Play, SlidersHorizontal, Type } from "lucide-react";
 
 import { AudioTab } from "@/components/studio/audio-tab";
 import { ClipTools } from "@/components/studio/clip-tools";
 import { EditTab } from "@/components/studio/edit-tab";
 import { FiltersTab } from "@/components/studio/filters-tab";
+import { TextTab } from "@/components/studio/text-tab";
 import { TransitionsTab } from "@/components/studio/transitions-tab";
 import { ExportDialog } from "@/components/studio/export-dialog";
 import { StudioMediaPanel } from "@/components/studio/studio-media-panel";
@@ -43,6 +44,7 @@ import { withBundledAssets } from "@/lib/sync/bundled-assets";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { projectDuration } from "@/lib/timeline/clip-math";
 import { videoLookForPreset } from "@/lib/appearance/filters";
+import { addCaptionFor, addText, applyTextStyle, type TextStyle } from "@/lib/editor/text-ops";
 import { patchPhotoAdjustments, patchVideoAdjustments } from "@/lib/editor/ops";
 import { DEFAULT_TRANSITION_SECONDS, previousClip, setAllTransitions, setTransition } from "@/lib/timeline/transitions";
 import type { FilterPreset } from "@/types/photo-adjustments";
@@ -61,7 +63,7 @@ import type { MediaItem } from "@/types/media";
 
 const FPS = 30;
 
-type Tab = "media" | "audio" | "filters" | "transitions" | "edit";
+type Tab = "media" | "audio" | "text" | "filters" | "transitions" | "edit";
 
 function formatClock(seconds: number): string {
   const safe = Math.max(0, seconds);
@@ -86,6 +88,7 @@ function StudioSkeleton() {
 const TAB_ICONS = {
   media: ImageIcon,
   audio: Music,
+  text: Type,
   filters: Palette,
   transitions: ArrowLeftRight,
   edit: SlidersHorizontal,
@@ -261,6 +264,37 @@ export function StudioView({ env }: { env: StudioEnv }) {
     }
   }
 
+  /** Adds text at the playhead, in a style if one is given. */
+  function addTextWith(style?: TextStyle) {
+    if (!frame) return;
+    const at = useTransportStore.getState().time;
+    if (!put((p) => addText(p, frame, at, { style }))) say("Couldn't add that to the video.");
+    else say(null);
+  }
+
+  /** A style tile: restyles the selected text, or adds new text in that style. */
+  function pickTextStyle(style: TextStyle) {
+    const clip = selectedClip;
+    if (clip?.kind === "text" && frame) {
+      useClipProjectStore.getState().apply((p) => applyTextStyle(p, clip.id, style, frame));
+    } else {
+      addTextWith(style);
+    }
+  }
+
+  /** A caption at the bottom that lasts as long as the selected photo or video. */
+  function addCaption() {
+    const clip = selectedClip;
+    if (!clip || !frame) return;
+    let made = false;
+    put((p) => {
+      const result = addCaptionFor(p, clip.id, frame);
+      made = result !== null;
+      return result ?? { project: p, clipId: "" };
+    });
+    if (!made) say("Couldn't add a caption to that.");
+  }
+
   /** Gives the selected photo or video the look of a filter from the gallery. */
   function applyFilter(preset: FilterPreset) {
     const clip = selectedClip;
@@ -348,8 +382,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
 
   const duration = projectDuration(project);
   const tabNames: Tab[] = compact
-    ? ["media", "audio", "filters", "transitions", "edit"]
-    : ["media", "audio", "filters", "transitions"];
+    ? ["media", "audio", "text", "filters", "transitions", "edit"]
+    : ["media", "audio", "text", "filters", "transitions"];
   const shownTab: Tab = tabNames.includes(tab) ? tab : "media";
 
   const panels = (
@@ -400,6 +434,14 @@ export function StudioView({ env }: { env: StudioEnv }) {
             setToolsOpen(false);
           }}
         />
+      ) : shownTab === "text" ? (
+        <TextTab
+          selectedIsText={selectedClip?.kind === "text"}
+          canCaption={selectedClip?.kind === "image" || selectedClip?.kind === "video"}
+          onAddText={() => addTextWith()}
+          onPickStyle={pickTextStyle}
+          onAddCaption={addCaption}
+        />
       ) : shownTab === "filters" ? (
         <FiltersTab clip={selectedClip} onPick={applyFilter} />
       ) : shownTab === "transitions" ? (
@@ -410,7 +452,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
           onApplyToAll={applyTransitionToAll}
         />
       ) : (
-        <EditTab clip={selectedClip} />
+        <EditTab clip={selectedClip} frame={frame} />
       )}
     </>
   );
@@ -537,7 +579,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
         </main>
         {!compact && (
           <aside className="flex w-72 shrink-0 flex-col border-l" aria-label="Details" onClickCapture={blurOnMouseClick}>
-            <EditTab clip={selectedClip} />
+            <EditTab clip={selectedClip} frame={frame} />
           </aside>
         )}
       </div>

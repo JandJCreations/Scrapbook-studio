@@ -25,13 +25,19 @@ export function timelineExtent(project: TimelineProject): number {
   return project.clips.reduce((max, clip) => Math.max(max, clipEnd(clip)), 0);
 }
 
+/** The end of the last picture or video: where the video itself stops (0 if there are none). */
+export function videoEnd(project: TimelineProject): number {
+  return project.clips
+    .filter((clip) => clip.kind === "image" || clip.kind === "video")
+    .reduce((max, clip) => Math.max(max, clipEnd(clip)), 0);
+}
+
 /**
- * How long the video is: it ends with the last picture or video, so music that
- * plays on longer is cut off rather than stretching the video with black. A
- * project of only music is as long as its music.
+ * How long the video is: it ends with the last picture or video, so music or
+ * text that runs on longer is cut off rather than stretching the video with
+ * black. A project with no pictures or videos is as long as everything in it.
  */
 export function projectDuration(project: TimelineProject): number {
-  const pictures = project.clips.filter((clip) => clip.kind !== "audio");
-  if (pictures.length === 0) return timelineExtent(project);
-  return pictures.reduce((max, clip) => Math.max(max, clipEnd(clip)), 0);
+  const end = videoEnd(project);
+  return end > 0 ? end : timelineExtent(project);
 }

@@ -61,3 +61,14 @@ describe("clamp", () => {
     expect(clamp(5, 10, 1)).toBe(10);
   });
 });
+
+describe("the video does not run on for text", () => {
+  it("ends with the last picture or video even if a caption or title runs past it", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({ id: "pic", trackId: "t1", kind: "image", sourceDuration: null, start: 0, sourceOut: 5 }),
+      makeClip({ id: "txt", trackId: "t2", kind: "text", sourceDuration: null, start: 4, sourceOut: 5 }),
+    ]);
+    expect(projectDuration(project)).toBe(5);
+    expect(timelineExtent(project)).toBe(9);
+  });
+});

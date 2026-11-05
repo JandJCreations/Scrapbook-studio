@@ -1,7 +1,7 @@
 import { fitContain } from "@/lib/playback/scene";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { updateClip } from "@/lib/timeline/clip-edits";
-import { clipDuration, clipEnd } from "@/lib/timeline/clip-math";
+import { clipDuration, clipEnd, videoEnd } from "@/lib/timeline/clip-math";
 import { createId, type IdFn } from "@/lib/timeline/ids";
 import { clipsOnTrack } from "@/lib/timeline/lookup";
 import { isMagnetic, packClips, replaceTrackClips } from "@/lib/timeline/pack";
@@ -212,10 +212,7 @@ export function setAllStillDurations(project: TimelineProject, seconds: number):
 
 /** Where music starts: at the playhead while it is inside the video, otherwise at the beginning (a song added at the very end would play after the pictures). */
 export function musicStartTime(project: TimelineProject, playhead: number): number {
-  const videoEnd = project.clips
-    .filter((clip) => clip.kind !== "audio")
-    .reduce((latest, clip) => Math.max(latest, clipEnd(clip)), 0);
-  return playhead < videoEnd ? Math.max(0, playhead) : 0;
+  return playhead < videoEnd(project) ? Math.max(0, playhead) : 0;
 }
 
 /**
@@ -225,9 +222,7 @@ export function musicStartTime(project: TimelineProject, playhead: number): numb
 export function fitMusicToVideo(project: TimelineProject, clipId: string): TimelineProject {
   const song = project.clips.find((clip) => clip.id === clipId);
   if (!song) return project;
-  const videoEnd = project.clips
-    .filter((clip) => clip.kind !== "audio")
-    .reduce((latest, clip) => Math.max(latest, clipEnd(clip)), 0);
-  if (videoEnd <= song.start || clipEnd(song) <= videoEnd) return project;
-  return trimClip(project, clipId, "end", videoEnd);
+  const end = videoEnd(project);
+  if (end <= song.start || clipEnd(song) <= end) return project;
+  return trimClip(project, clipId, "end", end);
 }

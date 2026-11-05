@@ -6,7 +6,11 @@ import { AudioPanel, type AudioValues } from "@/components/studio/audio-panel";
 import { FadeSection } from "@/components/studio/fade-section";
 import { PanelSlider } from "@/components/studio/panel-controls";
 import { Button } from "@/components/ui/button";
+import { TextSection } from "@/components/studio/text-section";
 import { TransitionSection } from "@/components/studio/transition-section";
+import { patchTextAdjustments, setTextPosition } from "@/lib/editor/text-ops";
+import type { FrameSize } from "@/lib/sync/timeline-document";
+import { DEFAULT_TEXT_ADJUSTMENTS, type TextAdjustments } from "@/types/text-adjustments";
 import { MOTIONS, setAllMotion, setMotion } from "@/lib/timeline/motion";
 import type { ClipMotion } from "@/types/timeline";
 import { PhotoPanel, VideoPanel } from "@/components/studio/look-panels";
@@ -35,6 +39,7 @@ interface Pending {
   duration?: number;
   /** How long the transition into the clip lasts, in seconds. */
   transitionDuration?: number;
+  text?: Partial<TextAdjustments>;
 }
 
 function applyPending(project: TimelineProject, clip: Clip, pending: Pending): TimelineProject {
@@ -43,6 +48,7 @@ function applyPending(project: TimelineProject, clip: Clip, pending: Pending): T
   if (pending.video) result = patchVideoAdjustments(result, clip.id, pending.video);
   if (pending.audio) result = patchAudio(result, clip.id, pending.audio);
   if (pending.fades) result = patchFades(result, clip.id, pending.fades);
+  if (pending.text) result = patchTextAdjustments(result, clip.id, pending.text);
   if (pending.duration !== undefined) result = trimClip(result, clip.id, "end", clip.start + pending.duration);
   if (pending.transitionDuration !== undefined) {
     result = setTransition(result, clip.id, {
@@ -60,7 +66,7 @@ function videoLookDefaults(clip: Clip): Partial<VideoAdjustments> {
 }
 
 /** The Details panel: how long, how it looks and how it sounds, for the selected photo, video or music clip. */
-export function EditTab({ clip }: { clip: Clip | null }) {
+export function EditTab({ clip, frame }: { clip: Clip | null; frame: FrameSize | null }) {
   const clipId = clip?.id ?? null;
   // Only what the transition section needs, so a gesture elsewhere does not redraw the panel.
   const hasPrevious = useClipProjectStore((s) => (clip ? previousClip(selectProject(s), clip) !== null : false));
@@ -88,10 +94,10 @@ export function EditTab({ clip }: { clip: Clip | null }) {
   // Changing the selection closes a change that is still open.
   React.useEffect(() => commit, [clipId, commit]);
 
-  if (!clip || (clip.kind !== "image" && clip.kind !== "video" && clip.kind !== "audio")) {
+  if (!clip || (clip.kind !== "image" && clip.kind !== "video" && clip.kind !== "audio" && clip.kind !== "text")) {
     return (
       <p className="p-3 text-sm text-muted-foreground">
-        Select a photo, video or song on the timeline to change how it looks, how long it plays and how it sounds.
+        Select a photo, video, song or text on the timeline to change how it looks, how long it plays and how it sounds.
       </p>
     );
   }
@@ -102,6 +108,7 @@ export function EditTab({ clip }: { clip: Clip | null }) {
       video: patch.video ? { ...pending.current.video, ...patch.video } : pending.current.video,
       audio: patch.audio ? { ...pending.current.audio, ...patch.audio } : pending.current.audio,
       fades: patch.fades ? { ...pending.current.fades, ...patch.fades } : pending.current.fades,
+      text: patch.text ? { ...pending.current.text, ...patch.text } : pending.current.text,
       duration: patch.duration ?? pending.current.duration,
       transitionDuration: patch.transitionDuration ?? pending.current.transitionDuration,
     };
@@ -243,6 +250,24 @@ export function EditTab({ clip }: { clip: Clip | null }) {
         </>
       )}
       {clip.kind === "audio" && audioPanel}
+      {clip.kind === "text" && clip.adjustments.text && (
+        <>
+          <TextSection
+            adjustments={clip.adjustments.text ?? DEFAULT_TEXT_ADJUSTMENTS}
+            onPreview={(text) => preview({ text })}
+            onCommit={commit}
+            onApply={(text) => apply((p) => patchTextAdjustments(p, id, text))}
+            onPosition={(position) => frame && apply((p) => setTextPosition(p, id, position, frame))}
+          />
+          <FadeSection
+            fadeIn={clip.fadeIn}
+            fadeOut={clip.fadeOut}
+            maxFade={clipDuration(clip)}
+            onPreview={(fades) => preview({ fades })}
+            onCommit={commit}
+          />
+        </>
+      )}
     </div>
   );
 }

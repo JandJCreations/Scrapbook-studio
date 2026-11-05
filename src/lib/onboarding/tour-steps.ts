@@ -6,6 +6,7 @@ import {
   Music,
   Play,
   Sparkles,
+  Type,
 } from "lucide-react";
 
 export interface TourStep {
@@ -39,6 +40,14 @@ export const TOUR_STEPS: TourStep[] = [
     description:
       "The Audio tab has your own songs and a built-in music library. Preview a track, then add it. It is cut to fit the length of your video.",
     targetSelector: "tab-audio",
+    mobileTargetSelector: "tools-button",
+  },
+  {
+    icon: Type,
+    title: "Add text and captions",
+    description:
+      "The Text tab adds titles and captions in ready-made styles. A caption for the selected slide lasts exactly as long as that slide.",
+    targetSelector: "tab-text",
     mobileTargetSelector: "tools-button",
   },
   {
