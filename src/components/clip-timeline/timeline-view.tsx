@@ -33,7 +33,7 @@ import {
   trackLayout,
   type TrackLayout,
 } from "@/lib/timeline-ui/layout";
-import { projectDuration } from "@/lib/timeline/clip-math";
+import { timelineExtent } from "@/lib/timeline/clip-math";
 import { createId, type IdFn } from "@/lib/timeline/ids";
 import type { TrimEdge } from "@/lib/timeline/trim";
 import {
@@ -134,7 +134,7 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals }: TimelineView
   const selectedIds = useClipProjectStore((s) => s.selectedClipIds);
   const time = useTransportStore((s) => s.time);
 
-  const duration = projectDuration(project);
+  const duration = timelineExtent(project);
   const layout = React.useMemo(() => trackLayout(project), [project]);
   const laneWidth = timelineWidth(duration, pps, viewportWidth - HEADER_WIDTH);
   const rowByTrack = React.useMemo(

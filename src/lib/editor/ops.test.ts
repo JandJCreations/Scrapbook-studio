@@ -4,6 +4,7 @@ import {
   addAudioClip,
   addToSequence,
   fitMusicToVideo,
+  musicStartTime,
   patchAudio,
   patchFades,
   patchPhotoAdjustments,
@@ -250,5 +251,17 @@ describe("fitMusicToVideo", () => {
     const project = addToSequence(emptyTimeline("p"), photo("a"), frame, ids).project;
     const short = addAudioClip(project, { ...song, duration: 1 }, frame, 0, ids);
     expect(fitMusicToVideo(short.project, short.clipId)).toBe(short.project);
+  });
+});
+
+describe("musicStartTime", () => {
+  const photo: EditorMedia = { mediaId: "a", name: "a", kind: "image", duration: 0, width: 1000, height: 1000 };
+
+  it("is the playhead while it is inside the video, and 0 at or past the end or with no video", () => {
+    const project = addToSequence(emptyTimeline("p"), photo, frame, seqIds("c")).project;
+    expect(musicStartTime(project, 2)).toBe(2);
+    expect(musicStartTime(project, STILL_SECONDS)).toBe(0);
+    expect(musicStartTime(project, 99)).toBe(0);
+    expect(musicStartTime(emptyTimeline("p"), 3)).toBe(0);
   });
 });

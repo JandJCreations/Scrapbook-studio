@@ -5,7 +5,8 @@ import { Copy, Scissors, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { deleteSelected, duplicateSelected, splitAtPlayhead } from "@/lib/timeline-ui/commands";
-import { clipEnd } from "@/lib/timeline/clip-math";
+import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
+import { clipDuration, clipEnd, MIN_CLIP_DURATION } from "@/lib/timeline/clip-math";
 import { createId } from "@/lib/timeline/ids";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 import { useTransportStore } from "@/store/use-transport-store";
@@ -19,7 +20,13 @@ export function ClipTools() {
   const selected = project.clips.filter((clip) => selectedIds.includes(clip.id));
   const hasSelection = selected.length > 0;
   // Splitting needs the playhead inside a clip: the selected one, or any clip when nothing is selected.
-  const canSplit = (hasSelection ? selected : project.clips).some((clip) => clip.start < time && time < clipEnd(clip));
+  // ...and at least a sliver's width from either edge, or the split does nothing.
+  const canSplit = (hasSelection ? selected : project.clips).some(
+    (clip) =>
+      time - clip.start >= MIN_CLIP_DURATION - 1e-9 &&
+      clipEnd(clip) - time >= MIN_CLIP_DURATION - 1e-9 &&
+      clipDuration(clip) >= 2 * MIN_CLIP_DURATION,
+  );
 
   function split() {
     useClipProjectStore.getState().apply((p) => splitAtPlayhead(p, selectedIds, useTransportStore.getState().time));
@@ -39,13 +46,18 @@ export function ClipTools() {
   }
 
   function remove() {
-    // Deleting from the main strip closes the gap, like CapCut.
-    useClipProjectStore.getState().apply((p) => deleteSelected(p, selectedIds, true));
+    // The main strip closes the gap by itself; clips on other tracks stay where they are.
+    useClipProjectStore.getState().apply((p) => deleteSelected(p, selectedIds, false));
     useClipProjectStore.getState().setSelectedClipIds([]);
   }
 
   return (
-    <div role="toolbar" aria-label="Clip tools" className="flex items-center gap-1 border-t px-2 py-1">
+    <div
+      role="toolbar"
+      aria-label="Clip tools"
+      className="flex items-center gap-1 border-t px-2 py-1"
+      onClickCapture={blurOnMouseClick}
+    >
       <Button variant="ghost" size="sm" aria-label="Split" disabled={!canSplit} onClick={split}>
         <Scissors className="size-4" />
         <span className="hidden sm:inline">Split</span>

@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { MediaThumbnail } from "@/components/media/media-thumbnail";
 import { Button } from "@/components/ui/button";
+import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
 import type { MediaItem } from "@/types/media";
 
 interface StudioMediaPanelProps {
@@ -30,7 +31,7 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onUpload }:
     });
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3" onClickCapture={blurOnMouseClick}>
       {onUpload && (
         <label className="block text-xs text-muted-foreground">
           <span className="mb-1 block font-medium text-foreground">Import</span>

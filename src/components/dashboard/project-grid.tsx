@@ -59,7 +59,7 @@ export function ProjectGrid() {
     return (
       <EmptyState
         title="Create your first scrapbook"
-        description="Bring together photos, video, and audio on an infinite canvas. It only takes a minute to get started."
+        description="Turn your photos and clips into a video with music. It only takes a minute to get started."
         action={
           <NewProjectDialog>
             <Button className="gap-2">

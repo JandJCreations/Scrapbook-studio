@@ -8,10 +8,11 @@ import type { StudioEnv } from "@/components/studio/studio-env";
 import { StudioView } from "@/components/studio/studio-view";
 import { MUSIC_LIBRARY } from "@/lib/audio/music-library-catalog";
 import { TOUR_STEPS } from "@/lib/onboarding/tour-steps";
-import { clipEnd } from "@/lib/timeline/clip-math";
+import { clipEnd, projectDuration } from "@/lib/timeline/clip-math";
 import { createMemoryTimelineStorage } from "@/lib/sync/memory-timeline-storage";
 import type { TimelineStorage } from "@/lib/sync/timeline-storage";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
+import { useTransportStore } from "@/store/use-transport-store";
 import type { MediaItem } from "@/types/media";
 
 // The painter, audio and Konva stage need a real browser; the view's own
@@ -179,6 +180,21 @@ describe("StudioView", () => {
     await vi.waitFor(() => expect(clips()).toHaveLength(3));
     const mine = clips().find((c) => c.mediaId === song.id)!;
     expect(clipEnd(mine)).toBeCloseTo(videoEnd);
+  });
+
+  it("starts music at the beginning when the playhead sits at the end of the video, and the video stays as long as its pictures", async () => {
+    render(<StudioView env={env({ library: [photo] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    const videoEnd = clipEnd(clips()[0]);
+    act(() => useTransportStore.getState().setFrame(videoEnd, false));
+    fireEvent.click(screen.getByRole("tab", { name: "audio" }));
+    fireEvent.click(screen.getByRole("button", { name: `Add ${MUSIC_LIBRARY[0].name} as music` }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+    const music = clips().find((c) => c.kind === "audio")!;
+    expect(music.start).toBe(0);
+    expect(projectDuration(selectProject(useClipProjectStore.getState()))).toBeCloseTo(videoEnd);
   });
 
   it("has split, duplicate and delete above the timeline", async () => {

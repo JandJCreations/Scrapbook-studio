@@ -4,6 +4,7 @@ import * as React from "react";
 import { Pause, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
 import { MUSIC_LIBRARY, type MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
 import { formatDuration } from "@/lib/media/format";
 import type { MediaItem } from "@/types/media";
@@ -37,12 +38,13 @@ export function AudioTab({ items, loading, onAddAudio, onAddMusic }: AudioTabPro
       return;
     }
     audio.src = track.src;
-    void audio.play();
     setPlayingId(track.id);
+    // A browser that refuses to play leaves the button saying "Preview", not "Pause".
+    Promise.resolve(audio.play()).catch(() => setPlayingId(null));
   }
 
   return (
-    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3" onClickCapture={blurOnMouseClick}>
       <audio ref={audioRef} onEnded={() => setPlayingId(null)} className="hidden" />
 
       <section>

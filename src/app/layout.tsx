@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Scrapbook Studio",
   description:
-    "Design beautiful, animated digital scrapbooks with photos, video, audio, and stickers.",
+    "Turn your photos and clips into a video with music.",
   icons: {
     icon: "/favicon.ico",
     apple: "/icons/apple-touch-icon.png",

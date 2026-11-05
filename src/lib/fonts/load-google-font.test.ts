@@ -30,4 +30,9 @@ describe("loadGoogleFont", () => {
     (document.head.querySelector("link") as HTMLLinkElement).dispatchEvent(new Event("error"));
     await expect(done).resolves.toBeUndefined();
   });
+
+  it("never asks Google for a font the user uploaded in an earlier version (custom-...)", async () => {
+    await expect(loadGoogleFont("custom-1234")).resolves.toBeUndefined();
+    expect(document.head.querySelector("link")).toBeNull();
+  });
 });

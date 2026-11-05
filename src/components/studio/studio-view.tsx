@@ -24,12 +24,20 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useTimelineSync } from "@/hooks/use-timeline-sync";
 import { musicMediaId } from "@/lib/audio/music-keys";
 import type { MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
-import { addAudioClip, addToSequence, fitMusicToVideo, type AddResult, type EditorMedia } from "@/lib/editor/ops";
+import {
+  addAudioClip,
+  addToSequence,
+  fitMusicToVideo,
+  musicStartTime,
+  type AddResult,
+  type EditorMedia,
+} from "@/lib/editor/ops";
 import { TOUR_SEEN_STORAGE_KEY } from "@/lib/onboarding/tour-steps";
 import { readMediaInfo } from "@/lib/playback/browser";
 import { withBundledAssets } from "@/lib/sync/bundled-assets";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { projectDuration } from "@/lib/timeline/clip-math";
+import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
 import type { TimelineProject } from "@/types/timeline";
 import {
   selectCanRedo,
@@ -194,8 +202,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
     try {
       const media = await loadEditorMedia(item);
       if (!media || !aliveRef.current) return;
-      const at = useTransportStore.getState().time;
-      if (put((p) => addAudioClip(p, media, frame, at), true)) say(null);
+      const playhead = useTransportStore.getState().time;
+      if (put((p) => addAudioClip(p, media, frame, musicStartTime(p, playhead)), true)) say(null);
       else say("Couldn't add that to the video.");
     } catch (error) {
       say(error instanceof Error ? error.message : "Couldn't add that to the video.");
@@ -212,8 +220,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
       width: 0,
       height: 0,
     };
-    const at = useTransportStore.getState().time;
-    if (put((p) => addAudioClip(p, media, frame, at), true)) say(null);
+    const playhead = useTransportStore.getState().time;
+    if (put((p) => addAudioClip(p, media, frame, musicStartTime(p, playhead)), true)) say(null);
     else say("Couldn't add that to the video.");
   }
 
@@ -375,7 +383,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
         {!compact && <aside className="flex w-72 shrink-0 flex-col border-r">{panels}</aside>}
         <main className="flex min-w-0 flex-1 flex-col">
           <StudioPreview containerRef={containerRef} />
-          <div className="flex items-center gap-3 border-t px-3 py-2">
+          <div className="flex items-center gap-3 border-t px-3 py-2" onClickCapture={blurOnMouseClick}>
             {compact && (
               <>
                 <Button
