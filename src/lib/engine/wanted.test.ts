@@ -269,4 +269,17 @@ describe("planWanted: a transition", () => {
   it("wants nothing extra before the transition begins", () => {
     expect(planWanted(withTransition(), 2.5, false).map((w) => w.clipId)).toEqual(["out"]);
   });
+
+  it("starts loading the arriving video ahead of the transition, not only when it begins", () => {
+    const wanted = planWanted(withTransition(), 2.2, true); // the transition begins at 3, the lookahead is 1s
+    expect(wanted.find((w) => w.clipId === "in")).toMatchObject({ active: false, shouldPlay: false });
+  });
+
+  it("does not treat the arriving video as a free continuation of the clip before it", () => {
+    const halves = makeProject(makeStandardTracks(), [
+      clip("out", { start: 0, sourceIn: 0, sourceOut: 4 }),
+      clip("in", { start: 4, sourceIn: 4, sourceOut: 8, transition: { type: "fade", duration: 1 } }),
+    ]);
+    expect(planWanted(halves, 3.2, true).some((w) => w.clipId === "in")).toBe(true);
+  });
 });

@@ -3,7 +3,7 @@ import { clipDrawState, type DrawState } from "@/lib/playback/draw-state";
 import { transitionDraw } from "@/lib/playback/transition-draw";
 import type { PoolElement } from "@/lib/playback/media-pool";
 import { activeClipsAt } from "@/lib/timeline/active-clips";
-import { activeTransitionAt } from "@/lib/timeline/transitions";
+import { activeTransitionsAt } from "@/lib/timeline/transitions";
 import type { Clip, TimelineProject } from "@/types/timeline";
 import type { TextAdjustments } from "@/types/text-adjustments";
 
@@ -64,16 +64,19 @@ export function buildScene(
   elementFor: (clipId: string) => PoolElement | undefined,
   frame?: { width: number; height: number },
 ): SceneItem[] {
-  const transition = activeTransitionAt(project, time);
+  const transitions = new Map(activeTransitionsAt(project, time).map((t) => [t.outgoing.id, t]));
   const items: SceneItem[] = [];
   for (const active of activeClipsAt(project, time)) {
     if (!active.visible || active.clip.kind === "audio") continue;
     const slideDistance = frame?.width ?? active.clip.transform.width;
-    if (transition && active.clip.id === transition.outgoing.id) {
+    const transition = transitions.get(active.clip.id);
+    if (transition) {
       const incoming = transition.incoming;
+      // The arriving clip's own fade-in must not hide it while the transition brings it in.
+      const arrivingDraw = clipDrawState({ ...incoming, fadeIn: 0 }, 0);
       items.push({
         clipId: incoming.id,
-        draw: transitionDraw("in", transition.type, transition.progress, clipDrawState(incoming, 0), slideDistance),
+        draw: transitionDraw("in", transition.type, transition.progress, arrivingDraw, slideDistance),
         look: lookFor(incoming),
         content: contentFor(incoming, elementFor),
       });

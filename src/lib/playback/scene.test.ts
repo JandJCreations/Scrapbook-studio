@@ -204,4 +204,25 @@ describe("buildScene during a transition", () => {
     const plain = makeProject(makeStandardTracks(), [photo("a", 0), photo("b", 4)]);
     expect(buildScene(plain, 3.5, none, frame).map((i) => i.clipId)).toEqual(["a"]);
   });
+
+  it("lets the arriving clip show through even if it fades in at its start", () => {
+    const p = makeProject(makeStandardTracks(), [
+      photo("a", 0),
+      photo("b", 4, { fadeIn: 2, transition: { type: "fade", duration: 1 } }),
+    ]);
+    const items = buildScene(p, 3.5, none, frame);
+    expect(items.find((i) => i.clipId === "b")?.draw.opacity).toBe(1);
+  });
+
+  it("plays the transitions of two tracks at once", () => {
+    const p = makeProject(makeStandardTracks(), [
+      photo("a", 0),
+      photo("b", 4, { transition: { type: "fade", duration: 1 } }),
+      photo("c", 0, { trackId: "t2" }),
+      photo("d", 4, { trackId: "t2", transition: { type: "fade", duration: 1 } }),
+    ]);
+    const ids = buildScene(p, 3.5, none, frame).map((i) => i.clipId);
+    expect(ids).toEqual(expect.arrayContaining(["a", "b", "c", "d"]));
+    expect(ids).toHaveLength(4);
+  });
 });

@@ -49,25 +49,33 @@ export interface ActiveTransition {
 }
 
 /**
- * The transition playing at timeline time `t`, if any: during the last stretch
- * of the outgoing clip, before the incoming clip starts. Only one is ever
- * active on a track at a time; the first found wins.
+ * Every transition playing at timeline time `t`: one per track at most, during
+ * the last stretch of the outgoing clip, before the incoming clip starts. A
+ * track that is hidden draws nothing, so its transitions are left out.
  */
-export function activeTransitionAt(project: TimelineProject, t: number): ActiveTransition | null {
+export function activeTransitionsAt(project: TimelineProject, t: number): ActiveTransition[] {
+  const hidden = new Set(project.tracks.filter((track) => track.hidden).map((track) => track.id));
+  const active: ActiveTransition[] = [];
   for (const clip of project.clips) {
+    if (hidden.has(clip.trackId)) continue;
     const effective = effectiveTransition(project, clip);
     if (!effective) continue;
     const begins = clip.start - effective.duration;
     if (t >= begins && t < clip.start) {
-      return {
+      active.push({
         type: effective.type,
         outgoing: effective.outgoing,
         incoming: clip,
         progress: (t - begins) / effective.duration,
-      };
+      });
     }
   }
-  return null;
+  return active;
+}
+
+/** The first transition playing at `t`, if any. */
+export function activeTransitionAt(project: TimelineProject, t: number): ActiveTransition | null {
+  return activeTransitionsAt(project, t)[0] ?? null;
 }
 
 /**

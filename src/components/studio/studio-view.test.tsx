@@ -218,7 +218,7 @@ describe("StudioView", () => {
     await screen.findByText("My trip");
     fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
     await vi.waitFor(() => expect(clips()).toHaveLength(1));
-    expect(await screen.findByText(/nothing before it/i)).toBeTruthy();
+    expect(await screen.findByText(/no clip directly before/i)).toBeTruthy();
   });
 
   it("has split, duplicate and delete above the timeline", async () => {

@@ -11,7 +11,7 @@ const handlers = () => ({ onType: vi.fn(), onDurationPreview: vi.fn(), onCommit:
 describe("TransitionSection", () => {
   it("explains there is nothing to transition from for the first clip", () => {
     render(<TransitionSection transition={null} hasPrevious={false} {...handlers()} />);
-    expect(screen.getByText(/nothing before it/i)).toBeTruthy();
+    expect(screen.getByText(/no clip directly before/i)).toBeTruthy();
     expect(screen.queryByLabelText("Transition")).toBeNull();
   });
 
@@ -45,5 +45,13 @@ describe("TransitionSection", () => {
     fireEvent.keyDown(screen.getByRole("slider", { name: "Transition length (seconds)" }), { key: "ArrowRight" });
     expect(h.onDurationPreview).toHaveBeenCalledWith(1.1);
     await vi.waitFor(() => expect(h.onCommit).toHaveBeenCalled());
+  });
+
+  it("lets a stale transition (nothing directly before the clip now) be removed", () => {
+    const h = handlers();
+    render(<TransitionSection transition={{ type: "fade", duration: 1 }} hasPrevious={false} {...h} />);
+    expect(screen.getByText(/does nothing/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove transition" }));
+    expect(h.onType).toHaveBeenCalledWith(null);
   });
 });

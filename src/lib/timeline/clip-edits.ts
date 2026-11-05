@@ -34,7 +34,7 @@ export function duplicateClip(
   const track = findTrack(project, clip.trackId);
   if (!track) return project;
 
-  const copy: Clip = { ...clip, id: newId(), start: clipEnd(clip), groupId: null };
+  const copy: Clip = { ...clip, id: newId(), start: clipEnd(clip), groupId: null, transition: null };
   if (!isMagnetic(track)) return { ...project, clips: [...project.clips, copy] };
 
   const ordered = clipsOnTrack(project, track.id);

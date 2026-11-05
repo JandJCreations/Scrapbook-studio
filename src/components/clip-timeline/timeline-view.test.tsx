@@ -413,4 +413,14 @@ describe("TimelineView transitions", () => {
     expect(markers).toHaveLength(1);
     expect(markers[0].closest("[data-clip-id]")?.getAttribute("data-clip-id")).toBe("b");
   });
+
+  it("does not mark a transition that does nothing now, because the clip before it is no longer right next to it", () => {
+    mount(
+      makeProject(makeStandardTracks(), [
+        makeClip({ id: "a", name: "First", sourceOut: 4 }),
+        makeClip({ id: "b", name: "Second", start: 6, sourceOut: 4, trackId: "t2", transition: { type: "fade", duration: 1 } }),
+      ]),
+    );
+    expect(screen.queryByTestId("transition-marker")).toBeNull();
+  });
 });

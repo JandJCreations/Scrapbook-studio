@@ -10,7 +10,7 @@ import { PhotoPanel, VideoPanel } from "@/components/studio/look-panels";
 import { patchAudio, patchFades, patchPhotoAdjustments, patchVideoAdjustments } from "@/lib/editor/ops";
 import { setSpeed } from "@/lib/timeline/clip-edits";
 import { clipDuration } from "@/lib/timeline/clip-math";
-import { previousClip, setTransition, DEFAULT_TRANSITION_SECONDS } from "@/lib/timeline/transitions";
+import { effectiveTransition, previousClip, setTransition, DEFAULT_TRANSITION_SECONDS } from "@/lib/timeline/transitions";
 import { trimClip } from "@/lib/timeline/trim";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 import { DEFAULT_PHOTO_ADJUSTMENTS, type PhotoAdjustments } from "@/types/photo-adjustments";
@@ -53,7 +53,11 @@ function videoLookDefaults(clip: Clip): Partial<VideoAdjustments> {
 /** The Details panel: how long, how it looks and how it sounds, for the selected photo, video or music clip. */
 export function EditTab({ clip }: { clip: Clip | null }) {
   const clipId = clip?.id ?? null;
-  const project = useClipProjectStore(selectProject);
+  // Only what the transition section needs, so a gesture elsewhere does not redraw the panel.
+  const hasPrevious = useClipProjectStore((s) => (clip ? previousClip(selectProject(s), clip) !== null : false));
+  const shownTransitionSeconds = useClipProjectStore((s) =>
+    clip ? (effectiveTransition(selectProject(s), clip)?.duration ?? null) : null,
+  );
   // Changes made while previewing. Each preview is recomputed from the project
   // as it was before the gesture, so the patches must be sent together.
   const pending = React.useRef<Pending>({});
@@ -103,8 +107,10 @@ export function EditTab({ clip }: { clip: Clip | null }) {
   const id = clip.id;
   const transitionSection = (
     <TransitionSection
-      transition={clip.transition ?? null}
-      hasPrevious={previousClip(project, clip) !== null}
+      transition={
+        clip.transition ? { ...clip.transition, duration: shownTransitionSeconds ?? clip.transition.duration } : null
+      }
+      hasPrevious={hasPrevious}
       onType={(type) =>
         apply((p) =>
           setTransition(p, id, type === null ? null : { type, duration: clip.transition?.duration ?? DEFAULT_TRANSITION_SECONDS }),

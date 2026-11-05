@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   activeTransitionAt,
+  activeTransitionsAt,
   DEFAULT_TRANSITION_SECONDS,
   effectiveTransition,
   MAX_TRANSITION_SECONDS,
@@ -100,5 +101,29 @@ describe("setTransition", () => {
     expect(setTransition(locked, "b", fade())).toBe(locked);
     const same = setTransition(project, "b", fade(DEFAULT_TRANSITION_SECONDS));
     expect(setTransition(same, "b", fade(DEFAULT_TRANSITION_SECONDS))).toBe(same);
+  });
+});
+
+describe("activeTransitionsAt", () => {
+  const onTrack = (trackId: string, prefix: string) => [
+    photo(prefix + "1", 0, 4, { trackId }),
+    photo(prefix + "2", 4, 4, { trackId, transition: { type: "fade", duration: 1 } }),
+  ];
+
+  it("lists the transitions of every track that has one right now", () => {
+    const project = makeProject(makeStandardTracks(), [...onTrack("t1", "m"), ...onTrack("t2", "o")]);
+    const active = activeTransitionsAt(project, 3.5);
+    expect(active.map((a) => a.incoming.id).sort()).toEqual(["m2", "o2"]);
+  });
+
+  it("leaves out a track that is hidden, so it cannot hide another track's transition", () => {
+    const tracks = makeStandardTracks().map((t) => (t.id === "t2" ? { ...t, hidden: true } : t));
+    const project = makeProject(tracks, [...onTrack("t2", "o"), ...onTrack("t1", "m")]);
+    expect(activeTransitionsAt(project, 3.5).map((a) => a.incoming.id)).toEqual(["m2"]);
+  });
+
+  it("is empty outside every transition", () => {
+    const project = makeProject(makeStandardTracks(), onTrack("t1", "m"));
+    expect(activeTransitionsAt(project, 1)).toEqual([]);
   });
 });

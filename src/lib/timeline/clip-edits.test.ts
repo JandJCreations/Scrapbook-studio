@@ -154,3 +154,15 @@ describe("updateClip no-ops", () => {
     expect(updateClip(project, "A", { volume: 100, muted: false, fadeIn: 0 })).toBe(project);
   });
 });
+
+describe("duplicateClip and transitions", () => {
+  it("makes a plain copy: the copy does not transition in from its own original", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({ id: "a", start: 0, sourceOut: 4, transition: { type: "fade", duration: 1 } }),
+    ]);
+    const result = duplicateClip(project, "a", seqIds("d"));
+    const copy = result.clips.find((c) => c.id !== "a")!;
+    expect(copy.transition ?? null).toBeNull();
+    expect(result.clips.find((c) => c.id === "a")?.transition).toEqual({ type: "fade", duration: 1 });
+  });
+});

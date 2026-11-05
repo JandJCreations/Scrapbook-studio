@@ -19,6 +19,8 @@ interface ClipChipProps {
   rect: ClipRect;
   selected: boolean;
   dimmed: boolean;
+  /** True when a transition really plays into this clip (not a stale one with nothing right before it). */
+  transitionActive: boolean;
   /** Thumbnails, pictures and waveforms; absent means a plain coloured chip. */
   visuals?: MediaVisuals;
   pps: number;
@@ -32,6 +34,7 @@ function areChipsEqual(a: ClipChipProps, b: ClipChipProps): boolean {
     a.clip === b.clip &&
     a.selected === b.selected &&
     a.dimmed === b.dimmed &&
+    a.transitionActive === b.transitionActive &&
     a.rect.x === b.rect.x &&
     a.rect.y === b.rect.y &&
     a.rect.width === b.rect.width &&
@@ -52,6 +55,7 @@ export const ClipChip = React.memo(function ClipChip({
   rect,
   selected,
   dimmed,
+  transitionActive,
   visuals,
   pps,
   viewFrom,
@@ -81,7 +85,7 @@ export const ClipChip = React.memo(function ClipChip({
           viewTo={viewTo - rect.x}
         />
       )}
-      {clip.transition && (
+      {transitionActive && (
         <span
           data-testid="transition-marker"
           title="Transition into this clip"

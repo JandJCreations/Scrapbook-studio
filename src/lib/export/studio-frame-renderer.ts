@@ -4,7 +4,7 @@ import type { PoolElement } from "@/lib/playback/media-pool";
 import { buildScene } from "@/lib/playback/scene";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { activeClipsAt } from "@/lib/timeline/active-clips";
-import { activeTransitionAt } from "@/lib/timeline/transitions";
+import { activeTransitionsAt } from "@/lib/timeline/transitions";
 import type { Clip, TimelineProject } from "@/types/timeline";
 
 const LOAD_TIMEOUT_MS = 20_000;
@@ -122,8 +122,8 @@ export function createFrameRenderer(options: {
         await seek(video, active.sourceTime);
       }
       // The video a transition is bringing in waits at its first frame.
-      const arriving = activeTransitionAt(project, time)?.incoming;
-      if (arriving && arriving.kind === "video") {
+      for (const { incoming: arriving } of activeTransitionsAt(project, time)) {
+        if (arriving.kind !== "video") continue;
         const video = await videoFor(arriving);
         await seek(video, arriving.reversed ? arriving.sourceOut : arriving.sourceIn);
       }

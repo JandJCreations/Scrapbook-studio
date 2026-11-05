@@ -22,6 +22,7 @@ import {
   ZOOM_DEFAULT,
   zoomAround,
 } from "@/lib/timeline-ui/geometry";
+import { effectiveTransition } from "@/lib/timeline/transitions";
 import { commandForKey, nextSelection } from "@/lib/timeline-ui/interactions";
 import { viewWindow } from "@/lib/timeline-ui/visuals";
 import {
@@ -580,6 +581,7 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals }: TimelineView
                         rect={clipRect(clip, { ...row, y: 0 }, pps)}
                         selected={selectedSet.has(clip.id)}
                         dimmed={trackById.get(clip.trackId)?.hidden ?? false}
+                        transitionActive={effectiveTransition(project, clip) !== null}
                         visuals={visuals}
                         pps={pps}
                         viewFrom={visibleRange.from}

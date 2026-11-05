@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { PanelSlider } from "@/components/studio/panel-controls";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   DEFAULT_TRANSITION_SECONDS,
@@ -29,7 +30,18 @@ export function TransitionSection({ transition, hasPrevious, onType, onDurationP
     <div className="space-y-3 rounded-lg border border-border p-2.5">
       <h3 className="text-xs font-medium">Transition</h3>
       {!hasPrevious ? (
-        <p className="text-xs text-muted-foreground">The first clip has nothing before it to transition from.</p>
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            {transition
+              ? "There is no clip directly before this one, so this transition does nothing."
+              : "There is no clip directly before this one to transition from."}
+          </p>
+          {transition && (
+            <Button size="xs" variant="outline" onClick={() => onType(null)}>
+              Remove transition
+            </Button>
+          )}
+        </div>
       ) : (
         <>
           <div className="flex flex-col gap-1.5">

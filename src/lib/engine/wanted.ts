@@ -1,6 +1,6 @@
 import { activeClipsAt, clipGainAt, isAudible } from "@/lib/timeline/active-clips";
 import { clipEnd } from "@/lib/timeline/clip-math";
-import { activeTransitionAt } from "@/lib/timeline/transitions";
+import { activeTransitionsAt, effectiveTransition } from "@/lib/timeline/transitions";
 import type { Clip, TimelineProject } from "@/types/timeline";
 
 export const LOOKAHEAD_SECONDS = 1.0;
@@ -78,31 +78,30 @@ export function planWanted(
 
   // The clip a transition is bringing in is on screen before it starts: its video
   // waits at its first frame, silent and still, so there is something to draw.
-  const arriving = activeTransitionAt(project, t)?.incoming;
-  if (arriving && arriving.kind === "video" && !wanted.some((w) => w.clipId === arriving.id)) {
-    const track = project.tracks.find((candidate) => candidate.id === arriving.trackId);
-    if (track && !track.hidden) {
-      chain.push(arriving);
-      wanted.push({
-        clipId: arriving.id,
-        mediaId: arriving.mediaId,
-        kind: "video",
-        active: true,
-        targetTime: arriving.reversed ? arriving.sourceOut : arriving.sourceIn,
-        playbackRate: arriving.speed,
-        reversed: arriving.reversed,
-        shouldPlay: false,
-        gain: 0,
-      });
-    }
+  for (const { incoming: arriving } of activeTransitionsAt(project, t)) {
+    if (arriving.kind !== "video" || wanted.some((w) => w.clipId === arriving.id)) continue;
+    chain.push(arriving);
+    wanted.push({
+      clipId: arriving.id,
+      mediaId: arriving.mediaId,
+      kind: "video",
+      active: true,
+      targetTime: arriving.reversed ? arriving.sourceOut : arriving.sourceIn,
+      playbackRate: arriving.speed,
+      reversed: arriving.reversed,
+      shouldPlay: false,
+      gain: 0,
+    });
   }
 
   if (!playing) return wanted;
 
   const trackById = new Map(project.tracks.map((track) => [track.id, track]));
   const anySolo = project.tracks.some((track) => track.solo);
+  // A clip a transition brings in is on screen before it starts, so it is prepared that much earlier.
+  const lead = (clip: Clip) => effectiveTransition(project, clip)?.duration ?? 0;
   const upcoming = project.clips
-    .filter((clip) => clip.start > t && clip.start <= t + LOOKAHEAD_SECONDS)
+    .filter((clip) => clip.start > t && clip.start - lead(clip) <= t + LOOKAHEAD_SECONDS)
     .sort((a, b) => a.start - b.start);
 
   for (const clip of upcoming) {
@@ -112,7 +111,8 @@ export function planWanted(
     const audible = isAudible(clip, track, anySolo) && !clip.reversed;
     if (!needsElement(clip, !track.hidden, audible)) continue;
 
-    const continues = chain.some((earlier) => isContinuation(earlier, clip));
+    // A transition shows the clip while the one before it still plays, so it needs an element of its own.
+    const continues = lead(clip) === 0 && chain.some((earlier) => isContinuation(earlier, clip));
     chain.push(clip);
     if (continues) continue;
 
