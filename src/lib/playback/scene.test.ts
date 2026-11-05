@@ -226,3 +226,23 @@ describe("buildScene during a transition", () => {
     expect(ids).toHaveLength(4);
   });
 });
+
+describe("buildScene item layout", () => {
+  it("says how wide the clip is laid out, so a zoom does not change what the painter caches by", () => {
+    const motionPhoto = makeClip({
+      id: "m",
+      trackId: "t1",
+      kind: "image",
+      sourceDuration: null,
+      sourceOut: 4,
+      transform: { x: 0, y: 0, width: 400, height: 300, rotation: 0, opacity: 1 },
+      motion: "zoom-in",
+    });
+    const project = makeProject(makeStandardTracks(), [motionPhoto]);
+    const early = buildScene(project, 0, none)[0];
+    const late = buildScene(project, 3.5, none)[0];
+    expect(late.draw.width).toBeGreaterThan(early.draw.width);
+    expect(early.layoutWidth).toBe(400);
+    expect(late.layoutWidth).toBe(400);
+  });
+});

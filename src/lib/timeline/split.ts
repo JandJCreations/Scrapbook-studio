@@ -42,6 +42,8 @@ export function splitClip(
     id: rightId,
     // The cut inside a clip is always a plain cut; the transition into the clip stays with the left half.
     transition: null,
+    // A slow zoom or pan belongs to the half it started in; the other half stays still instead of jumping back.
+    motion: null,
     // Start exactly where the left half ends: `at` can differ from
     // clipEnd(left) by a float ulp, which would leave a sliver at the cut.
     start: clipEnd(left),

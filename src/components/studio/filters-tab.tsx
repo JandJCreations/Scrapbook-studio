@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { FILTER_LIST } from "@/lib/appearance/filters";
+import { FILTER_LIST, videoLookForPreset } from "@/lib/appearance/filters";
 import { filterPresetToCss, type FilterPreset } from "@/types/photo-adjustments";
 import type { Clip } from "@/types/timeline";
 
@@ -17,8 +17,16 @@ export function FiltersTab({ clip, onPick }: FiltersTabProps) {
   if (!clip || (clip.kind !== "image" && clip.kind !== "video")) {
     return <p className="p-3 text-sm text-muted-foreground">Select a photo or video on the timeline, then pick a filter for it.</p>;
   }
-  // A photo remembers which filter it has; a video only has the three sliders a filter sets.
-  const current: FilterPreset = clip.kind === "image" ? (clip.adjustments.photo?.filterPreset ?? "none") : "none";
+  // A photo remembers which filter it has; a video only has the three sliders a filter sets, so a filter shows
+  // as picked when they match it, and none does when the sliders were set by hand.
+  const video = clip.adjustments.video;
+  const current: FilterPreset | null =
+    clip.kind === "image"
+      ? (clip.adjustments.photo?.filterPreset ?? "none")
+      : (FILTER_LIST.find(({ preset }) => {
+          const look = videoLookForPreset(preset);
+          return (video?.brightness ?? 0) === look.brightness && (video?.contrast ?? 0) === look.contrast && (video?.saturation ?? 0) === look.saturation;
+        })?.preset ?? null);
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-3">
       <ul className="grid grid-cols-3 gap-2">

@@ -208,3 +208,15 @@ describe("splitClip and transitions", () => {
     expect(right.transition ?? null).toBeNull();
   });
 });
+
+describe("splitClip and motion", () => {
+  it("keeps the motion on the left half and leaves the right half still (so there is no jump back at the cut)", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({ id: "a", kind: "image", sourceDuration: null, start: 0, sourceOut: 8, motion: "zoom-in" }),
+    ]);
+    const result = splitClip(project, "a", 4, seqIds("n"));
+    expect(result.clips.find((c) => c.id === "a")?.motion).toBe("zoom-in");
+    const right = result.clips.find((c) => c.id !== "a")!;
+    expect(right.motion ?? null).toBeNull();
+  });
+});

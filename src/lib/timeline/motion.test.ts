@@ -42,4 +42,10 @@ describe("setAllMotion", () => {
     const once = setAllMotion(p, "zoom-in");
     expect(setAllMotion(once, "zoom-in")).toBe(once);
   });
+
+  it("only touches photos on the main strip, not pictures placed on overlay tracks", () => {
+    const p = makeProject(makeStandardTracks(), [photo("a", 0), photo("o", 0, { trackId: "t2" })]);
+    const result = setAllMotion(p, "pan-left");
+    expect(result.clips.map((c) => [c.id, c.motion ?? null])).toEqual([["a", "pan-left"], ["o", null]]);
+  });
 });

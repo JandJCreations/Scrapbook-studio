@@ -221,8 +221,9 @@ export function StudioView({ env }: { env: StudioEnv }) {
     try {
       const media = await loadEditorMedia(item);
       if (!media || !aliveRef.current) return;
-      const playhead = at ?? useTransportStore.getState().time;
-      if (put((p) => addAudioClip(p, media, frame, musicStartTime(p, playhead)), true)) say(null);
+      const playhead = useTransportStore.getState().time;
+      // Dropped music starts where it was dropped; added music starts at the playhead, or the beginning if that is past the end.
+      if (put((p) => addAudioClip(p, media, frame, at !== undefined ? Math.max(0, at) : musicStartTime(p, playhead)), true)) say(null);
       else say("Couldn't add that to the video.");
     } catch (error) {
       say(error instanceof Error ? error.message : "Couldn't add that to the video.");
@@ -239,8 +240,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
       width: 0,
       height: 0,
     };
-    const playhead = at ?? useTransportStore.getState().time;
-    if (put((p) => addAudioClip(p, media, frame, musicStartTime(p, playhead)), true)) say(null);
+    const playhead = useTransportStore.getState().time;
+    if (put((p) => addAudioClip(p, media, frame, at !== undefined ? Math.max(0, at) : musicStartTime(p, playhead)), true)) say(null);
     else say("Couldn't add that to the video.");
   }
 

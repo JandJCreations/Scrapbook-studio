@@ -23,4 +23,12 @@ describe("useStudioTheme", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(document.documentElement.classList.contains("studio-theme")).toBe(false);
   });
+
+  it("also turns the browser's own controls dark (scrollbars, sliders, menus), and restores them", () => {
+    document.documentElement.style.colorScheme = "light";
+    const view = renderHook(() => useStudioTheme());
+    expect(document.documentElement.style.colorScheme).toBe("dark");
+    view.unmount();
+    expect(document.documentElement.style.colorScheme).toBe("light");
+  });
 });

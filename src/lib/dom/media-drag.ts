@@ -12,9 +12,22 @@ interface Transfer {
   getData(type: string): string;
 }
 
-export function writeMediaDrag(transfer: Transfer, payload: MediaDragPayload): void {
+/** What is being dragged, in the drag's types so a lane can see it while the pointer is still over it: pictures and videos, or sound. */
+export type MediaDragKind = "visual" | "audio";
+const KIND_PREFIX = "application/x-studio-media-kind-";
+
+export function writeMediaDrag(transfer: Transfer, payload: MediaDragPayload, kind: MediaDragKind): void {
   transfer.setData(MEDIA_DRAG_TYPE, JSON.stringify(payload));
+  transfer.setData(KIND_PREFIX + kind, kind);
   transfer.effectAllowed = "copy";
+}
+
+/** The kind of a media drag of ours, or null for any other drag. */
+export function mediaDragKind(transfer: Pick<Transfer, "types">): MediaDragKind | null {
+  const types = Array.from(transfer.types);
+  if (types.includes(KIND_PREFIX + "visual")) return "visual";
+  if (types.includes(KIND_PREFIX + "audio")) return "audio";
+  return null;
 }
 
 /** True while the drag is one of ours (usable during dragover, when the data itself cannot be read). */

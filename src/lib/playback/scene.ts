@@ -16,6 +16,8 @@ export type SceneContent =
 export interface SceneItem {
   clipId: string;
   draw: DrawState;
+  /** How wide the clip is laid out, before any motion: what blur and corner sizes are measured against, so a zoom does not change them frame by frame. */
+  layoutWidth: number;
   /** Filters, flip, border and shadows for pictures and video; null when the clip has none. */
   look: Look | null;
   /** null = nothing to draw for this clip right now (e.g. its video element is not ready). */
@@ -77,12 +79,14 @@ export function buildScene(
       items.push({
         clipId: incoming.id,
         draw: transitionDraw("in", transition.type, transition.progress, arrivingDraw, slideDistance),
+        layoutWidth: incoming.transform.width,
         look: lookFor(incoming),
         content: contentFor(incoming, elementFor),
       });
       items.push({
         clipId: active.clip.id,
         draw: transitionDraw("out", transition.type, transition.progress, clipDrawState(active.clip, active.localTime), slideDistance),
+        layoutWidth: active.clip.transform.width,
         look: lookFor(active.clip),
         content: contentFor(active.clip, elementFor),
       });
@@ -91,6 +95,7 @@ export function buildScene(
     items.push({
       clipId: active.clip.id,
       draw: clipDrawState(active.clip, active.localTime),
+      layoutWidth: active.clip.transform.width,
       look: lookFor(active.clip),
       content: contentFor(active.clip, elementFor),
     });

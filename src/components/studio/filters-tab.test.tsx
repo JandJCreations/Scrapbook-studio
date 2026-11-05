@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FiltersTab } from "@/components/studio/filters-tab";
 import { makeClip } from "@/lib/timeline/test-utils";
 import { DEFAULT_PHOTO_ADJUSTMENTS, type FilterPreset } from "@/types/photo-adjustments";
+import { createDefaultVideoAdjustments } from "@/types/video-adjustments";
 
 const photo = (preset: FilterPreset = "none") =>
   makeClip({
@@ -40,5 +41,22 @@ describe("FiltersTab", () => {
   it("is not offered for music", () => {
     render(<FiltersTab clip={makeClip({ kind: "audio" })} onPick={vi.fn()} />);
     expect(screen.getByText(/select a photo or video/i)).toBeTruthy();
+  });
+
+  it("marks a video's filter only when its sliders match one, and nothing when they were set by hand", () => {
+    const video = (adj: { brightness: number; contrast: number; saturation: number }) =>
+      makeClip({
+        kind: "video",
+        adjustments: { photo: null, video: { ...createDefaultVideoAdjustments(10), ...adj }, text: null },
+      });
+    const view = render(<FiltersTab clip={video({ brightness: 0, contrast: 0, saturation: 0 })} onPick={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Filter None" }).getAttribute("aria-pressed")).toBe("true");
+    view.unmount();
+    const vivid = render(<FiltersTab clip={video({ brightness: 5, contrast: 15, saturation: 35 })} onPick={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Filter Vivid" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Filter None" }).getAttribute("aria-pressed")).toBe("false");
+    vivid.unmount();
+    render(<FiltersTab clip={video({ brightness: 3, contrast: 1, saturation: 2 })} onPick={vi.fn()} />);
+    expect(screen.queryAllByRole("button", { pressed: true })).toHaveLength(0);
   });
 });

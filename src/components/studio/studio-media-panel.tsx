@@ -79,7 +79,7 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onUpload }:
           <li
             key={item.id}
             draggable
-            onDragStart={(event) => writeMediaDrag(event.dataTransfer, { source: "library", id: item.id })}
+            onDragStart={(event) => writeMediaDrag(event.dataTransfer, { source: "library", id: item.id }, "visual")}
             className="relative cursor-grab overflow-hidden rounded-md border"
           >
             <MediaThumbnail item={item} className="aspect-square w-full" />

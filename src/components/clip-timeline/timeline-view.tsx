@@ -26,7 +26,7 @@ import {
 } from "@/lib/timeline-ui/geometry";
 import { ZoomIn, ZoomOut, Plus } from "lucide-react";
 import { effectiveTransition, previousClip } from "@/lib/timeline/transitions";
-import { hasMediaDrag, readMediaDrag, type MediaDragPayload } from "@/lib/dom/media-drag";
+import { hasMediaDrag, mediaDragKind, readMediaDrag, type MediaDragPayload } from "@/lib/dom/media-drag";
 import { commandForKey, nextSelection } from "@/lib/timeline-ui/interactions";
 import { viewWindow } from "@/lib/timeline-ui/visuals";
 import {
@@ -515,9 +515,15 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onD
   };
 
   // One handler for all lanes: a click on a chip selects it, a click on empty space clears.
+  /** Pictures and videos belong on the video strip, sound on the music lane; nowhere else takes a drop. */
+  const laneAccepts = (event: React.DragEvent<HTMLDivElement>, trackType: "video" | "overlay" | "audio") => {
+    const kind = mediaDragKind(event.dataTransfer);
+    return (trackType === "video" && kind === "visual") || (trackType === "audio" && kind === "audio");
+  };
+
   /** A media drag over a lane shows where it would land, and lets the drop happen. */
-  const onLaneDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!onDropMedia || !hasMediaDrag(event.dataTransfer)) return;
+  const onLaneDragOver = (event: React.DragEvent<HTMLDivElement>, trackType: "video" | "overlay" | "audio") => {
+    if (!onDropMedia || !hasMediaDrag(event.dataTransfer) || !laneAccepts(event, trackType)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
     setGuide({ kind: "insert", time: dropTime(event) });
@@ -531,6 +537,7 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onD
 
   const onLaneDrop = (event: React.DragEvent<HTMLDivElement>, trackType: "video" | "overlay" | "audio") => {
     if (!onDropMedia) return;
+    if (!laneAccepts(event, trackType)) return;
     const payload = readMediaDrag(event.dataTransfer);
     if (!payload) return;
     event.preventDefault();
@@ -562,8 +569,51 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onD
   const endTime = (scrollLeft + viewportWidth) / pps;
   const totalHeight = RULER_HEIGHT + layout.height;
 
+  // A timeline that has no video strip or music lane yet still needs somewhere to drop the first photo or song.
+  const hasVideoTrack = project.tracks.some((track) => track.type === "video");
+  const hasAudioTrack = project.tracks.some((track) => track.type === "audio");
+  const dropZone = (type: "video" | "audio") => (
+    <div
+      key={type}
+      data-testid={`timeline-drop-${type}`}
+      onDragOver={(event) => {
+        if (!onDropMedia || !hasMediaDrag(event.dataTransfer) || !laneAccepts(event, type)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDrop={(event) => {
+        if (!onDropMedia || !laneAccepts(event, type)) return;
+        const payload = readMediaDrag(event.dataTransfer);
+        if (!payload) return;
+        event.preventDefault();
+        onDropMedia(payload, 0, type);
+      }}
+      className="flex items-center gap-3 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground"
+    >
+      {type === "video" && onAddClip && (
+        <button
+          type="button"
+          aria-label="Add media to the video"
+          title="Add media"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onAddClip}
+          className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground shadow hover:opacity-90"
+        >
+          <Plus className="size-5" />
+        </button>
+      )}
+      {type === "video" ? "Drop photos and videos here" : "Drop music here"}
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-1">
+      {onDropMedia || onAddClip ? (
+        <>
+          {!hasVideoTrack && dropZone("video")}
+          {!hasAudioTrack && onDropMedia && dropZone("audio")}
+        </>
+      ) : null}
       <div className="flex items-center justify-end gap-2 px-1 text-muted-foreground">
         <ZoomOut className="size-3.5" aria-hidden />
         <input
@@ -631,7 +681,7 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onD
                   style={{ width: laneWidth, touchAction: "none" }}
                   onPointerDown={onLanePointerDown}
                   onClick={onLaneClick}
-                  onDragOver={onLaneDragOver}
+                  onDragOver={(event) => onLaneDragOver(event, track.type)}
                   onDragLeave={() => setGuide(null)}
                   onDrop={(event) => onLaneDrop(event, track.type)}
                 >
@@ -687,6 +737,7 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onD
                       title="Add media"
                       // Like the clips, it does not take keyboard focus on click, so Space keeps meaning play/pause.
                       onMouseDown={(event) => event.preventDefault()}
+                      onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => {
                         event.stopPropagation();
                         onAddClip();

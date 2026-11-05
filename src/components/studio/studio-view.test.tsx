@@ -383,7 +383,12 @@ describe("StudioView dragging media onto the timeline", () => {
       clientX: atSeconds * 60, // the timeline starts at 60 pixels a second
       clientY: 0,
       dataTransfer: {
-        types: ["application/x-studio-media"],
+        types: [
+          "application/x-studio-media",
+          (payload as { source: string; id: string }).source === "music" || (payload as { id: string }).id === song.id
+            ? "application/x-studio-media-kind-audio"
+            : "application/x-studio-media-kind-visual",
+        ],
         getData: (type: string) => (type === "application/x-studio-media" ? JSON.stringify(payload) : ""),
       },
     });
@@ -486,5 +491,52 @@ describe("StudioView photo motion", () => {
     expect(clips().map((c) => c.motion)).toEqual(["zoom-in", "zoom-in"]);
     fireEvent.change(screen.getByLabelText("Motion"), { target: { value: "none" } });
     expect(clips()[1].motion ?? null).toBeNull();
+  });
+});
+
+describe("StudioView first drop and music dropped late", () => {
+  const dropEvent = (payload: unknown, kind: "visual" | "audio", clientX = 0) => {
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.assign(event, {
+      clientX,
+      clientY: 0,
+      dataTransfer: {
+        types: ["application/x-studio-media", `application/x-studio-media-kind-${kind}`],
+        getData: (type: string) => (type === "application/x-studio-media" ? JSON.stringify(payload) : ""),
+      },
+    });
+    return event;
+  };
+
+  it("lets media be dropped on a timeline that has no strip at all", async () => {
+    render(<StudioView env={env({ library: [photo] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(clips()).toHaveLength(0);
+    // Deleting leaves the empty lanes in place; a project that has none (an old one) is what needs the drop place.
+    act(() => useClipProjectStore.getState().apply((p) => ({ ...p, tracks: [] })));
+
+    const zone = await screen.findByTestId("timeline-drop-video");
+    act(() => {
+      zone.dispatchEvent(dropEvent({ source: "library", id: photo.id }, "visual"));
+    });
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    expect(clips()[0]).toMatchObject({ kind: "image", mediaId: photo.id });
+  });
+
+  it("starts music where it was dropped, even past the end of the video", async () => {
+    render(<StudioView env={env({ library: [photo] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    const audioTrack = selectProject(useClipProjectStore.getState()).tracks.find((t) => t.type === "audio")!;
+    const lane = document.querySelector(`[data-track-id='${audioTrack.id}']`) as HTMLElement;
+    act(() => {
+      lane.dispatchEvent(dropEvent({ source: "music", id: MUSIC_LIBRARY[0].id }, "audio", 30 * 60));
+    });
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+    expect(clips().find((c) => c.kind === "audio")!.start).toBeCloseTo(30);
   });
 });

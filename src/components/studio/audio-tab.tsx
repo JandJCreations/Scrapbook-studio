@@ -60,7 +60,7 @@ export function AudioTab({ items, loading, onAddAudio, onAddMusic }: AudioTabPro
               <li
                 key={item.id}
                 draggable
-                onDragStart={(event) => writeMediaDrag(event.dataTransfer, { source: "library", id: item.id })}
+                onDragStart={(event) => writeMediaDrag(event.dataTransfer, { source: "library", id: item.id }, "audio")}
                 className="flex cursor-grab items-center gap-2 rounded-md border p-1.5"
               >
                 <p className="min-w-0 flex-1 truncate text-xs font-medium" title={item.name}>
@@ -87,7 +87,7 @@ export function AudioTab({ items, loading, onAddAudio, onAddMusic }: AudioTabPro
             <li
               key={track.id}
               draggable
-              onDragStart={(event) => writeMediaDrag(event.dataTransfer, { source: "music", id: track.id })}
+              onDragStart={(event) => writeMediaDrag(event.dataTransfer, { source: "music", id: track.id }, "audio")}
               className="flex cursor-grab items-center gap-2 rounded-md border p-1.5"
             >
               <Button

@@ -12,10 +12,14 @@ export function useStudioTheme(): void {
   React.useEffect(() => {
     const root = document.documentElement;
     const alreadyDark = root.classList.contains("dark");
+    const previousScheme = root.style.colorScheme;
     root.classList.add("dark", "studio-theme");
+    // The browser's own controls (scrollbars, sliders, menus) follow this, not the classes.
+    root.style.colorScheme = "dark";
     return () => {
       root.classList.remove("studio-theme");
       if (!alreadyDark) root.classList.remove("dark");
+      root.style.colorScheme = previousScheme;
     };
   }, []);
 }

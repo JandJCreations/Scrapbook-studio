@@ -467,7 +467,15 @@ describe("TimelineView dropping media", () => {
       makeClip({ id: "b", name: "Second", start: 4, sourceOut: 4 }),
     ]);
   const transfer = (payload: unknown) => ({
-    types: payload === null ? ["text/plain"] : ["application/x-studio-media"],
+    types:
+      payload === null
+        ? ["text/plain"]
+        : [
+            "application/x-studio-media",
+            (payload as { source: string }).source === "music"
+              ? "application/x-studio-media-kind-audio"
+              : "application/x-studio-media-kind-visual",
+          ],
     getData: (type: string) => (type === "application/x-studio-media" && payload ? JSON.stringify(payload) : ""),
     dropEffect: "none",
   });
@@ -550,5 +558,83 @@ describe("TimelineView transition boxes", () => {
   it("has no boxes where transitions cannot be opened", () => {
     mount(strip(false));
     expect(screen.queryByRole("button", { name: "Transition between slides" })).toBeNull();
+  });
+});
+
+describe("TimelineView drops by kind and on an empty timeline", () => {
+  const kindTransfer = (kind: "visual" | "audio", payload: unknown) => ({
+    types: ["application/x-studio-media", `application/x-studio-media-kind-${kind}`],
+    getData: (type: string) => (type === "application/x-studio-media" ? JSON.stringify(payload) : ""),
+    dropEffect: "none",
+  });
+  const dragover = (el: HTMLElement, dataTransfer: unknown) => {
+    const event = new Event("dragover", { bubbles: true, cancelable: true });
+    Object.assign(event, { dataTransfer, clientX: 0, clientY: 0 });
+    el.dispatchEvent(event);
+    return event;
+  };
+  const strip = () =>
+    makeProject(makeStandardTracks(), [makeClip({ id: "a", name: "First", sourceOut: 4 })]);
+
+  it("accepts a photo on the video strip and a song on the music lane, not the other way round", () => {
+    act(() => {
+      useClipProjectStore.getState().load(strip());
+      useTransportStore.getState().reset();
+    });
+    render(<TimelineView fps={30} onSeek={vi.fn()} onToggle={vi.fn()} onStep={vi.fn()} onDropMedia={vi.fn()} />);
+    const video = document.querySelector("[data-track-id='t1']") as HTMLElement;
+    const audio = document.querySelector("[data-track-id='t3']") as HTMLElement;
+    const overlay = document.querySelector("[data-track-id='t2']") as HTMLElement;
+    const photo = kindTransfer("visual", { source: "library", id: "p" });
+    const song = kindTransfer("audio", { source: "music", id: "m" });
+    expect(dragover(video, photo).defaultPrevented).toBe(true);
+    expect(dragover(audio, song).defaultPrevented).toBe(true);
+    expect(dragover(audio, photo).defaultPrevented).toBe(false);
+    expect(dragover(video, song).defaultPrevented).toBe(false);
+    expect(dragover(overlay, photo).defaultPrevented).toBe(false);
+  });
+
+  it("does not call back for a drop a lane does not accept", () => {
+    act(() => {
+      useClipProjectStore.getState().load(strip());
+      useTransportStore.getState().reset();
+    });
+    const onDropMedia = vi.fn();
+    render(<TimelineView fps={30} onSeek={vi.fn()} onToggle={vi.fn()} onStep={vi.fn()} onDropMedia={onDropMedia} />);
+    const audio = document.querySelector("[data-track-id='t3']") as HTMLElement;
+    fireEvent.drop(audio, { dataTransfer: kindTransfer("visual", { source: "library", id: "p" }) });
+    expect(onDropMedia).not.toHaveBeenCalled();
+  });
+
+  it("shows a place to drop (and a plus) when the timeline has no video strip yet", () => {
+    act(() => {
+      useClipProjectStore.getState().load({ id: "p", tracks: [], clips: [] });
+      useTransportStore.getState().reset();
+    });
+    const onDropMedia = vi.fn();
+    const onAddClip = vi.fn();
+    render(<TimelineView fps={30} onSeek={vi.fn()} onToggle={vi.fn()} onStep={vi.fn()} onDropMedia={onDropMedia} onAddClip={onAddClip} />);
+    const zone = screen.getByTestId("timeline-drop-video");
+    fireEvent.drop(zone, { dataTransfer: kindTransfer("visual", { source: "library", id: "p" }) });
+    expect(onDropMedia).toHaveBeenCalledWith({ source: "library", id: "p" }, 0, "video");
+    fireEvent.click(screen.getByRole("button", { name: "Add media to the video" }));
+    expect(onAddClip).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a place for music when there is a video strip but no music lane, and only that accepts songs", () => {
+    act(() => {
+      useClipProjectStore.getState().load({
+        id: "p",
+        tracks: [{ id: "v", type: "video", order: 0, muted: false, locked: false, hidden: false, solo: false }],
+        clips: [],
+      });
+      useTransportStore.getState().reset();
+    });
+    const onDropMedia = vi.fn();
+    render(<TimelineView fps={30} onSeek={vi.fn()} onToggle={vi.fn()} onStep={vi.fn()} onDropMedia={onDropMedia} />);
+    expect(screen.queryByTestId("timeline-drop-video")).toBeNull();
+    const zone = screen.getByTestId("timeline-drop-audio");
+    fireEvent.drop(zone, { dataTransfer: kindTransfer("audio", { source: "music", id: "m" }) });
+    expect(onDropMedia).toHaveBeenCalledWith({ source: "music", id: "m" }, 0, "audio");
   });
 });

@@ -299,7 +299,7 @@ export function createScenePainter({
 
     entry.image.visible(source !== null);
     if (source !== null) {
-      const prepared = applyFilter(entry, source, item.look, draw);
+      const prepared = applyFilter(entry, source, item.look, { width: item.layoutWidth, height: draw.height });
       entry.image.image(prepared.source);
       // A crop that was not baked into a scratch canvas is drawn by Konva itself.
       entry.image.setAttr("crop", prepared.baked ? undefined : (item.look?.crop ?? undefined));
