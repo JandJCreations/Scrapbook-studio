@@ -91,3 +91,25 @@ describe("clipDrawState: fades", () => {
     expect(clipDrawState(c, 1).opacity).toBeCloseTo(0.25, 9);
   });
 });
+
+describe("clipDrawState: photo motion", () => {
+  const photo = (motion: "zoom-in" | null) => ({
+    ...makeClip({ transform }),
+    kind: "image" as const,
+    sourceDuration: null,
+    sourceIn: 0,
+    sourceOut: 4,
+    motion,
+  });
+
+  it("moves a photo over the length of its clip", () => {
+    expect(clipDrawState(photo("zoom-in"), 0).width).toBe(300);
+    expect(clipDrawState(photo("zoom-in"), 2).width).toBeGreaterThan(300);
+    expect(clipDrawState(photo("zoom-in"), 4).width).toBeGreaterThan(clipDrawState(photo("zoom-in"), 2).width);
+  });
+
+  it("does nothing without motion, and not for a video even if one is stored", () => {
+    expect(clipDrawState(photo(null), 2).width).toBe(300);
+    expect(clipDrawState({ ...photo("zoom-in"), kind: "video" as const }, 2).width).toBe(300);
+  });
+});

@@ -7,6 +7,8 @@ import { FadeSection } from "@/components/studio/fade-section";
 import { PanelSlider } from "@/components/studio/panel-controls";
 import { Button } from "@/components/ui/button";
 import { TransitionSection } from "@/components/studio/transition-section";
+import { MOTIONS, setAllMotion, setMotion } from "@/lib/timeline/motion";
+import type { ClipMotion } from "@/types/timeline";
 import { PhotoPanel, VideoPanel } from "@/components/studio/look-panels";
 import { patchAudio, patchFades, patchPhotoAdjustments, patchVideoAdjustments, setAllStillDurations } from "@/lib/editor/ops";
 import { setSpeed } from "@/lib/timeline/clip-edits";
@@ -175,6 +177,38 @@ export function EditTab({ clip }: { clip: Clip | null }) {
             Apply this length to all photos
           </Button>
           {transitionSection}
+          <div className="space-y-2 rounded-lg border border-border p-2.5">
+            <h3 className="text-xs font-medium">Motion</h3>
+            <select
+              aria-label="Motion"
+              value={clip.motion ?? "none"}
+              onChange={(event) =>
+                apply((p) => setMotion(p, id, event.target.value === "none" ? null : (event.target.value as ClipMotion)))
+              }
+              className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs"
+            >
+              <option value="none">None</option>
+              {MOTIONS.map(({ motion, label }) => (
+                <option key={motion} value={motion}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            {clip.motion && (
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() =>
+                  apply((p) => {
+                    const own = p.clips.find((c) => c.id === id)?.motion ?? null;
+                    return setAllMotion(p, own);
+                  })
+                }
+              >
+                Apply motion to all photos
+              </Button>
+            )}
+          </div>
           <PhotoPanel
             adjustments={clip.adjustments.photo ?? DEFAULT_PHOTO_ADJUSTMENTS}
             onPreview={(photo) => preview({ photo })}

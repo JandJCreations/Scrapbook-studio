@@ -469,3 +469,22 @@ describe("StudioView galleries", () => {
     expect(useClipProjectStore.getState().selectedClipIds).toEqual([clips()[1].id]);
   });
 });
+
+describe("StudioView photo motion", () => {
+  it("gives a photo a motion from Details, and every photo with the apply button", async () => {
+    render(<StudioView env={env({ library: [photo, forest] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+
+    fireEvent.change(await screen.findByLabelText("Motion"), { target: { value: "zoom-in" } });
+    expect(clips()[1].motion).toBe("zoom-in");
+    expect(clips()[0].motion ?? null).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Apply motion to all photos" }));
+    expect(clips().map((c) => c.motion)).toEqual(["zoom-in", "zoom-in"]);
+    fireEvent.change(screen.getByLabelText("Motion"), { target: { value: "none" } });
+    expect(clips()[1].motion ?? null).toBeNull();
+  });
+});

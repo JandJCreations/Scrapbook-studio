@@ -41,6 +41,9 @@ export interface ClipTransition {
   duration: number;
 }
 
+/** A slow movement of a photo over its length (like a camera move across a still). */
+export type ClipMotion = "zoom-in" | "zoom-out" | "pan-left" | "pan-right";
+
 export interface Clip {
   id: string;
   trackId: string;
@@ -75,6 +78,8 @@ export interface Clip {
   groupId: string | null;
   /** The transition from the previous clip into this one; absent or null for a plain cut. */
   transition?: ClipTransition | null;
+  /** A slow zoom or pan of a photo; absent or null for a still picture. */
+  motion?: ClipMotion | null;
   locked: boolean;
   isPlaceholder: boolean;
 }

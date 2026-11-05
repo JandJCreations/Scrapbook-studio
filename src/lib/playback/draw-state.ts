@@ -1,4 +1,6 @@
+import { motionDraw } from "@/lib/playback/motion-draw";
 import { fadeFactor } from "@/lib/timeline/active-clips";
+import { clipDuration } from "@/lib/timeline/clip-math";
 import type { Keyframe } from "@/types/keyframe";
 import type { Clip } from "@/types/timeline";
 
@@ -62,7 +64,7 @@ export function clipDrawState(clip: Clip, localTime: number): DrawState {
   const { transform } = clip;
   const base = clipBaseState(clip, localTime);
 
-  return {
+  const drawn: DrawState = {
     x: base.x,
     y: base.y,
     width: transform.width,
@@ -70,4 +72,10 @@ export function clipDrawState(clip: Clip, localTime: number): DrawState {
     rotation: base.rotation,
     opacity: base.opacity * fadeFactor(clip, localTime),
   };
+  // A photo's slow zoom or pan runs over the length of its clip.
+  if (clip.kind === "image" && clip.motion) {
+    const length = clipDuration(clip);
+    return motionDraw(clip.motion, length > 0 ? localTime / length : 0, drawn);
+  }
+  return drawn;
 }

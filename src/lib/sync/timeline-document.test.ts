@@ -70,6 +70,25 @@ describe("transitions in the document", () => {
   });
 });
 
+describe("photo motion in the document", () => {
+  const withMotion = (motion: unknown) => {
+    const doc = JSON.parse(JSON.stringify(serializeTimeline(makeProject(makeStandardTracks(), [makeClip({ id: "a" })]))));
+    doc.clips[0].motion = motion;
+    return doc;
+  };
+
+  it("keeps a motion through a save and load, and opens projects saved before it existed", () => {
+    expect(parseTimeline("p", withMotion("pan-right")).clips[0].motion).toBe("pan-right");
+    const old = withMotion(undefined);
+    delete old.clips[0].motion;
+    expect(parseTimeline("p", old).clips[0].motion ?? null).toBeNull();
+  });
+
+  it("rejects a motion it does not know", () => {
+    expect(() => parseTimeline("p", withMotion("spin"))).toThrow();
+  });
+});
+
 describe("parseTimeline: rejects invalid documents", () => {
   it.each([[null], ["text"], [[]], [42]])("rejects the non-object %j", (raw) => {
     expect(() => parseTimeline("p1", raw)).toThrow(TimelineDocumentError);

@@ -98,6 +98,7 @@ const clipSchema = z
       })
       .nullable()
       .optional(),
+    motion: z.enum(["zoom-in", "zoom-out", "pan-left", "pan-right"]).nullable().optional(),
     locked: z.boolean(),
     isPlaceholder: z.boolean(),
   })
