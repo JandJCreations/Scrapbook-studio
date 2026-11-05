@@ -4,6 +4,7 @@ import { updateClip } from "@/lib/timeline/clip-edits";
 import { clipEnd } from "@/lib/timeline/clip-math";
 import { createId, type IdFn } from "@/lib/timeline/ids";
 import { clipsOnTrack } from "@/lib/timeline/lookup";
+import { isMagnetic } from "@/lib/timeline/pack";
 import { insertClip } from "@/lib/timeline/place";
 import { trimClip } from "@/lib/timeline/trim";
 import { addTrack } from "@/lib/timeline/tracks";
@@ -174,7 +175,11 @@ export function patchFades(
 export function setAllStillDurations(project: TimelineProject, seconds: number): TimelineProject {
   let result = project;
   // In order, so each photo's start is where the strip has already put it.
-  const stills = project.clips.filter((clip) => clip.kind === "image").sort((a, b) => a.start - b.start);
+  // Only the main strip: photos on free tracks are placed by hand, and a new length could overlap their neighbours.
+  const magneticTracks = new Set(project.tracks.filter(isMagnetic).map((track) => track.id));
+  const stills = project.clips
+    .filter((clip) => clip.kind === "image" && magneticTracks.has(clip.trackId))
+    .sort((a, b) => a.start - b.start);
   for (const still of stills) {
     const current = result.clips.find((clip) => clip.id === still.id);
     if (!current) continue;

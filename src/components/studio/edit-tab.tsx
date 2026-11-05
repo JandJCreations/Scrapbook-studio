@@ -165,7 +165,12 @@ export function EditTab({ clip }: { clip: Clip | null }) {
             size="xs"
             variant="outline"
             aria-label="Apply this length to all photos"
-            onClick={() => apply((p) => setAllStillDurations(p, clipDuration(clip)))}
+            onClick={() =>
+              apply((p) => {
+                const current = p.clips.find((c) => c.id === id);
+                return current ? setAllStillDurations(p, clipDuration(current)) : p;
+              })
+            }
           >
             Apply this length to all photos
           </Button>

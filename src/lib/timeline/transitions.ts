@@ -27,9 +27,12 @@ export interface EffectiveTransition extends ClipTransition {
   outgoing: Clip;
 }
 
+/** Only pictures and videos have transitions; music, text and stickers never do. */
+const canTransition = (clip: Clip) => clip.kind === "image" || clip.kind === "video";
+
 /** A clip's transition as it will really play: it needs a previous clip, and cannot be longer than either clip. */
 export function effectiveTransition(project: TimelineProject, clip: Clip): EffectiveTransition | null {
-  if (!clip.transition) return null;
+  if (!clip.transition || !canTransition(clip)) return null;
   const outgoing = previousClip(project, clip);
   if (!outgoing) return null;
   const longest = Math.min(MAX_TRANSITION_SECONDS, clipDuration(outgoing), clipDuration(clip));
@@ -99,6 +102,8 @@ export function setAllTransitions(project: TimelineProject, transition: ClipTran
  * is untouched; the clip itself comes back when no transition touches it.
  */
 export function audioClipFor(project: TimelineProject, clip: Clip): Clip {
+  // A track that is hidden shows no transition, so its sound does not dip for one either.
+  if (project.tracks.find((track) => track.id === clip.trackId)?.hidden) return clip;
   let fadeIn = clip.fadeIn;
   let fadeOut = clip.fadeOut;
   const own = effectiveTransition(project, clip);
@@ -127,7 +132,7 @@ export function setTransition(
     transition === null
       ? null
       : { type: transition.type, duration: clamp(transition.duration, MIN_TRANSITION_SECONDS, MAX_TRANSITION_SECONDS) };
-  if (next !== null && !previousClip(project, clip)) return project;
+  if (next !== null && (!canTransition(clip) || !previousClip(project, clip))) return project;
   const current = clip.transition ?? null;
   if (JSON.stringify(current) === JSON.stringify(next)) return project;
   return { ...project, clips: project.clips.map((c) => (c.id === clipId ? { ...c, transition: next } : c)) };

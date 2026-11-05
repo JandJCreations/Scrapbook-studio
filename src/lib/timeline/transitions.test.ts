@@ -186,3 +186,35 @@ describe("audioClipFor", () => {
     expect(audioClipFor(plain, plain.clips[0])).toBe(plain.clips[0]);
   });
 });
+
+describe("transitions only belong to photos and videos", () => {
+  const song = (id: string, start: number, extra: Partial<Clip> = {}) =>
+    makeClip({ id, trackId: "t3", kind: "audio", start, sourceIn: 0, sourceOut: 4, sourceDuration: 90, ...extra });
+
+  it("are not applied to music that happens to touch, by apply-to-all or on its own", () => {
+    const project = makeProject(makeStandardTracks(), [song("s1", 0), song("s2", 4), photo("a", 0, 4), photo("b", 4, 4)]);
+    const all = setAllTransitions(project, { type: "fade", duration: 1 });
+    expect(all.clips.map((c) => [c.id, c.transition ?? null])).toEqual([
+      ["s1", null],
+      ["s2", null],
+      ["a", null],
+      ["b", { type: "fade", duration: 1 }],
+    ]);
+    expect(setTransition(project, "s2", { type: "fade", duration: 1 })).toBe(project);
+  });
+
+  it("do nothing on a song even if one is stored in the file", () => {
+    const stored = makeProject(makeStandardTracks(), [song("s1", 0), song("s2", 4, { transition: { type: "fade", duration: 1 } })]);
+    expect(effectiveTransition(stored, stored.clips[1])).toBeNull();
+    expect(audioClipFor(stored, stored.clips[0])).toBe(stored.clips[0]);
+  });
+
+  it("do not dip the sound of a video on a hidden track", () => {
+    const tracks = makeStandardTracks().map((t) => (t.id === "t1" ? { ...t, hidden: true } : t));
+    const video = (id: string, start: number, extra: Partial<Clip> = {}) =>
+      makeClip({ id, trackId: "t1", kind: "video", start, sourceIn: 0, sourceOut: 4, sourceDuration: 50, ...extra });
+    const project = makeProject(tracks, [video("a", 0), video("b", 4, { transition: { type: "fade", duration: 1 } })]);
+    expect(audioClipFor(project, project.clips[0])).toBe(project.clips[0]);
+    expect(audioClipFor(project, project.clips[1])).toBe(project.clips[1]);
+  });
+});

@@ -286,3 +286,25 @@ describe("setAllStillDurations", () => {
     expect(setAllStillDurations(project, STILL_SECONDS)).toBe(project);
   });
 });
+
+describe("setAllStillDurations leaves photos on free tracks alone", () => {
+  it("only changes photos on the main strip", () => {
+    const tracks = [
+      { id: "main", type: "video" as const, order: 1, muted: false, locked: false, hidden: false, solo: false },
+      { id: "free", type: "overlay" as const, order: 0, muted: false, locked: false, hidden: false, solo: false },
+    ];
+    const still = (id: string, trackId: string, start: number) => ({
+      id, trackId, kind: "image" as const, name: id, mediaId: id, sourceDuration: null, start, sourceIn: 0, sourceOut: 5,
+      speed: 1, reversed: false, loop: false, volume: 100, muted: false, fadeIn: 0, fadeOut: 0,
+      transform: { x: 0, y: 0, width: 10, height: 10, rotation: 0, opacity: 1 },
+      adjustments: { photo: null, video: null, text: null }, keyframes: [], groupId: null, locked: false, isPlaceholder: false,
+    });
+    const project = { id: "p", tracks, clips: [still("m1", "main", 0), still("o1", "free", 0), still("o2", "free", 5)] };
+    const result = setAllStillDurations(project, 2);
+    const length = (id: string) => {
+      const c = result.clips.find((x) => x.id === id)!;
+      return clipEnd(c) - c.start;
+    };
+    expect([length("m1"), length("o1"), length("o2")]).toEqual([2, 5, 5]);
+  });
+});
