@@ -19,9 +19,12 @@ import {
   timelineWidth,
   timeToX,
   wheelZoomFactor,
+  sliderToZoom,
+  zoomToSlider,
   ZOOM_DEFAULT,
   zoomAround,
 } from "@/lib/timeline-ui/geometry";
+import { ZoomIn, ZoomOut, Plus } from "lucide-react";
 import { effectiveTransition } from "@/lib/timeline/transitions";
 import { commandForKey, nextSelection } from "@/lib/timeline-ui/interactions";
 import { viewWindow } from "@/lib/timeline-ui/visuals";
@@ -34,7 +37,7 @@ import {
   trackLayout,
   type TrackLayout,
 } from "@/lib/timeline-ui/layout";
-import { timelineExtent } from "@/lib/timeline/clip-math";
+import { clipEnd, timelineExtent } from "@/lib/timeline/clip-math";
 import { createId, type IdFn } from "@/lib/timeline/ids";
 import type { TrimEdge } from "@/lib/timeline/trim";
 import {
@@ -51,6 +54,8 @@ interface TimelineViewProps {
   onStep(direction: 1 | -1): void;
   /** Thumbnails, pictures and waveforms for the chips; without it chips are plain. */
   visuals?: MediaVisuals;
+  /** Present where media can be added: shows a plus after the last clip of the main strip. */
+  onAddClip?: () => void;
 }
 
 interface PressInfo {
@@ -111,7 +116,7 @@ function oncePerDrag(): IdFn {
   return () => (id ??= createId());
 }
 
-export function TimelineView({ onSeek, onToggle, onStep, visuals }: TimelineViewProps) {
+export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip }: TimelineViewProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const rulerRef = React.useRef<HTMLDivElement>(null);
   const tracksRef = React.useRef<HTMLDivElement>(null);
@@ -384,6 +389,18 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals }: TimelineView
     return () => container.removeEventListener("wheel", onWheel);
   }, []);
 
+  /** Zooms about the middle of what is on screen (the slider's way of zooming). */
+  function zoomFromSlider(value: number) {
+    const container = containerRef.current;
+    if (!container) return;
+    const view = { pps: ppsRef.current, scrollLeft: pendingScroll.current ?? container.scrollLeft };
+    const anchorX = Math.max(0, (container.clientWidth - HEADER_WIDTH) / 2);
+    const next = zoomAround(view, sliderToZoom(value) / view.pps, anchorX);
+    ppsRef.current = next.pps;
+    pendingScroll.current = next.scrollLeft;
+    setPps(next.pps);
+  }
+
   // Apply the scroll position that keeps the zoom anchor fixed, after the new width exists.
   React.useLayoutEffect(() => {
     const container = containerRef.current;
@@ -518,6 +535,21 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals }: TimelineView
   const totalHeight = RULER_HEIGHT + layout.height;
 
   return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-end gap-2 px-1 text-muted-foreground">
+        <ZoomOut className="size-3.5" aria-hidden />
+        <input
+          type="range"
+          aria-label="Timeline zoom"
+          min={0}
+          max={100}
+          step={1}
+          value={Math.round(zoomToSlider(pps))}
+          onChange={(event) => zoomFromSlider(Number(event.target.value))}
+          className="h-1 w-28 accent-primary"
+        />
+        <ZoomIn className="size-3.5" aria-hidden />
+      </div>
     <div
       ref={containerRef}
       data-testid="clip-timeline"
@@ -588,6 +620,28 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals }: TimelineView
                         viewTo={visibleRange.to}
                       />
                     ))}
+                  {onAddClip && track.type === "video" && (
+                    <button
+                      type="button"
+                      aria-label="Add media to the video"
+                      title="Add media"
+                      // Like the clips, it does not take keyboard focus on click, so Space keeps meaning play/pause.
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onAddClip();
+                      }}
+                      className="absolute top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-md bg-primary text-primary-foreground shadow hover:opacity-90"
+                      style={{
+                        left: timeToX(
+                          project.clips.filter((c) => c.trackId === track.id).reduce((end, c) => Math.max(end, clipEnd(c)), 0),
+                          pps,
+                        ) + 8,
+                      }}
+                    >
+                      <Plus className="size-5" />
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -624,6 +678,7 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals }: TimelineView
           <div className="absolute -left-1 top-0 size-0 border-x-[5px] border-t-[8px] border-x-transparent border-t-red-500" />
         </div>
       </div>
+    </div>
     </div>
   );
 }

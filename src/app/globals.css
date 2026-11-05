@@ -128,3 +128,24 @@
     @apply font-sans;
   }
 }
+
+/* The editor's own palette: near-black greys with a cyan accent, like CapCut. Applied with .dark while the editor is open. */
+.studio-theme {
+  --background: oklch(0.16 0.005 270);
+  --foreground: oklch(0.95 0 0);
+  --card: oklch(0.2 0.006 270);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.22 0.006 270);
+  --popover-foreground: oklch(0.95 0 0);
+  --primary: oklch(0.82 0.14 200);
+  --primary-foreground: oklch(0.15 0.01 230);
+  --secondary: oklch(0.27 0.006 270);
+  --secondary-foreground: oklch(0.95 0 0);
+  --muted: oklch(0.24 0.006 270);
+  --muted-foreground: oklch(0.7 0.01 270);
+  --accent: oklch(0.3 0.008 270);
+  --accent-foreground: oklch(0.95 0 0);
+  --border: oklch(0.3 0.006 270);
+  --input: oklch(0.3 0.006 270);
+  --ring: oklch(0.82 0.14 200);
+}

@@ -9,6 +9,8 @@ import {
   wheelZoomFactor,
   timeToX,
   xToTime,
+  sliderToZoom,
+  zoomToSlider,
   zoomAround,
   ZOOM_MAX,
   ZOOM_MIN,
@@ -118,5 +120,24 @@ describe("wheelZoomFactor", () => {
   it("treats three lines as one notch and leaves small trackpad deltas small", () => {
     expect(wheelZoomFactor(-3, 1)).toBeCloseTo(wheelZoomFactor(-99, 0), 9);
     expect(wheelZoomFactor(-4, 0)).toBeLessThan(1.02);
+  });
+});
+
+describe("the zoom slider", () => {
+  it("runs from the most zoomed out (0) to the most zoomed in (100)", () => {
+    expect(sliderToZoom(0)).toBeCloseTo(ZOOM_MIN);
+    expect(sliderToZoom(100)).toBeCloseTo(ZOOM_MAX);
+    expect(zoomToSlider(ZOOM_MIN)).toBeCloseTo(0);
+    expect(zoomToSlider(ZOOM_MAX)).toBeCloseTo(100);
+  });
+
+  it("is smooth: equal steps are equal zoom factors, and the two directions agree", () => {
+    expect(sliderToZoom(50) / sliderToZoom(25)).toBeCloseTo(sliderToZoom(75) / sliderToZoom(50));
+    for (const v of [0, 13, 50, 87, 100]) expect(zoomToSlider(sliderToZoom(v))).toBeCloseTo(v);
+  });
+
+  it("stays in range for values outside it", () => {
+    expect(sliderToZoom(-50)).toBeCloseTo(ZOOM_MIN);
+    expect(sliderToZoom(500)).toBeCloseTo(ZOOM_MAX);
   });
 });

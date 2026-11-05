@@ -424,3 +424,38 @@ describe("TimelineView transitions", () => {
     expect(screen.queryByTestId("transition-marker")).toBeNull();
   });
 });
+
+describe("TimelineView adding and zooming", () => {
+  const strip = () =>
+    makeProject(makeStandardTracks(), [
+      makeClip({ id: "a", name: "First", sourceOut: 4 }),
+      makeClip({ id: "b", name: "Second", start: 4, sourceOut: 4 }),
+    ]);
+
+  it("has a plus after the last clip of the main strip that asks to add media", () => {
+    act(() => {
+      useClipProjectStore.getState().load(strip());
+      useTransportStore.getState().reset();
+    });
+    const onAddClip = vi.fn();
+    render(<TimelineView fps={30} onSeek={vi.fn()} onToggle={vi.fn()} onStep={vi.fn()} onAddClip={onAddClip} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add media to the video" }));
+    expect(onAddClip).toHaveBeenCalledTimes(1);
+  });
+
+  it("has no plus where adding is not offered", () => {
+    mount(strip());
+    expect(screen.queryByRole("button", { name: "Add media to the video" })).toBeNull();
+  });
+
+  it("zooms the whole timeline with the zoom slider", () => {
+    mount(strip());
+    const width = () => (document.querySelector("[data-clip-id='a']") as HTMLElement).getBoundingClientRect().width;
+    const widthStyle = () => parseFloat((document.querySelector("[data-clip-id='a']") as HTMLElement).style.width);
+    const before = widthStyle();
+    const slider = screen.getByRole("slider", { name: "Timeline zoom" }) as HTMLInputElement;
+    fireEvent.change(slider, { target: { value: String(Number(slider.value) + 10) } });
+    expect(widthStyle()).toBeGreaterThan(before);
+    void width;
+  });
+});

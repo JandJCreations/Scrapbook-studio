@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Pause, Play, SlidersHorizontal } from "lucide-react";
+import { Image as ImageIcon, Music, Pause, Play, SlidersHorizontal } from "lucide-react";
 
 import { AudioTab } from "@/components/studio/audio-tab";
 import { ClipTools } from "@/components/studio/clip-tools";
@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useStudioTheme } from "@/hooks/use-studio-theme";
 import { useTimelineSync } from "@/hooks/use-timeline-sync";
 import { musicMediaId } from "@/lib/audio/music-keys";
 import type { MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
@@ -73,7 +74,10 @@ function StudioSkeleton() {
 }
 
 /** The editor: pick photos, videos and music; the preview plays them through as the finished video. */
+const TAB_ICONS = { media: ImageIcon, audio: Music, edit: SlidersHorizontal } as const;
+
 export function StudioView({ env }: { env: StudioEnv }) {
+  useStudioTheme();
   const { status, frame, setFrame, reload } = useTimelineSync(env.projectId, env.storage);
   const project = useClipProjectStore(selectProject);
   const canUndo = useClipProjectStore(selectCanUndo);
@@ -290,10 +294,11 @@ export function StudioView({ env }: { env: StudioEnv }) {
             aria-selected={shownTab === name}
             onClick={() => setTab(name)}
             className={
-              "flex-1 px-1 py-2 text-xs capitalize " +
-              (shownTab === name ? "border-b-2 border-primary font-medium" : "text-muted-foreground")
+              "flex flex-1 flex-col items-center gap-1 px-1 py-2 text-[11px] capitalize " +
+              (shownTab === name ? "border-b-2 border-primary font-medium text-primary" : "text-muted-foreground hover:text-foreground")
             }
           >
+            {React.createElement(TAB_ICONS[name], { className: "size-5", "aria-hidden": true })}
             {name === "edit" ? "Details" : name}
           </button>
         ))}
@@ -436,6 +441,10 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onToggle={() => session?.toggle()}
               onStep={(direction) => session?.step(direction, FPS)}
               visuals={visuals ?? undefined}
+              onAddClip={() => {
+                setTab("media");
+                if (compact) setToolsOpen(true);
+              }}
             />
           </div>
         </main>

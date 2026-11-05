@@ -34,6 +34,16 @@ export function zoomAround(
   return { pps, scrollLeft: Math.max(0, anchorTime * pps - anchorX) };
 }
 
+/** The zoom slider's position (0 to 100) as a zoom level: logarithmic, so every step zooms by the same factor. */
+export function sliderToZoom(value: number): number {
+  const v = Math.min(100, Math.max(0, value));
+  return ZOOM_MIN * Math.pow(ZOOM_MAX / ZOOM_MIN, v / 100);
+}
+
+export function zoomToSlider(pps: number): number {
+  return (100 * Math.log(clampZoom(pps) / ZOOM_MIN)) / Math.log(ZOOM_MAX / ZOOM_MIN);
+}
+
 export function timelineWidth(duration: number, pps: number, viewportWidth: number): number {
   return Math.max(viewportWidth, (duration + END_PADDING_SECONDS) * pps);
 }
