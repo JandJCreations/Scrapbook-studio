@@ -53,4 +53,18 @@ describe("AudioTab", () => {
     fireEvent.click(screen.getByRole("button", { name: `Add ${track.name} as music` }));
     expect(onAddMusic).toHaveBeenCalledWith(track);
   });
+
+  it("lets a song, or a library track, be dragged out to the music track", () => {
+    const song = item({});
+    render(<AudioTab items={[song]} loading={false} onAddAudio={vi.fn()} onAddMusic={vi.fn()} />);
+    const dragged = (row: HTMLElement) => {
+      const data: Record<string, string> = {};
+      fireEvent.dragStart(row, {
+        dataTransfer: { types: [], effectAllowed: "none", setData: (t: string, v: string) => (data[t] = v), getData: (t: string) => data[t] ?? "" },
+      });
+      return JSON.parse(data["application/x-studio-media"]);
+    };
+    expect(dragged(screen.getByText("My song").closest("li")!)).toEqual({ source: "library", id: "s1" });
+    expect(dragged(screen.getByText(MUSIC_LIBRARY[0].name).closest("li")!)).toEqual({ source: "music", id: MUSIC_LIBRARY[0].id });
+  });
 });

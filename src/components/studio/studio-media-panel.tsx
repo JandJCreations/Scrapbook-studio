@@ -5,6 +5,7 @@ import * as React from "react";
 import { MediaThumbnail } from "@/components/media/media-thumbnail";
 import { Button } from "@/components/ui/button";
 import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
+import { writeMediaDrag } from "@/lib/dom/media-drag";
 import type { MediaItem } from "@/types/media";
 
 interface StudioMediaPanelProps {
@@ -75,7 +76,12 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onUpload }:
 
       <ul className="grid grid-cols-2 gap-2">
         {pictures.map((item) => (
-          <li key={item.id} className="relative overflow-hidden rounded-md border">
+          <li
+            key={item.id}
+            draggable
+            onDragStart={(event) => writeMediaDrag(event.dataTransfer, { source: "library", id: item.id })}
+            className="relative cursor-grab overflow-hidden rounded-md border"
+          >
             <MediaThumbnail item={item} className="aspect-square w-full" />
             <input
               type="checkbox"

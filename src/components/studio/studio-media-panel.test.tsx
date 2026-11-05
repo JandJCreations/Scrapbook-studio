@@ -90,4 +90,22 @@ describe("StudioMediaPanel", () => {
     expect(screen.queryByRole("button", { name: /^Add \d+ / })).toBeNull();
     expect(onAddMany).not.toHaveBeenCalled();
   });
+
+  it("lets a photo or video be dragged out to the timeline", () => {
+    const photo = item({ id: "p1", name: "Beach" });
+    panel([photo]);
+    const tile = screen.getByText("Beach").closest("li")!;
+    expect(tile.getAttribute("draggable")).toBe("true");
+    const data: Record<string, string> = {};
+    const dataTransfer = {
+      types: [] as string[],
+      effectAllowed: "none",
+      setData: (type: string, value: string) => {
+        data[type] = value;
+      },
+      getData: (type: string) => data[type] ?? "",
+    };
+    fireEvent.dragStart(tile, { dataTransfer });
+    expect(JSON.parse(data["application/x-studio-media"])).toEqual({ source: "library", id: "p1" });
+  });
 });

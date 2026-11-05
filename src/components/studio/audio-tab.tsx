@@ -5,6 +5,7 @@ import { Pause, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
+import { writeMediaDrag } from "@/lib/dom/media-drag";
 import { MUSIC_LIBRARY, type MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
 import { formatDuration } from "@/lib/media/format";
 import type { MediaItem } from "@/types/media";
@@ -56,7 +57,12 @@ export function AudioTab({ items, loading, onAddAudio, onAddMusic }: AudioTabPro
         ) : (
           <ul className="space-y-1">
             {mine.map((item) => (
-              <li key={item.id} className="flex items-center gap-2 rounded-md border p-1.5">
+              <li
+                key={item.id}
+                draggable
+                onDragStart={(event) => writeMediaDrag(event.dataTransfer, { source: "library", id: item.id })}
+                className="flex cursor-grab items-center gap-2 rounded-md border p-1.5"
+              >
                 <p className="min-w-0 flex-1 truncate text-xs font-medium" title={item.name}>
                   {item.name}
                 </p>
@@ -78,7 +84,12 @@ export function AudioTab({ items, loading, onAddAudio, onAddMusic }: AudioTabPro
         <h2 className="mb-1 text-xs font-semibold">Music library</h2>
         <ul className="space-y-1">
           {MUSIC_LIBRARY.map((track) => (
-            <li key={track.id} className="flex items-center gap-2 rounded-md border p-1.5">
+            <li
+              key={track.id}
+              draggable
+              onDragStart={(event) => writeMediaDrag(event.dataTransfer, { source: "music", id: track.id })}
+              className="flex cursor-grab items-center gap-2 rounded-md border p-1.5"
+            >
               <Button
                 size="icon-xs"
                 variant="secondary"

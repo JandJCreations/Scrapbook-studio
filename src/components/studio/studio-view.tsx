@@ -24,10 +24,12 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useStudioTheme } from "@/hooks/use-studio-theme";
 import { useTimelineSync } from "@/hooks/use-timeline-sync";
 import { musicMediaId } from "@/lib/audio/music-keys";
-import type { MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
+import { MUSIC_LIBRARY, type MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
+import type { MediaDragPayload } from "@/lib/dom/media-drag";
 import {
   addAudioClip,
   addToSequence,
+  addToSequenceAt,
   fitMusicToVideo,
   musicStartTime,
   type AddResult,
@@ -175,12 +177,12 @@ export function StudioView({ env }: { env: StudioEnv }) {
   }
 
   /** Adds one photo or video to the end of the video; false when it could not be added (the reason is showing). `quiet` leaves the message alone on success. */
-  async function addMedia(item: MediaItem, quiet = false): Promise<boolean> {
+  async function addMedia(item: MediaItem, quiet = false, atTime?: number): Promise<boolean> {
     if (!frame) return false;
     try {
       const media = await loadEditorMedia(item);
       if (!media || !aliveRef.current) return false;
-      if (!put((p) => addToSequence(p, media, frame))) {
+      if (!put((p) => (atTime === undefined ? addToSequence(p, media, frame) : addToSequenceAt(p, media, frame, atTime)))) {
         say("Couldn't add that to the video.");
         return false;
       }
@@ -201,12 +203,12 @@ export function StudioView({ env }: { env: StudioEnv }) {
   }
 
   /** One of the user's own audio files, as the music: starts at the playhead and is cut at the end of the video. */
-  async function addSong(item: MediaItem) {
+  async function addSong(item: MediaItem, at?: number) {
     if (!frame) return;
     try {
       const media = await loadEditorMedia(item);
       if (!media || !aliveRef.current) return;
-      const playhead = useTransportStore.getState().time;
+      const playhead = at ?? useTransportStore.getState().time;
       if (put((p) => addAudioClip(p, media, frame, musicStartTime(p, playhead)), true)) say(null);
       else say("Couldn't add that to the video.");
     } catch (error) {
@@ -214,7 +216,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
     }
   }
 
-  function addMusic(track: MusicLibraryTrack) {
+  function addMusic(track: MusicLibraryTrack, at?: number) {
     if (!frame) return;
     const media: EditorMedia = {
       mediaId: musicMediaId(track),
@@ -224,9 +226,25 @@ export function StudioView({ env }: { env: StudioEnv }) {
       width: 0,
       height: 0,
     };
-    const playhead = useTransportStore.getState().time;
+    const playhead = at ?? useTransportStore.getState().time;
     if (put((p) => addAudioClip(p, media, frame, musicStartTime(p, playhead)), true)) say(null);
     else say("Couldn't add that to the video.");
+  }
+
+  /** Something from the media or audio panel was dropped on the timeline: photos and videos go on the strip, songs on the music lane. */
+  function dropMedia(payload: MediaDragPayload, time: number, trackType: "video" | "overlay" | "audio") {
+    if (payload.source === "music") {
+      const track = MUSIC_LIBRARY.find((t) => t.id === payload.id);
+      if (track && trackType === "audio") addMusic(track, time);
+      return;
+    }
+    const item = env.library.find((i) => i.id === payload.id);
+    if (!item) return;
+    if (item.type === "audio") {
+      if (trackType === "audio") void addSong(item, time);
+    } else if (trackType === "video") {
+      void addMedia(item, false, time);
+    }
   }
 
   /** Closes the tour, and remembers that it has been seen so it does not open by itself again. */
@@ -441,6 +459,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onToggle={() => session?.toggle()}
               onStep={(direction) => session?.step(direction, FPS)}
               visuals={visuals ?? undefined}
+              onDropMedia={dropMedia}
               onAddClip={() => {
                 setTab("media");
                 if (compact) setToolsOpen(true);

@@ -1,10 +1,10 @@
 import { fitContain } from "@/lib/playback/scene";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { updateClip } from "@/lib/timeline/clip-edits";
-import { clipEnd } from "@/lib/timeline/clip-math";
+import { clipDuration, clipEnd } from "@/lib/timeline/clip-math";
 import { createId, type IdFn } from "@/lib/timeline/ids";
 import { clipsOnTrack } from "@/lib/timeline/lookup";
-import { isMagnetic } from "@/lib/timeline/pack";
+import { isMagnetic, packClips, replaceTrackClips } from "@/lib/timeline/pack";
 import { insertClip } from "@/lib/timeline/place";
 import { trimClip } from "@/lib/timeline/trim";
 import { addTrack } from "@/lib/timeline/tracks";
@@ -165,6 +165,28 @@ export function patchFades(
 ): TimelineProject {
   if (!project.clips.some((c) => c.id === clipId)) return project;
   return updateClip(project, clipId, patch);
+}
+
+/**
+ * Like addToSequence, but the clip goes where it was dropped on the strip (a
+ * time in seconds): before, between or after the clips already there.
+ */
+export function addToSequenceAt(
+  project: TimelineProject,
+  media: EditorMedia,
+  frame: FrameSize,
+  time: number,
+  newId: IdFn = createId,
+): AddResult {
+  const added = addToSequence(project, media, frame, newId);
+  if (media.kind === "audio") return added;
+  const clip = added.project.clips.find((c) => c.id === added.clipId);
+  if (!clip) return added;
+  // After every clip whose middle is before the drop, then pack the strip.
+  const others = clipsOnTrack(added.project, clip.trackId).filter((c) => c.id !== clip.id);
+  const index = others.filter((c) => c.start + clipDuration(c) / 2 < time).length;
+  const ordered = [...others.slice(0, index), clip, ...others.slice(index)];
+  return { project: replaceTrackClips(added.project, clip.trackId, packClips(ordered)), clipId: added.clipId };
 }
 
 /**

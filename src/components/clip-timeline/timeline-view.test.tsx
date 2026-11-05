@@ -459,3 +459,58 @@ describe("TimelineView adding and zooming", () => {
     void width;
   });
 });
+
+describe("TimelineView dropping media", () => {
+  const strip = () =>
+    makeProject(makeStandardTracks(), [
+      makeClip({ id: "a", name: "First", sourceOut: 4 }),
+      makeClip({ id: "b", name: "Second", start: 4, sourceOut: 4 }),
+    ]);
+  const transfer = (payload: unknown) => ({
+    types: payload === null ? ["text/plain"] : ["application/x-studio-media"],
+    getData: (type: string) => (type === "application/x-studio-media" && payload ? JSON.stringify(payload) : ""),
+    dropEffect: "none",
+  });
+  const lane = (trackId: string) => document.querySelector(`[data-track-id='${trackId}']`) as HTMLElement;
+
+  function mountWithDrop() {
+    act(() => {
+      useClipProjectStore.getState().load(strip());
+      useTransportStore.getState().reset();
+    });
+    const onDropMedia = vi.fn();
+    render(<TimelineView fps={30} onSeek={vi.fn()} onToggle={vi.fn()} onStep={vi.fn()} onDropMedia={onDropMedia} />);
+    return onDropMedia;
+  }
+
+  it("hands over what was dropped on the video strip, with the time it was dropped at", () => {
+    const onDropMedia = mountWithDrop();
+    const rect = lane("t1").getBoundingClientRect();
+    fireEvent.drop(lane("t1"), { dataTransfer: transfer({ source: "library", id: "x" }), clientX: rect.left + 120, clientY: 10 });
+    expect(onDropMedia).toHaveBeenCalledTimes(1);
+    const [payload, time, trackType] = onDropMedia.mock.calls[0];
+    expect(payload).toEqual({ source: "library", id: "x" });
+    expect(trackType).toBe("video");
+    expect(time).toBeGreaterThanOrEqual(0);
+  });
+
+  it("says which kind of track it was dropped on", () => {
+    const onDropMedia = mountWithDrop();
+    fireEvent.drop(lane("t3"), { dataTransfer: transfer({ source: "music", id: "m" }), clientX: 0, clientY: 10 });
+    expect(onDropMedia.mock.calls[0][2]).toBe("audio");
+  });
+
+  it("accepts a media drag (so the browser allows the drop) but ignores any other drag", () => {
+    const onDropMedia = mountWithDrop();
+    const ours = new Event("dragover", { bubbles: true, cancelable: true });
+    Object.assign(ours, { dataTransfer: transfer({ source: "library", id: "x" }), clientX: 0, clientY: 0 });
+    lane("t1").dispatchEvent(ours);
+    expect(ours.defaultPrevented).toBe(true);
+    const other = new Event("dragover", { bubbles: true, cancelable: true });
+    Object.assign(other, { dataTransfer: transfer(null), clientX: 0, clientY: 0 });
+    lane("t1").dispatchEvent(other);
+    expect(other.defaultPrevented).toBe(false);
+    fireEvent.drop(lane("t1"), { dataTransfer: transfer(null) });
+    expect(onDropMedia).not.toHaveBeenCalled();
+  });
+});

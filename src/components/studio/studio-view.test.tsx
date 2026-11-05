@@ -44,6 +44,7 @@ const photo: MediaItem = {
   progress: 100,
 };
 const forest: MediaItem = { ...photo, id: "22222222-2222-4222-8222-222222222222", name: "Forest" };
+const third: MediaItem = { ...photo, id: "66666666-6666-4666-8666-666666666666", name: "Lake" };
 const song: MediaItem = {
   ...photo,
   id: "33333333-3333-4333-8333-333333333333",
@@ -370,5 +371,65 @@ describe("StudioView on a phone", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Edit selected" }));
     expect(await screen.findByRole("slider", { name: "Duration (seconds)" })).toBeTruthy();
+  });
+});
+
+describe("StudioView dragging media onto the timeline", () => {
+  function dropOn(trackType: "video" | "audio", payload: unknown, atSeconds: number) {
+    const track = selectProject(useClipProjectStore.getState()).tracks.find((t) => t.type === trackType)!;
+    const lane = document.querySelector(`[data-track-id='${track.id}']`) as HTMLElement;
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.assign(event, {
+      clientX: atSeconds * 60, // the timeline starts at 60 pixels a second
+      clientY: 0,
+      dataTransfer: {
+        types: ["application/x-studio-media"],
+        getData: (type: string) => (type === "application/x-studio-media" ? JSON.stringify(payload) : ""),
+      },
+    });
+    act(() => {
+      lane.dispatchEvent(event);
+    });
+  }
+
+  it("puts a photo dropped on the strip where it was dropped, between the clips", async () => {
+    render(<StudioView env={env({ library: [photo, forest, third] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+
+    // Beach and Forest are 5 seconds each; 5.0 is the cut between them.
+    dropOn("video", { source: "library", id: third.id }, 5);
+    await vi.waitFor(() => expect(clips()).toHaveLength(3));
+    expect([...clips()].sort((a, b) => a.start - b.start).map((c) => c.mediaId)).toEqual([photo.id, third.id, forest.id]);
+    expect(useClipProjectStore.getState().selectedClipIds).toEqual([clips().find((c) => c.mediaId === third.id)!.id]);
+  });
+
+  it("puts a built-in track dropped on the music lane there, cut to the video", async () => {
+    render(<StudioView env={env({ library: [photo, forest, third] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    dropOn("audio", { source: "music", id: MUSIC_LIBRARY[1].id }, 1);
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+    const music = clips().find((c) => c.kind === "audio")!;
+    expect(music.start).toBe(1);
+    expect(clipEnd(music)).toBeCloseTo(clipEnd(clips().find((c) => c.kind === "image")!));
+  });
+
+  it("ignores a photo dropped on the music lane and a song dropped on the strip", async () => {
+    render(<StudioView env={env({ library: [photo, song] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    fireEvent.click(screen.getByRole("tab", { name: "audio" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add My song as music" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+    dropOn("audio", { source: "library", id: photo.id }, 1);
+    dropOn("video", { source: "library", id: song.id }, 1);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(clips()).toHaveLength(2);
   });
 });

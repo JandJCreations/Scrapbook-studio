@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   addAudioClip,
   addToSequence,
+  addToSequenceAt,
   fitMusicToVideo,
   musicStartTime,
   setAllStillDurations,
@@ -306,5 +307,32 @@ describe("setAllStillDurations leaves photos on free tracks alone", () => {
       return clipEnd(c) - c.start;
     };
     expect([length("m1"), length("o1"), length("o2")]).toEqual([2, 5, 5]);
+  });
+});
+
+describe("addToSequenceAt", () => {
+  const photo = (name: string): EditorMedia => ({ mediaId: name, name, kind: "image", duration: 0, width: 1000, height: 1000 });
+  const two = () => {
+    const ids = seqIds("c");
+    let project = addToSequence(emptyTimeline("p"), photo("a"), frame, ids).project;
+    project = addToSequence(project, photo("b"), frame, ids).project;
+    return { project, ids };
+  };
+  const order = (project: ReturnType<typeof emptyTimeline>) =>
+    [...project.clips].sort((x, y) => x.start - y.start).map((c) => c.mediaId);
+
+  it("puts the new clip where it was dropped on the strip: before, between or after the others", () => {
+    const { project, ids } = two();
+    expect(order(addToSequenceAt(project, photo("n"), frame, 0.5, ids).project)).toEqual(["n", "a", "b"]);
+    expect(order(addToSequenceAt(project, photo("n"), frame, STILL_SECONDS, ids).project)).toEqual(["a", "n", "b"]);
+    expect(order(addToSequenceAt(project, photo("n"), frame, 99, ids).project)).toEqual(["a", "b", "n"]);
+  });
+
+  it("returns the id of the new clip, which is really in the project, and keeps the strip packed", () => {
+    const { project, ids } = two();
+    const result = addToSequenceAt(project, photo("n"), frame, STILL_SECONDS, ids);
+    expect(result.project.clips.some((c) => c.id === result.clipId)).toBe(true);
+    const starts = [...result.project.clips].sort((x, y) => x.start - y.start).map((c) => c.start);
+    expect(starts).toEqual([0, STILL_SECONDS, 2 * STILL_SECONDS]);
   });
 });

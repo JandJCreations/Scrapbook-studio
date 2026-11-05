@@ -26,6 +26,7 @@ import {
 } from "@/lib/timeline-ui/geometry";
 import { ZoomIn, ZoomOut, Plus } from "lucide-react";
 import { effectiveTransition } from "@/lib/timeline/transitions";
+import { hasMediaDrag, readMediaDrag, type MediaDragPayload } from "@/lib/dom/media-drag";
 import { commandForKey, nextSelection } from "@/lib/timeline-ui/interactions";
 import { viewWindow } from "@/lib/timeline-ui/visuals";
 import {
@@ -56,6 +57,8 @@ interface TimelineViewProps {
   visuals?: MediaVisuals;
   /** Present where media can be added: shows a plus after the last clip of the main strip. */
   onAddClip?: () => void;
+  /** Present where media can be dropped on the timeline: gets what was dropped, the time it was dropped at, and the kind of track. */
+  onDropMedia?: (payload: MediaDragPayload, time: number, trackType: "video" | "overlay" | "audio") => void;
 }
 
 interface PressInfo {
@@ -116,7 +119,7 @@ function oncePerDrag(): IdFn {
   return () => (id ??= createId());
 }
 
-export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip }: TimelineViewProps) {
+export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onDropMedia }: TimelineViewProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const rulerRef = React.useRef<HTMLDivElement>(null);
   const tracksRef = React.useRef<HTMLDivElement>(null);
@@ -510,6 +513,29 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip }: T
   };
 
   // One handler for all lanes: a click on a chip selects it, a click on empty space clears.
+  /** A media drag over a lane shows where it would land, and lets the drop happen. */
+  const onLaneDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!onDropMedia || !hasMediaDrag(event.dataTransfer)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setGuide({ kind: "insert", time: dropTime(event) });
+  };
+
+  /** Where a drag is over the lane, as a time; 0 if the pointer's position is unknown. */
+  const dropTime = (event: React.DragEvent<HTMLDivElement>) => {
+    const t = lanePoint(event.clientX, event.clientY).x / ppsRef.current;
+    return Number.isFinite(t) ? Math.max(0, t) : 0;
+  };
+
+  const onLaneDrop = (event: React.DragEvent<HTMLDivElement>, trackType: "video" | "overlay" | "audio") => {
+    if (!onDropMedia) return;
+    const payload = readMediaDrag(event.dataTransfer);
+    if (!payload) return;
+    event.preventDefault();
+    setGuide(null);
+    onDropMedia(payload, dropTime(event), trackType);
+  };
+
   const onLaneClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (suppressClick.current) {
       suppressClick.current = false;
@@ -603,6 +629,9 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip }: T
                   style={{ width: laneWidth, touchAction: "none" }}
                   onPointerDown={onLanePointerDown}
                   onClick={onLaneClick}
+                  onDragOver={onLaneDragOver}
+                  onDragLeave={() => setGuide(null)}
+                  onDrop={(event) => onLaneDrop(event, track.type)}
                 >
                   {project.clips
                     .filter((clip) => clip.trackId === track.id)
