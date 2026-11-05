@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { MediaThumbnail } from "@/components/media/media-thumbnail";
 import { Button } from "@/components/ui/button";
+import { Upload } from "lucide-react";
 import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
 import { writeMediaDrag } from "@/lib/dom/media-drag";
 import type { MediaItem } from "@/types/media";
@@ -24,6 +25,15 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onUpload }:
   const [ticked, setTicked] = React.useState<Set<string>>(new Set());
   // In the order of the list, whatever order they were ticked in; items that went away drop out.
   const chosen = pictures.filter((item) => ticked.has(item.id));
+  const fileInput = React.useRef<HTMLInputElement>(null);
+  /** Files dropped anywhere on the panel are imported; any other drop is left alone. */
+  const handleFileDrop = (event: React.DragEvent<HTMLElement>) => {
+    if (!onUpload) return;
+    const files = Array.from(event.dataTransfer.files ?? []);
+    if (files.length === 0) return;
+    event.preventDefault();
+    onUpload(files);
+  };
   const toggle = (id: string) =>
     setTicked((current) => {
       const next = new Set(current);
@@ -32,22 +42,37 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onUpload }:
     });
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3" onClickCapture={blurOnMouseClick}>
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3"
+      onClickCapture={blurOnMouseClick}
+      onDragOver={(event) => {
+        if (onUpload && Array.from(event.dataTransfer.types).includes("Files")) event.preventDefault();
+      }}
+      onDrop={(event) => handleFileDrop(event)}
+    >
       {onUpload && (
-        <label className="block text-xs text-muted-foreground">
-          <span className="mb-1 block font-medium text-foreground">Import</span>
+        <div
+          data-testid="import-area"
+          className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-4 text-center"
+        >
+          <Upload className="size-6 text-muted-foreground" aria-hidden />
+          <p className="text-xs text-muted-foreground">Drag photos, videos and songs here</p>
+          <Button size="sm" onClick={() => fileInput.current?.click()} aria-label="Import">
+            Import
+          </Button>
           <input
+            ref={fileInput}
             type="file"
             multiple
             accept="video/*,audio/*,image/*"
-            className="block w-full text-xs"
+            className="hidden"
             onChange={(event) => {
               const files = Array.from(event.target.files ?? []);
               event.target.value = "";
               if (files.length > 0) onUpload(files);
             }}
           />
-        </label>
+        </div>
       )}
 
       {pictures.length === 0 && (

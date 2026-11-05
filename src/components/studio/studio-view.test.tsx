@@ -122,7 +122,7 @@ describe("StudioView", () => {
   it("adds a photo to the end of the video and selects it, showing its details", async () => {
     render(<StudioView env={env()} />);
     await screen.findByText("My trip");
-    expect(screen.getByText(/select a photo, video, song or text/i)).toBeTruthy();
+    expect(screen.getByText(/import photos or videos/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
     await vi.waitFor(() => expect(clips()).toHaveLength(1));
     expect(clips()[0]).toMatchObject({ kind: "image", mediaId: photo.id });
@@ -594,5 +594,26 @@ describe("StudioView text and captions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add text" }));
     await vi.waitFor(() => expect(texts()).toHaveLength(1));
     expect(projectDuration(selectProject(useClipProjectStore.getState()))).toBeCloseTo(videoLength);
+  });
+});
+
+describe("StudioView layout", () => {
+  it("shows the project (its shape and length) when nothing is selected, and a clip's details when one is", async () => {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    expect(screen.getByRole("heading", { name: "Your video" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Portrait 9:16" }));
+    expect(await screen.findByText("1 clip", {}, { timeout: 100 }).catch(() => null)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    expect(await screen.findByRole("slider", { name: "Duration (seconds)" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Your video" })).toBeNull();
+  });
+
+  it("has a bar under the preview that moves the playhead", async () => {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    expect(screen.getByRole("slider", { name: "Seek" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Full screen" })).toBeTruthy();
   });
 });

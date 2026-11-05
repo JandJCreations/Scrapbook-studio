@@ -58,7 +58,7 @@ describe("StudioMediaPanel", () => {
 
   it("offers import only where the environment allows it, and hands over the chosen files", () => {
     const view = panel([]);
-    expect(screen.queryByText("Import")).toBeNull();
+    expect(screen.queryByTestId("import-area")).toBeNull();
     view.unmount();
     const onUpload = vi.fn();
     const { container } = panel([], { onUpload });
@@ -107,5 +107,36 @@ describe("StudioMediaPanel", () => {
     };
     fireEvent.dragStart(tile, { dataTransfer });
     expect(JSON.parse(data["application/x-studio-media"])).toEqual({ source: "library", id: "p1" });
+  });
+
+  it("has a big, styled import area that takes files dropped on it", () => {
+    const onUpload = vi.fn();
+    panel([], { onUpload });
+    const area = screen.getByTestId("import-area");
+    const file = new File(["x"], "a.jpg", { type: "image/jpeg" });
+    fireEvent.drop(area, { dataTransfer: { files: [file], types: ["Files"] } });
+    expect(onUpload).toHaveBeenCalledWith([file]);
+  });
+
+  it("takes files dropped anywhere in the panel, not only on the import area", () => {
+    const onUpload = vi.fn();
+    const { container } = panel([item({})], { onUpload });
+    const file = new File(["x"], "b.mp4", { type: "video/mp4" });
+    fireEvent.drop(container.firstChild as HTMLElement, { dataTransfer: { files: [file], types: ["Files"] } });
+    expect(onUpload).toHaveBeenCalledWith([file]);
+  });
+
+  it("ignores a drop of something that is not files", () => {
+    const onUpload = vi.fn();
+    panel([], { onUpload });
+    fireEvent.drop(screen.getByTestId("import-area"), { dataTransfer: { files: [], types: ["text/plain"] } });
+    expect(onUpload).not.toHaveBeenCalled();
+  });
+
+  it("has an Import button that opens the file picker", () => {
+    const onUpload = vi.fn();
+    const { container } = panel([], { onUpload });
+    expect(screen.getByRole("button", { name: "Import" })).toBeTruthy();
+    expect(container.querySelector("input[type=file]")).not.toBeNull();
   });
 });

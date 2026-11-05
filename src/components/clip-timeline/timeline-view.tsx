@@ -607,7 +607,7 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onD
   );
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex h-full min-h-0 flex-col gap-1">
       {onDropMedia || onAddClip ? (
         <>
           {!hasVideoTrack && dropZone("video")}
@@ -631,7 +631,7 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onD
     <div
       ref={containerRef}
       data-testid="clip-timeline"
-      className="relative max-h-80 overflow-auto rounded-md border bg-card"
+      className="relative min-h-0 flex-1 overflow-auto rounded-md border bg-card"
       onScroll={(event) => setScrollLeft(event.currentTarget.scrollLeft)}
     >
       <div className="relative" style={{ width: HEADER_WIDTH + laneWidth, height: totalHeight }}>

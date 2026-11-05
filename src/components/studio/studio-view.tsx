@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeftRight, Image as ImageIcon, Music, Palette, Pause, Play, SlidersHorizontal, Type } from "lucide-react";
+import { ArrowLeftRight, Image as ImageIcon, Music, Palette, SlidersHorizontal, Type } from "lucide-react";
 
 import { AudioTab } from "@/components/studio/audio-tab";
 import { ClipTools } from "@/components/studio/clip-tools";
 import { EditTab } from "@/components/studio/edit-tab";
 import { FiltersTab } from "@/components/studio/filters-tab";
 import { TextTab } from "@/components/studio/text-tab";
+import { PreviewControls } from "@/components/studio/preview-controls";
+import { ProjectPanel } from "@/components/studio/project-panel";
 import { TransitionsTab } from "@/components/studio/transitions-tab";
 import { ExportDialog } from "@/components/studio/export-dialog";
 import { StudioMediaPanel } from "@/components/studio/studio-media-panel";
@@ -64,13 +66,6 @@ import type { MediaItem } from "@/types/media";
 const FPS = 30;
 
 type Tab = "media" | "audio" | "text" | "filters" | "transitions" | "edit";
-
-function formatClock(seconds: number): string {
-  const safe = Math.max(0, seconds);
-  const minutes = Math.floor(safe / 60);
-  const rest = safe - minutes * 60;
-  return `${minutes}:${rest.toFixed(1).padStart(4, "0")}`;
-}
 
 function StudioSkeleton() {
   return (
@@ -148,6 +143,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads localStorage, which only exists on the client
     setTourOpen(true);
   }, [env.welcomeTour, ready]);
+  const previewRef = React.useRef<HTMLDivElement>(null);
   const [exportOpen, setExportOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
 
@@ -387,6 +383,12 @@ export function StudioView({ env }: { env: StudioEnv }) {
     : ["media", "audio", "text", "filters", "transitions"];
   const shownTab: Tab = tabNames.includes(tab) ? tab : "media";
 
+  const details = selectedClip ? (
+    <EditTab clip={selectedClip} frame={frame} />
+  ) : (
+    <ProjectPanel frame={frame} duration={duration} clipCount={project.clips.length} onFrameChange={changeFrame} />
+  );
+
   const panels = (
     <>
       <div role="tablist" className="flex shrink-0 border-b">
@@ -453,7 +455,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
           onApplyToAll={applyTransitionToAll}
         />
       ) : (
-        <EditTab clip={selectedClip} frame={frame} />
+        details
       )}
     </>
   );
@@ -515,46 +517,43 @@ export function StudioView({ env }: { env: StudioEnv }) {
           </aside>
         )}
         <main className="flex min-w-0 flex-1 flex-col">
-          <StudioPreview containerRef={containerRef} />
-          <div className="flex items-center gap-3 border-t px-3 py-2" onClickCapture={blurOnMouseClick}>
-            {compact && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  data-tour="tools-button"
-                  onClick={() => {
-                    setTab("media");
-                    setToolsOpen(true);
-                  }}
-                >
-                  Add
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  aria-label="Edit selected"
-                  disabled={!selectedClip}
-                  onClick={() => {
-                    setTab("edit");
-                    setToolsOpen(true);
-                  }}
-                >
-                  <SlidersHorizontal className="size-4" />
-                </Button>
-              </>
-            )}
-            <Button
-              size="sm"
-              variant="secondary"
-              aria-label={playing ? "Pause" : "Play"}
-              onClick={() => session?.toggle()}
-            >
-              {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
-            </Button>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {formatClock(time)} / {formatClock(duration)}
-            </span>
+          <StudioPreview containerRef={containerRef} wrapperRef={previewRef} />
+          {compact && (
+            <div className="flex items-center gap-3 border-t px-3 py-2" onClickCapture={blurOnMouseClick}>
+              <Button
+                size="sm"
+                variant="outline"
+                data-tour="tools-button"
+                onClick={() => {
+                  setTab("media");
+                  setToolsOpen(true);
+                }}
+              >
+                Add
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label="Edit selected"
+                disabled={!selectedClip}
+                onClick={() => {
+                  setTab("edit");
+                  setToolsOpen(true);
+                }}
+              >
+                <SlidersHorizontal className="size-4" />
+              </Button>
+            </div>
+          )}
+          <div onClickCapture={blurOnMouseClick}>
+            <PreviewControls
+              time={time}
+              duration={duration}
+              playing={playing}
+              onToggle={() => session?.toggle()}
+              onSeek={(t) => session?.seek(t)}
+              onFullscreen={() => void previewRef.current?.requestFullscreen?.()}
+            />
           </div>
           {message && (
             <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
@@ -562,7 +561,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
             </p>
           )}
           <ClipTools />
-          <div data-tour="timeline" className="shrink-0 border-t p-2">
+          <div data-tour="timeline" className="flex h-[40%] min-h-[260px] shrink-0 flex-col border-t p-2">
             <TimelineView
               fps={FPS}
               onSeek={(t) => session?.seek(t)}
@@ -580,7 +579,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
         </main>
         {!compact && (
           <aside className="flex w-72 shrink-0 flex-col border-l" aria-label="Details" onClickCapture={blurOnMouseClick}>
-            <EditTab clip={selectedClip} frame={frame} />
+            {details}
           </aside>
         )}
       </div>
