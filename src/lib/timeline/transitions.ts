@@ -79,6 +79,39 @@ export function activeTransitionAt(project: TimelineProject, t: number): ActiveT
 }
 
 /**
+ * Puts the same transition (or with null, none) into every clip that has a clip
+ * right before it. Locked clips and the first clip of a strip are left alone.
+ * The same project comes back when nothing would change.
+ */
+export function setAllTransitions(project: TimelineProject, transition: ClipTransition | null): TimelineProject {
+  let result = project;
+  for (const clip of project.clips) {
+    if (transition !== null && !previousClip(result, clip)) continue;
+    result = setTransition(result, clip.id, transition);
+  }
+  return result;
+}
+
+/**
+ * The clip as its sound should be heard: while a transition plays, the sound of
+ * the clip leaving fades out and the sound of the clip arriving fades in, over
+ * the length of the transition (a longer fade the user set is kept). The picture
+ * is untouched; the clip itself comes back when no transition touches it.
+ */
+export function audioClipFor(project: TimelineProject, clip: Clip): Clip {
+  let fadeIn = clip.fadeIn;
+  let fadeOut = clip.fadeOut;
+  const own = effectiveTransition(project, clip);
+  if (own) fadeIn = Math.max(fadeIn, own.duration);
+  for (const other of project.clips) {
+    if (other.trackId !== clip.trackId || other.id === clip.id) continue;
+    const next = effectiveTransition(project, other);
+    if (next && next.outgoing.id === clip.id) fadeOut = Math.max(fadeOut, next.duration);
+  }
+  return fadeIn === clip.fadeIn && fadeOut === clip.fadeOut ? clip : { ...clip, fadeIn, fadeOut };
+}
+
+/**
  * Sets (or with null, removes) the transition into a clip. It needs a previous
  * clip to leave; the duration is clamped into the allowed range. The same
  * project comes back when nothing would change.

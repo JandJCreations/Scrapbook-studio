@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   activeTransitionAt,
   activeTransitionsAt,
+  audioClipFor,
   DEFAULT_TRANSITION_SECONDS,
   effectiveTransition,
   MAX_TRANSITION_SECONDS,
   previousClip,
+  setAllTransitions,
   setTransition,
 } from "@/lib/timeline/transitions";
 import { makeClip, makeProject, makeStandardTracks } from "@/lib/timeline/test-utils";
@@ -125,5 +127,62 @@ describe("activeTransitionsAt", () => {
   it("is empty outside every transition", () => {
     const project = makeProject(makeStandardTracks(), onTrack("t1", "m"));
     expect(activeTransitionsAt(project, 1)).toEqual([]);
+  });
+});
+
+describe("setAllTransitions", () => {
+  const three = () =>
+    makeProject(makeStandardTracks(), [photo("a", 0, 4), photo("b", 4, 4), photo("c", 8, 4, { transition: { type: "dip", duration: 1.5 } })]);
+
+  it("puts the same transition into every clip that has a clip before it, and not the first", () => {
+    const result = setAllTransitions(three(), { type: "slide-left", duration: 0.8 });
+    expect(result.clips.map((c) => c.transition ?? null)).toEqual([
+      null,
+      { type: "slide-left", duration: 0.8 },
+      { type: "slide-left", duration: 0.8 },
+    ]);
+  });
+
+  it("takes them all away with null", () => {
+    const result = setAllTransitions(three(), null);
+    expect(result.clips.every((c) => (c.transition ?? null) === null)).toBe(true);
+  });
+
+  it("leaves locked clips and clips with nothing directly before them alone", () => {
+    const project = makeProject(makeStandardTracks(), [photo("a", 0, 4), photo("b", 6, 4), photo("c", 10, 4, { locked: true })]);
+    const result = setAllTransitions(project, { type: "fade", duration: 1 });
+    expect(result.clips.map((c) => c.transition ?? null)).toEqual([null, null, null]);
+  });
+
+  it("returns the same project when nothing changes", () => {
+    const once = setAllTransitions(three(), { type: "fade", duration: 1 });
+    expect(setAllTransitions(once, { type: "fade", duration: 1 })).toBe(once);
+  });
+});
+
+describe("audioClipFor", () => {
+  const video = (id: string, start: number, extra: Partial<Clip> = {}) =>
+    makeClip({ id, trackId: "t1", kind: "video", start, sourceIn: 0, sourceOut: 4, sourceDuration: 50, ...extra });
+
+  it("fades the sound out over the transition that leaves the clip, and in over the one that brings it in", () => {
+    const project = makeProject(makeStandardTracks(), [
+      video("a", 0),
+      video("b", 4, { transition: { type: "fade", duration: 1 } }),
+      video("c", 8, { transition: { type: "slide-left", duration: 0.5 } }),
+    ]);
+    const [a, b, c] = project.clips;
+    expect(audioClipFor(project, a)).toMatchObject({ fadeIn: 0, fadeOut: 1 });
+    expect(audioClipFor(project, b)).toMatchObject({ fadeIn: 1, fadeOut: 0.5 });
+    expect(audioClipFor(project, c)).toMatchObject({ fadeIn: 0.5, fadeOut: 0 });
+  });
+
+  it("keeps a longer fade the user set, and returns the clip itself when there is no transition", () => {
+    const project = makeProject(makeStandardTracks(), [
+      video("a", 0, { fadeOut: 3 }),
+      video("b", 4, { transition: { type: "fade", duration: 1 } }),
+    ]);
+    expect(audioClipFor(project, project.clips[0]).fadeOut).toBe(3);
+    const plain = makeProject(makeStandardTracks(), [video("a", 0), video("b", 4)]);
+    expect(audioClipFor(plain, plain.clips[0])).toBe(plain.clips[0]);
   });
 });

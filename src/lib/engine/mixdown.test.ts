@@ -157,3 +157,21 @@ describe("planMixdown", () => {
     expect(valueAt(item.gainPoints, 5)).toBeCloseTo(clipGainAt(c, 5), 9);
   });
 });
+
+describe("planMixdown and transitions", () => {
+  it("fades a clip's sound out as the transition leaves it and in as the next one arrives", () => {
+    const video = (id: string, start: number, extra = {}) =>
+      makeClip({ id, trackId: "t1", kind: "video", mediaId: id, start, sourceIn: 0, sourceOut: 4, sourceDuration: 50, ...extra });
+    const project = makeProject(makeStandardTracks(), [
+      video("a", 0),
+      video("b", 4, { transition: { type: "fade", duration: 1 } }),
+    ]);
+    const plan = planMixdown(project);
+    const a = plan.items.find((i) => i.clipId === "a")!;
+    const b = plan.items.find((i) => i.clipId === "b")!;
+    expect(a.gainPoints.find((p) => p.time === 3)?.value).toBe(1);
+    expect(a.gainPoints.find((p) => p.time === 4)?.value).toBe(0);
+    expect(b.gainPoints.find((p) => p.time === 4)?.value).toBe(0);
+    expect(b.gainPoints.find((p) => p.time === 5)?.value).toBe(1);
+  });
+});

@@ -5,6 +5,7 @@ import {
   addToSequence,
   fitMusicToVideo,
   musicStartTime,
+  setAllStillDurations,
   patchAudio,
   patchFades,
   patchPhotoAdjustments,
@@ -263,5 +264,25 @@ describe("musicStartTime", () => {
     expect(musicStartTime(project, STILL_SECONDS)).toBe(0);
     expect(musicStartTime(project, 99)).toBe(0);
     expect(musicStartTime(emptyTimeline("p"), 3)).toBe(0);
+  });
+});
+
+describe("setAllStillDurations", () => {
+  const photo = (name: string): EditorMedia => ({ mediaId: name, name, kind: "image", duration: 0, width: 1000, height: 1000 });
+  const clip: EditorMedia = { mediaId: "v", name: "v", kind: "video", duration: 8, width: 1920, height: 1080 };
+
+  it("gives every photo the same length, packing the strip, and leaves videos alone", () => {
+    const ids = seqIds("c");
+    let project = addToSequence(emptyTimeline("p"), photo("a"), frame, ids).project;
+    project = addToSequence(project, clip, frame, ids).project;
+    project = addToSequence(project, photo("b"), frame, ids).project;
+    const result = setAllStillDurations(project, 2);
+    const [a, v, b] = result.clips;
+    expect([clipEnd(a) - a.start, v.start, clipEnd(v) - v.start, b.start, clipEnd(b) - b.start]).toEqual([2, 2, 8, 10, 2]);
+  });
+
+  it("returns the same project when every photo already has that length", () => {
+    const project = addToSequence(emptyTimeline("p"), photo("a"), frame, seqIds("c")).project;
+    expect(setAllStillDurations(project, STILL_SECONDS)).toBe(project);
   });
 });

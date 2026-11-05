@@ -5,12 +5,19 @@ import * as React from "react";
 import { AudioPanel, type AudioValues } from "@/components/studio/audio-panel";
 import { FadeSection } from "@/components/studio/fade-section";
 import { PanelSlider } from "@/components/studio/panel-controls";
+import { Button } from "@/components/ui/button";
 import { TransitionSection } from "@/components/studio/transition-section";
 import { PhotoPanel, VideoPanel } from "@/components/studio/look-panels";
-import { patchAudio, patchFades, patchPhotoAdjustments, patchVideoAdjustments } from "@/lib/editor/ops";
+import { patchAudio, patchFades, patchPhotoAdjustments, patchVideoAdjustments, setAllStillDurations } from "@/lib/editor/ops";
 import { setSpeed } from "@/lib/timeline/clip-edits";
 import { clipDuration } from "@/lib/timeline/clip-math";
-import { effectiveTransition, previousClip, setTransition, DEFAULT_TRANSITION_SECONDS } from "@/lib/timeline/transitions";
+import {
+  DEFAULT_TRANSITION_SECONDS,
+  effectiveTransition,
+  previousClip,
+  setAllTransitions,
+  setTransition,
+} from "@/lib/timeline/transitions";
 import { trimClip } from "@/lib/timeline/trim";
 import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 import { DEFAULT_PHOTO_ADJUSTMENTS, type PhotoAdjustments } from "@/types/photo-adjustments";
@@ -118,6 +125,12 @@ export function EditTab({ clip }: { clip: Clip | null }) {
       }
       onDurationPreview={(transitionDuration) => preview({ transitionDuration })}
       onCommit={commit}
+      onApplyToAll={() =>
+        apply((p) => {
+          const own = p.clips.find((c) => c.id === id)?.transition;
+          return own ? setAllTransitions(p, own) : p;
+        })
+      }
     />
   );
   const audioPanel = (
@@ -148,6 +161,14 @@ export function EditTab({ clip }: { clip: Clip | null }) {
             onChange={(duration) => preview({ duration })}
             onCommit={commit}
           />
+          <Button
+            size="xs"
+            variant="outline"
+            aria-label="Apply this length to all photos"
+            onClick={() => apply((p) => setAllStillDurations(p, clipDuration(clip)))}
+          >
+            Apply this length to all photos
+          </Button>
           {transitionSection}
           <PhotoPanel
             adjustments={clip.adjustments.photo ?? DEFAULT_PHOTO_ADJUSTMENTS}

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { TransitionSection } from "@/components/studio/transition-section";
 
-const handlers = () => ({ onType: vi.fn(), onDurationPreview: vi.fn(), onCommit: vi.fn() });
+const handlers = () => ({ onType: vi.fn(), onDurationPreview: vi.fn(), onCommit: vi.fn(), onApplyToAll: vi.fn() });
 
 describe("TransitionSection", () => {
   it("explains there is nothing to transition from for the first clip", () => {
@@ -45,6 +45,17 @@ describe("TransitionSection", () => {
     fireEvent.keyDown(screen.getByRole("slider", { name: "Transition length (seconds)" }), { key: "ArrowRight" });
     expect(h.onDurationPreview).toHaveBeenCalledWith(1.1);
     await vi.waitFor(() => expect(h.onCommit).toHaveBeenCalled());
+  });
+
+  it("offers to use the transition for every slide, only once there is one", () => {
+    const none = handlers();
+    const view = render(<TransitionSection transition={null} hasPrevious {...none} />);
+    expect(screen.queryByRole("button", { name: "Apply to all slides" })).toBeNull();
+    view.unmount();
+    const h = handlers();
+    render(<TransitionSection transition={{ type: "fade", duration: 1 }} hasPrevious {...h} />);
+    fireEvent.click(screen.getByRole("button", { name: "Apply to all slides" }));
+    expect(h.onApplyToAll).toHaveBeenCalledTimes(1);
   });
 
   it("lets a stale transition (nothing directly before the clip now) be removed", () => {

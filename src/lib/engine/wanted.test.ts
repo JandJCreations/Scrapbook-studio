@@ -282,4 +282,11 @@ describe("planWanted: a transition", () => {
     ]);
     expect(planWanted(halves, 3.2, true).some((w) => w.clipId === "in")).toBe(true);
   });
+
+  it("lowers the leaving clip's sound as the transition goes on", () => {
+    const early = planWanted(withTransition(), 3, true).find((w) => w.clipId === "out")!;
+    const late = planWanted(withTransition(), 3.8, true).find((w) => w.clipId === "out")!;
+    expect(early.gain).toBeCloseTo(1);
+    expect(late.gain).toBeCloseTo(0.2);
+  });
 });

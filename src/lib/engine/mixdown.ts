@@ -1,5 +1,6 @@
 import { clipGainAt, isAudible } from "@/lib/timeline/active-clips";
 import { clipDuration, projectDuration } from "@/lib/timeline/clip-math";
+import { audioClipFor } from "@/lib/timeline/transitions";
 import type { Clip, TimelineProject } from "@/types/timeline";
 
 /** Absolute timeline seconds; linear between points. */
@@ -72,7 +73,7 @@ export function planMixdown(project: TimelineProject): MixdownPlan {
         sourceOut: clip.sourceOut,
         playbackRate: clip.speed,
         reversed: clip.reversed,
-        gainPoints: gainEnvelope(clip),
+        gainPoints: gainEnvelope(audioClipFor(project, clip)),
       }),
     )
     .sort((a, b) => a.startAt - b.startAt || a.clipId.localeCompare(b.clipId));

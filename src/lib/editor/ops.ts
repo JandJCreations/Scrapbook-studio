@@ -166,6 +166,23 @@ export function patchFades(
   return updateClip(project, clipId, patch);
 }
 
+/**
+ * Gives every photo the same length. The main strip closes up around the
+ * changes; videos and music are left alone. The same project comes back when
+ * every photo already has that length.
+ */
+export function setAllStillDurations(project: TimelineProject, seconds: number): TimelineProject {
+  let result = project;
+  // In order, so each photo's start is where the strip has already put it.
+  const stills = project.clips.filter((clip) => clip.kind === "image").sort((a, b) => a.start - b.start);
+  for (const still of stills) {
+    const current = result.clips.find((clip) => clip.id === still.id);
+    if (!current) continue;
+    result = trimClip(result, current.id, "end", current.start + seconds);
+  }
+  return result;
+}
+
 /** Where music starts: at the playhead while it is inside the video, otherwise at the beginning (a song added at the very end would play after the pictures). */
 export function musicStartTime(project: TimelineProject, playhead: number): number {
   const videoEnd = project.clips

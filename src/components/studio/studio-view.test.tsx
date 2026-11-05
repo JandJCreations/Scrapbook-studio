@@ -213,6 +213,23 @@ describe("StudioView", () => {
     expect(clips()[1].transition ?? null).toBeNull();
   });
 
+  it("applies one transition to every slide, and one length to every photo", async () => {
+    const third: MediaItem = { ...photo, id: "55555555-5555-4555-8555-555555555555", name: "Lake" };
+    render(<StudioView env={env({ library: [photo, forest, third] })} />);
+    await screen.findByText("My trip");
+    for (const name of ["Beach", "Forest", "Lake"]) fireEvent.click(screen.getByRole("checkbox", { name: `Select ${name}` }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 3 to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(3));
+
+    fireEvent.change(await screen.findByLabelText("Transition"), { target: { value: "dip" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply to all slides" }));
+    expect(clips().map((c) => c.transition?.type ?? null)).toEqual([null, "dip", "dip"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply this length to all photos" }));
+    const lengths = clips().map((c) => clipEnd(c) - c.start);
+    expect(new Set(lengths).size).toBe(1);
+  });
+
   it("says the first clip has nothing to transition from", async () => {
     render(<StudioView env={env()} />);
     await screen.findByText("My trip");

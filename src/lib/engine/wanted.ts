@@ -1,6 +1,6 @@
 import { activeClipsAt, clipGainAt, isAudible } from "@/lib/timeline/active-clips";
 import { clipEnd } from "@/lib/timeline/clip-math";
-import { activeTransitionsAt, effectiveTransition } from "@/lib/timeline/transitions";
+import { activeTransitionsAt, audioClipFor, effectiveTransition } from "@/lib/timeline/transitions";
 import type { Clip, TimelineProject } from "@/types/timeline";
 
 export const LOOKAHEAD_SECONDS = 1.0;
@@ -72,7 +72,7 @@ export function planWanted(
       reversed: a.clip.reversed,
       shouldPlay: playing && !a.clip.reversed,
       // Browsers cannot play video backwards, so reversed clips are silent live.
-      gain: a.audible && !a.clip.reversed ? clipGainAt(a.clip, a.localTime) : 0,
+      gain: a.audible && !a.clip.reversed ? clipGainAt(audioClipFor(project, a.clip), a.localTime) : 0,
     });
   }
 

@@ -22,10 +22,19 @@ interface TransitionSectionProps {
   /** Live feedback while the length slider moves. */
   onDurationPreview(seconds: number): void;
   onCommit(): void;
+  /** Uses this transition (kind and length) for every slide that has one before it. */
+  onApplyToAll(): void;
 }
 
 /** How this clip comes in after the one before it, shown in the Details panel. */
-export function TransitionSection({ transition, hasPrevious, onType, onDurationPreview, onCommit }: TransitionSectionProps) {
+export function TransitionSection({
+  transition,
+  hasPrevious,
+  onType,
+  onDurationPreview,
+  onCommit,
+  onApplyToAll,
+}: TransitionSectionProps) {
   return (
     <div className="space-y-3 rounded-lg border border-border p-2.5">
       <h3 className="text-xs font-medium">Transition</h3>
@@ -61,15 +70,20 @@ export function TransitionSection({ transition, hasPrevious, onType, onDurationP
             </select>
           </div>
           {transition && (
-            <PanelSlider
-              label="Transition length (seconds)"
-              value={Math.round((transition.duration ?? DEFAULT_TRANSITION_SECONDS) * 10) / 10}
-              min={MIN_TRANSITION_SECONDS}
-              max={MAX_TRANSITION_SECONDS}
-              step={0.1}
-              onChange={onDurationPreview}
-              onCommit={onCommit}
-            />
+            <>
+              <PanelSlider
+                label="Transition length (seconds)"
+                value={Math.round((transition.duration ?? DEFAULT_TRANSITION_SECONDS) * 10) / 10}
+                min={MIN_TRANSITION_SECONDS}
+                max={MAX_TRANSITION_SECONDS}
+                step={0.1}
+                onChange={onDurationPreview}
+                onCommit={onCommit}
+              />
+              <Button size="xs" variant="outline" onClick={onApplyToAll}>
+                Apply to all slides
+              </Button>
+            </>
           )}
         </>
       )}
