@@ -15,13 +15,13 @@ import type { TextAdjustments } from "@/types/text-adjustments";
 describe("trackLayout", () => {
   it("stacks rows top to bottom in track order with gaps", () => {
     const layout = trackLayout(makeProject(makeStandardTracks(), []));
-    // overlay (44) / video (64) / audio (44), 2 px gaps
+    // overlay (52) / video (88) / audio (56), 2 px gaps
     expect(layout.rows.map((r) => [r.trackId, r.y, r.height])).toEqual([
-      ["t2", 0, 44],
-      ["t1", 46, 64],
-      ["t3", 112, 44],
+      ["t2", 0, 52],
+      ["t1", 54, 88],
+      ["t3", 144, 56],
     ]);
-    expect(layout.height).toBe(156);
+    expect(layout.height).toBe(200);
   });
 
   it("is empty with no tracks", () => {
@@ -31,11 +31,11 @@ describe("trackLayout", () => {
 
 describe("clipRect", () => {
   const project = makeProject(makeStandardTracks(), []);
-  const row = trackLayout(project).rows[1]; // video row at y 46, height 64
+  const row = trackLayout(project).rows[1]; // video row at y 54, height 88
 
   it("positions a clip by its time and length", () => {
     const clip = makeClip({ start: 2, sourceIn: 0, sourceOut: 4 });
-    expect(clipRect(clip, row, 50)).toEqual({ x: 100, y: 48, width: 200, height: 60 });
+    expect(clipRect(clip, row, 50)).toEqual({ x: 100, y: 56, width: 200, height: 84 });
   });
 
   it("uses the clip's real length when sped up", () => {

@@ -1,7 +1,7 @@
 import { clipDuration } from "@/lib/timeline/clip-math";
 import type { Clip, TimelineProject, TrackType } from "@/types/timeline";
 
-export const ROW_HEIGHT: Record<TrackType, number> = { overlay: 44, video: 64, audio: 44 };
+export const ROW_HEIGHT: Record<TrackType, number> = { overlay: 52, video: 88, audio: 56 };
 export const ROW_GAP = 2;
 export const MIN_CLIP_WIDTH = 2;
 export const HEADER_WIDTH = 112;

@@ -12,7 +12,7 @@ import { clipDuration, clipEnd } from "@/lib/timeline/clip-math";
 import { findClip } from "@/lib/timeline/lookup";
 import { makeClip, makeProject, makeStandardTracks, seqIds } from "@/lib/timeline/test-utils";
 
-// t2 overlay (row y 0-44), t1 video (46-110), t3 audio (112-156).
+// t2 overlay (row y 0-52), t1 video (54-142), t3 audio (144-200).
 const overlay = (id: string, start: number, length: number, extra = {}) =>
   makeClip({
     id,
@@ -35,14 +35,14 @@ describe("dropTargetAt", () => {
 
   it("finds the row under the pointer, with the gap below belonging to the row above", () => {
     expect(dropTargetAt(layout, 10)).toEqual(onTrack("t2"));
-    expect(dropTargetAt(layout, 45)).toEqual(onTrack("t2"));
-    expect(dropTargetAt(layout, 60)).toEqual(onTrack("t1"));
-    expect(dropTargetAt(layout, 130)).toEqual(onTrack("t3"));
+    expect(dropTargetAt(layout, 53)).toEqual(onTrack("t2"));
+    expect(dropTargetAt(layout, 70)).toEqual(onTrack("t1"));
+    expect(dropTargetAt(layout, 170)).toEqual(onTrack("t3"));
   });
 
   it("means a new track above the first row or below the last", () => {
     expect(dropTargetAt(layout, -5)).toEqual({ kind: "new-track" });
-    expect(dropTargetAt(layout, 156)).toEqual({ kind: "new-track" });
+    expect(dropTargetAt(layout, 200)).toEqual({ kind: "new-track" });
     expect(dropTargetAt(layout, 400)).toEqual({ kind: "new-track" });
   });
 

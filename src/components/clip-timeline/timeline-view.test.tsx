@@ -332,10 +332,10 @@ describe("dragging into empty space below the last track", () => {
     mountEditable();
     const tracksBefore = present().tracks.length;
     pointer(chip("o"), "pointerdown", xAt(1.5), yAt(10));
-    // Just below the audio row (it ends at y 156): the preview track pushes every row down.
-    for (const y of [170, 172, 174, 176]) pointer(window, "pointermove", xAt(3), yAt(y));
+    // Just below the audio row (it ends at y 200): the preview track pushes every row down.
+    for (const y of [214, 216, 218, 220]) pointer(window, "pointermove", xAt(3), yAt(y));
     expect(present().tracks.length).toBe(tracksBefore + 1);
-    pointer(window, "pointerup", xAt(3), yAt(176));
+    pointer(window, "pointerup", xAt(3), yAt(220));
     expect(present().tracks.length).toBe(tracksBefore + 1);
     const clip = clipById("o");
     expect(present().tracks.find((t) => t.id === clip.trackId)?.type).toBe("overlay");
