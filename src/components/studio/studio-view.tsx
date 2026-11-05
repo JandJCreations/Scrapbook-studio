@@ -437,7 +437,9 @@ export function StudioView({ env }: { env: StudioEnv }) {
             <SheetHeader className="sr-only">
               <SheetTitle>Tools</SheetTitle>
             </SheetHeader>
-            <div className="flex min-h-0 flex-1 flex-col">{panels}</div>
+            <div className="flex min-h-0 flex-1 flex-col" onClickCapture={blurOnMouseClick}>
+              {panels}
+            </div>
           </SheetContent>
         </Sheet>
       )}
@@ -463,7 +465,11 @@ export function StudioView({ env }: { env: StudioEnv }) {
         </>
       )}
       <div className="flex min-h-0 flex-1">
-        {!compact && <aside className="flex w-72 shrink-0 flex-col border-r">{panels}</aside>}
+        {!compact && (
+          <aside className="flex w-72 shrink-0 flex-col border-r" onClickCapture={blurOnMouseClick}>
+            {panels}
+          </aside>
+        )}
         <main className="flex min-w-0 flex-1 flex-col">
           <StudioPreview containerRef={containerRef} />
           <div className="flex items-center gap-3 border-t px-3 py-2" onClickCapture={blurOnMouseClick}>
@@ -529,7 +535,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
           </div>
         </main>
         {!compact && (
-          <aside className="flex w-72 shrink-0 flex-col border-l" aria-label="Details">
+          <aside className="flex w-72 shrink-0 flex-col border-l" aria-label="Details" onClickCapture={blurOnMouseClick}>
             <EditTab clip={selectedClip} />
           </aside>
         )}
