@@ -32,6 +32,15 @@ export interface ClipAdjustments {
   text: TextAdjustments | null;
 }
 
+export type TransitionType = "fade" | "dip" | "slide-left" | "slide-right";
+
+/** How a clip comes in after the clip before it (on the same track); played over that clip's last stretch. */
+export interface ClipTransition {
+  type: TransitionType;
+  /** Seconds. */
+  duration: number;
+}
+
 export interface Clip {
   id: string;
   trackId: string;
@@ -64,6 +73,8 @@ export interface Clip {
   keyframes: Keyframe[];
 
   groupId: string | null;
+  /** The transition from the previous clip into this one; absent or null for a plain cut. */
+  transition?: ClipTransition | null;
   locked: boolean;
   isPlaceholder: boolean;
 }
