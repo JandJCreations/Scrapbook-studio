@@ -20,6 +20,18 @@ export function clipEnd(clip: Clip): number {
   return clip.start + clipDuration(clip);
 }
 
-export function projectDuration(project: TimelineProject): number {
+/** The end of the last clip of any kind, music included: how much timeline there is to show. */
+export function timelineExtent(project: TimelineProject): number {
   return project.clips.reduce((max, clip) => Math.max(max, clipEnd(clip)), 0);
+}
+
+/**
+ * How long the video is: it ends with the last picture or video, so music that
+ * plays on longer is cut off rather than stretching the video with black. A
+ * project of only music is as long as its music.
+ */
+export function projectDuration(project: TimelineProject): number {
+  const pictures = project.clips.filter((clip) => clip.kind !== "audio");
+  if (pictures.length === 0) return timelineExtent(project);
+  return pictures.reduce((max, clip) => Math.max(max, clipEnd(clip)), 0);
 }

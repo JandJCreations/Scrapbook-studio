@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Scrapbook Studio",
     short_name: "Scrapbook",
     description:
-      "Design beautiful, animated digital scrapbooks with photos, video, audio, and stickers.",
+      "Turn your photos and clips into a video with music.",
     start_url: "/dashboard",
     display: "standalone",
     background_color: "#fbf9f2",

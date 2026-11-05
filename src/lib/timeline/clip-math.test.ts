@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clamp, clipDuration, clipEnd, projectDuration } from "@/lib/timeline/clip-math";
+import { clamp, clipDuration, clipEnd, projectDuration, timelineExtent } from "@/lib/timeline/clip-math";
 import { makeClip, makeProject, makeStandardTracks } from "@/lib/timeline/test-utils";
 
 describe("clipDuration", () => {
@@ -31,6 +31,22 @@ describe("projectDuration", () => {
       makeClip({ id: "c", trackId: "t3", start: 1, sourceOut: 2 }),
     ]);
     expect(projectDuration(project)).toBe(12);
+  });
+});
+
+describe("the length of the video", () => {
+  const song = (length: number) => makeClip({ id: "song", trackId: "t3", kind: "audio", start: 0, sourceOut: length, sourceDuration: 500 });
+  const picture = (end: number) => makeClip({ id: "pic", trackId: "t1", kind: "image", sourceDuration: null, start: 0, sourceOut: end });
+
+  it("ends with the last picture or video, even when the music plays on longer", () => {
+    const project = makeProject(makeStandardTracks(), [picture(5), song(60)]);
+    expect(projectDuration(project)).toBe(5);
+    expect(timelineExtent(project)).toBe(60);
+  });
+
+  it("is the music's length when there is nothing else, and 0 for an empty project", () => {
+    expect(projectDuration(makeProject(makeStandardTracks(), [song(30)]))).toBe(30);
+    expect(timelineExtent(makeProject(makeStandardTracks(), []))).toBe(0);
   });
 });
 

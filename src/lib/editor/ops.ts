@@ -166,6 +166,14 @@ export function patchFades(
   return updateClip(project, clipId, patch);
 }
 
+/** Where music starts: at the playhead while it is inside the video, otherwise at the beginning (a song added at the very end would play after the pictures). */
+export function musicStartTime(project: TimelineProject, playhead: number): number {
+  const videoEnd = project.clips
+    .filter((clip) => clip.kind !== "audio")
+    .reduce((latest, clip) => Math.max(latest, clipEnd(clip)), 0);
+  return playhead < videoEnd ? Math.max(0, playhead) : 0;
+}
+
 /**
  * Cuts a song at the end of the video, so a long song does not stretch a short
  * slideshow with black. A song already shorter than the video (or no video yet) is left as it is.

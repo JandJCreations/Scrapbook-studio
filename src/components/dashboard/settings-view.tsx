@@ -93,7 +93,7 @@ export function SettingsView({ email }: { email: string }) {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-sm">Canvas size</span>
+            <span className="text-sm">Video size</span>
             <Select
               value={defaultFramePresetId}
               onValueChange={setDefaultFramePresetId}

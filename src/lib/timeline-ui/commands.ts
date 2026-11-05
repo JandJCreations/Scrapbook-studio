@@ -30,29 +30,7 @@ export function duplicateSelected(
   ids: string[],
   newId: IdFn = createId,
 ): TimelineProject {
-  // Which new clip is the copy of which, so a duplicated group can be a group of its own.
-  const copyOf = new Map<string, string>();
-  const duplicated = ids.reduce((current, id) => {
-    const known = new Set(current.clips.map((clip) => clip.id));
-    const next = duplicateClip(current, id, newId);
-    const made = next.clips.find((clip) => !known.has(clip.id));
-    if (made) copyOf.set(id, made.id);
-    return next;
-  }, project);
-
-  const groupOfCopy = new Map<string, string>();
-  const groupIds = new Map<string, string>();
-  for (const [originalId, copyId] of copyOf) {
-    const group = project.clips.find((clip) => clip.id === originalId)?.groupId;
-    if (!group) continue;
-    if (!groupIds.has(group)) groupIds.set(group, newId());
-    groupOfCopy.set(copyId, groupIds.get(group)!);
-  }
-  if (groupOfCopy.size === 0) return duplicated;
-  return {
-    ...duplicated,
-    clips: duplicated.clips.map((clip) => (groupOfCopy.has(clip.id) ? { ...clip, groupId: groupOfCopy.get(clip.id)! } : clip)),
-  };
+  return ids.reduce((current, id) => duplicateClip(current, id, newId), project);
 }
 
 export function deleteSelected(

@@ -11,6 +11,8 @@ function stylesheetSettled(link: HTMLLinkElement): Promise<void> {
 }
 
 export function loadGoogleFont(family: string): Promise<void> {
+  // A font the user uploaded in an earlier version is not on Google, and its internal name must not leave the browser.
+  if (family.startsWith("custom-")) return Promise.resolve();
   if (family === "Inter" || loadedFonts.has(family)) {
     return Promise.resolve();
   }
