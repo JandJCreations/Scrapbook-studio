@@ -197,6 +197,30 @@ describe("StudioView", () => {
     expect(projectDuration(selectProject(useClipProjectStore.getState()))).toBeCloseTo(videoEnd);
   });
 
+  it("puts a transition between two photos from the details panel, and takes it away again", async () => {
+    render(<StudioView env={env({ library: [photo, forest] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+    // The second photo is selected after adding: it has a photo before it.
+    const select = (await screen.findByLabelText("Transition")) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "slide-left" } });
+    expect(clips()[1].transition).toEqual({ type: "slide-left", duration: 0.6 });
+    expect(await screen.findByRole("slider", { name: "Transition length (seconds)" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Transition"), { target: { value: "none" } });
+    expect(clips()[1].transition ?? null).toBeNull();
+  });
+
+  it("says the first clip has nothing to transition from", async () => {
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    expect(await screen.findByText(/nothing before it/i)).toBeTruthy();
+  });
+
   it("has split, duplicate and delete above the timeline", async () => {
     render(<StudioView env={env()} />);
     await screen.findByText("My trip");

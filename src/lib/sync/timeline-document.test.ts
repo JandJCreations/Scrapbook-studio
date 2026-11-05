@@ -46,6 +46,30 @@ describe("serializeTimeline / parseTimeline", () => {
   });
 });
 
+describe("transitions in the document", () => {
+  const withTransition = (transition: unknown) => {
+    const doc = JSON.parse(JSON.stringify(serializeTimeline(makeProject(makeStandardTracks(), [makeClip({ id: "a" })]))));
+    doc.clips[0].transition = transition;
+    return doc;
+  };
+
+  it("keeps a transition through a save and load", () => {
+    const doc = withTransition({ type: "slide-left", duration: 0.8 });
+    expect(parseTimeline("p", doc).clips[0].transition).toEqual({ type: "slide-left", duration: 0.8 });
+  });
+
+  it("opens projects saved before transitions existed", () => {
+    const doc = withTransition(undefined);
+    delete doc.clips[0].transition;
+    expect(parseTimeline("p", doc).clips[0].transition ?? null).toBeNull();
+  });
+
+  it("rejects an unknown transition", () => {
+    expect(() => parseTimeline("p", withTransition({ type: "spin", duration: 1 }))).toThrow();
+    expect(() => parseTimeline("p", withTransition({ type: "fade", duration: -1 }))).toThrow();
+  });
+});
+
 describe("parseTimeline: rejects invalid documents", () => {
   it.each([[null], ["text"], [[]], [42]])("rejects the non-object %j", (raw) => {
     expect(() => parseTimeline("p1", raw)).toThrow(TimelineDocumentError);

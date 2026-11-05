@@ -5,12 +5,14 @@ import * as React from "react";
 import { AudioPanel, type AudioValues } from "@/components/studio/audio-panel";
 import { FadeSection } from "@/components/studio/fade-section";
 import { PanelSlider } from "@/components/studio/panel-controls";
+import { TransitionSection } from "@/components/studio/transition-section";
 import { PhotoPanel, VideoPanel } from "@/components/studio/look-panels";
 import { patchAudio, patchFades, patchPhotoAdjustments, patchVideoAdjustments } from "@/lib/editor/ops";
 import { setSpeed } from "@/lib/timeline/clip-edits";
 import { clipDuration } from "@/lib/timeline/clip-math";
+import { previousClip, setTransition, DEFAULT_TRANSITION_SECONDS } from "@/lib/timeline/transitions";
 import { trimClip } from "@/lib/timeline/trim";
-import { useClipProjectStore } from "@/store/use-clip-project-store";
+import { selectProject, useClipProjectStore } from "@/store/use-clip-project-store";
 import { DEFAULT_PHOTO_ADJUSTMENTS, type PhotoAdjustments } from "@/types/photo-adjustments";
 import type { Clip, TimelineProject } from "@/types/timeline";
 import { createDefaultVideoAdjustments, type VideoAdjustments } from "@/types/video-adjustments";
@@ -22,6 +24,8 @@ interface Pending {
   fades?: { fadeIn?: number; fadeOut?: number };
   /** How long a photo is shown, in seconds. */
   duration?: number;
+  /** How long the transition into the clip lasts, in seconds. */
+  transitionDuration?: number;
 }
 
 function applyPending(project: TimelineProject, clip: Clip, pending: Pending): TimelineProject {
@@ -31,6 +35,12 @@ function applyPending(project: TimelineProject, clip: Clip, pending: Pending): T
   if (pending.audio) result = patchAudio(result, clip.id, pending.audio);
   if (pending.fades) result = patchFades(result, clip.id, pending.fades);
   if (pending.duration !== undefined) result = trimClip(result, clip.id, "end", clip.start + pending.duration);
+  if (pending.transitionDuration !== undefined) {
+    result = setTransition(result, clip.id, {
+      type: clip.transition?.type ?? "fade",
+      duration: pending.transitionDuration,
+    });
+  }
   return result;
 }
 
@@ -43,6 +53,7 @@ function videoLookDefaults(clip: Clip): Partial<VideoAdjustments> {
 /** The Details panel: how long, how it looks and how it sounds, for the selected photo, video or music clip. */
 export function EditTab({ clip }: { clip: Clip | null }) {
   const clipId = clip?.id ?? null;
+  const project = useClipProjectStore(selectProject);
   // Changes made while previewing. Each preview is recomputed from the project
   // as it was before the gesture, so the patches must be sent together.
   const pending = React.useRef<Pending>({});
@@ -79,6 +90,7 @@ export function EditTab({ clip }: { clip: Clip | null }) {
       audio: patch.audio ? { ...pending.current.audio, ...patch.audio } : pending.current.audio,
       fades: patch.fades ? { ...pending.current.fades, ...patch.fades } : pending.current.fades,
       duration: patch.duration ?? pending.current.duration,
+      transitionDuration: patch.transitionDuration ?? pending.current.transitionDuration,
     };
     const merged = pending.current;
     useClipProjectStore.getState().previewApply((project) => applyPending(project, clip, merged));
@@ -89,6 +101,19 @@ export function EditTab({ clip }: { clip: Clip | null }) {
   };
 
   const id = clip.id;
+  const transitionSection = (
+    <TransitionSection
+      transition={clip.transition ?? null}
+      hasPrevious={previousClip(project, clip) !== null}
+      onType={(type) =>
+        apply((p) =>
+          setTransition(p, id, type === null ? null : { type, duration: clip.transition?.duration ?? DEFAULT_TRANSITION_SECONDS }),
+        )
+      }
+      onDurationPreview={(transitionDuration) => preview({ transitionDuration })}
+      onCommit={commit}
+    />
+  );
   const audioPanel = (
     <AudioPanel
       volume={clip.volume}
@@ -117,6 +142,7 @@ export function EditTab({ clip }: { clip: Clip | null }) {
             onChange={(duration) => preview({ duration })}
             onCommit={commit}
           />
+          {transitionSection}
           <PhotoPanel
             adjustments={clip.adjustments.photo ?? DEFAULT_PHOTO_ADJUSTMENTS}
             onPreview={(photo) => preview({ photo })}
@@ -139,6 +165,7 @@ export function EditTab({ clip }: { clip: Clip | null }) {
       )}
       {clip.kind === "video" && (
         <>
+          {transitionSection}
           <VideoPanel
             adjustments={clip.adjustments.video ?? createDefaultVideoAdjustments(clip.sourceDuration ?? 0)}
             onPreview={(video) => preview({ video })}

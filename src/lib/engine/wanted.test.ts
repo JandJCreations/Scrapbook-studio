@@ -246,3 +246,27 @@ describe("isContinuation", () => {
     expect(isContinuation(a, clip("b", { start: 4, sourceIn: 4, sourceOut: 8, reversed: true }))).toBe(false);
   });
 });
+
+describe("planWanted: a transition", () => {
+  const withTransition = () =>
+    makeProject(makeStandardTracks(), [
+      clip("out", { start: 0, sourceIn: 0, sourceOut: 4 }),
+      clip("in", { start: 4, sourceIn: 2, sourceOut: 6, transition: { type: "fade", duration: 1 } }),
+    ]);
+
+  it("has the arriving video ready at its first frame, even when paused, but silent and not playing", () => {
+    const wanted = planWanted(withTransition(), 3.5, false);
+    const arriving = wanted.find((w) => w.clipId === "in");
+    expect(arriving).toMatchObject({ active: true, targetTime: 2, shouldPlay: false, gain: 0 });
+  });
+
+  it("asks for the arriving clip only once while playing (not again as a clip starting soon)", () => {
+    const wanted = planWanted(withTransition(), 3.5, true);
+    expect(wanted.filter((w) => w.clipId === "in")).toHaveLength(1);
+    expect(wanted.find((w) => w.clipId === "in")?.active).toBe(true);
+  });
+
+  it("wants nothing extra before the transition begins", () => {
+    expect(planWanted(withTransition(), 2.5, false).map((w) => w.clipId)).toEqual(["out"]);
+  });
+});

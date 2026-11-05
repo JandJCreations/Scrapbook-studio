@@ -81,6 +81,15 @@ export const ClipChip = React.memo(function ClipChip({
           viewTo={viewTo - rect.x}
         />
       )}
+      {clip.transition && (
+        <span
+          data-testid="transition-marker"
+          title="Transition into this clip"
+          className="pointer-events-none absolute left-0.5 top-0.5 z-30 rounded-full bg-white/90 px-1 text-[10px] leading-4 text-black"
+        >
+          ⇄
+        </span>
+      )}
       {rect.width > 16 && (
         <>
           <span

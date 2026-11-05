@@ -1,5 +1,6 @@
 import { activeClipsAt, clipGainAt, isAudible } from "@/lib/timeline/active-clips";
 import { clipEnd } from "@/lib/timeline/clip-math";
+import { activeTransitionAt } from "@/lib/timeline/transitions";
 import type { Clip, TimelineProject } from "@/types/timeline";
 
 export const LOOKAHEAD_SECONDS = 1.0;
@@ -75,6 +76,27 @@ export function planWanted(
     });
   }
 
+  // The clip a transition is bringing in is on screen before it starts: its video
+  // waits at its first frame, silent and still, so there is something to draw.
+  const arriving = activeTransitionAt(project, t)?.incoming;
+  if (arriving && arriving.kind === "video" && !wanted.some((w) => w.clipId === arriving.id)) {
+    const track = project.tracks.find((candidate) => candidate.id === arriving.trackId);
+    if (track && !track.hidden) {
+      chain.push(arriving);
+      wanted.push({
+        clipId: arriving.id,
+        mediaId: arriving.mediaId,
+        kind: "video",
+        active: true,
+        targetTime: arriving.reversed ? arriving.sourceOut : arriving.sourceIn,
+        playbackRate: arriving.speed,
+        reversed: arriving.reversed,
+        shouldPlay: false,
+        gain: 0,
+      });
+    }
+  }
+
   if (!playing) return wanted;
 
   const trackById = new Map(project.tracks.map((track) => [track.id, track]));
@@ -84,6 +106,7 @@ export function planWanted(
     .sort((a, b) => a.start - b.start);
 
   for (const clip of upcoming) {
+    if (wanted.some((w) => w.clipId === clip.id)) continue;
     const track = trackById.get(clip.trackId);
     if (!track) continue;
     const audible = isAudible(clip, track, anySolo) && !clip.reversed;

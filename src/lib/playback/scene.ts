@@ -1,7 +1,9 @@
 import { lookFor, type Look } from "@/lib/appearance/look";
 import { clipDrawState, type DrawState } from "@/lib/playback/draw-state";
+import { transitionDraw } from "@/lib/playback/transition-draw";
 import type { PoolElement } from "@/lib/playback/media-pool";
 import { activeClipsAt } from "@/lib/timeline/active-clips";
+import { activeTransitionAt } from "@/lib/timeline/transitions";
 import type { Clip, TimelineProject } from "@/types/timeline";
 import type { TextAdjustments } from "@/types/text-adjustments";
 
@@ -51,15 +53,38 @@ function contentFor(
  * What to draw at `time`: one item per active clip on a visible track, in
  * paint order (bottom first). Audio clips draw nothing and are left out. A
  * video clip never borrows another clip's element: without its own it is empty.
+ *
+ * While a transition plays, the clip that is about to start is drawn too (at
+ * its first frame), under the clip that is leaving, and both are moved or
+ * faded by the transition.
  */
 export function buildScene(
   project: TimelineProject,
   time: number,
   elementFor: (clipId: string) => PoolElement | undefined,
+  frame?: { width: number; height: number },
 ): SceneItem[] {
+  const transition = activeTransitionAt(project, time);
   const items: SceneItem[] = [];
   for (const active of activeClipsAt(project, time)) {
     if (!active.visible || active.clip.kind === "audio") continue;
+    const slideDistance = frame?.width ?? active.clip.transform.width;
+    if (transition && active.clip.id === transition.outgoing.id) {
+      const incoming = transition.incoming;
+      items.push({
+        clipId: incoming.id,
+        draw: transitionDraw("in", transition.type, transition.progress, clipDrawState(incoming, 0), slideDistance),
+        look: lookFor(incoming),
+        content: contentFor(incoming, elementFor),
+      });
+      items.push({
+        clipId: active.clip.id,
+        draw: transitionDraw("out", transition.type, transition.progress, clipDrawState(active.clip, active.localTime), slideDistance),
+        look: lookFor(active.clip),
+        content: contentFor(active.clip, elementFor),
+      });
+      continue;
+    }
     items.push({
       clipId: active.clip.id,
       draw: clipDrawState(active.clip, active.localTime),

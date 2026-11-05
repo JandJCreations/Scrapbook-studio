@@ -40,6 +40,8 @@ export function splitClip(
   const right: Clip = {
     ...clip,
     id: rightId,
+    // The cut inside a clip is always a plain cut; the transition into the clip stays with the left half.
+    transition: null,
     // Start exactly where the left half ends: `at` can differ from
     // clipEnd(left) by a float ulp, which would leave a sliver at the cut.
     start: clipEnd(left),

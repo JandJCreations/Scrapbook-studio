@@ -4,6 +4,7 @@ import type { PoolElement } from "@/lib/playback/media-pool";
 import { buildScene } from "@/lib/playback/scene";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { activeClipsAt } from "@/lib/timeline/active-clips";
+import { activeTransitionAt } from "@/lib/timeline/transitions";
 import type { Clip, TimelineProject } from "@/types/timeline";
 
 const LOAD_TIMEOUT_MS = 20_000;
@@ -120,7 +121,15 @@ export function createFrameRenderer(options: {
         const video = await videoFor(active.clip);
         await seek(video, active.sourceTime);
       }
-      painter.render(buildScene(project, time, (clipId) => videos.get(clipId) as unknown as PoolElement | undefined));
+      // The video a transition is bringing in waits at its first frame.
+      const arriving = activeTransitionAt(project, time)?.incoming;
+      if (arriving && arriving.kind === "video") {
+        const video = await videoFor(arriving);
+        await seek(video, arriving.reversed ? arriving.sourceOut : arriving.sourceIn);
+      }
+      painter.render(
+        buildScene(project, time, (clipId) => videos.get(clipId) as unknown as PoolElement | undefined, frame),
+      );
     },
 
     capture: (captureOptions) => painter.capture(captureOptions),

@@ -400,3 +400,17 @@ describe("a drag whose end the browser never reports", () => {
     pointer(window, "pointerup", xAt(3.5), yAt(10), { pointerId: 1 });
   });
 });
+
+describe("TimelineView transitions", () => {
+  it("marks a clip that has a transition into it, and only that clip", () => {
+    mount(
+      makeProject(makeStandardTracks(), [
+        makeClip({ id: "a", name: "First", sourceOut: 4 }),
+        makeClip({ id: "b", name: "Second", start: 4, sourceOut: 4, transition: { type: "fade", duration: 1 } }),
+      ]),
+    );
+    const markers = screen.getAllByTestId("transition-marker");
+    expect(markers).toHaveLength(1);
+    expect(markers[0].closest("[data-clip-id]")?.getAttribute("data-clip-id")).toBe("b");
+  });
+});

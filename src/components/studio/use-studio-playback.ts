@@ -93,7 +93,7 @@ export function useStudioPlayback(options: { media: MediaUrlSource; frame: Frame
         if (!alive) return;
         useTransportStore.getState().setFrame(frameState.time, frameState.playing);
         painter.render(
-          buildScene(getProject(), frameState.time, (clipId) => pool.elementForClip(clipId)),
+          buildScene(getProject(), frameState.time, (clipId) => pool.elementForClip(clipId), size),
         );
       },
       onDispose: () => {

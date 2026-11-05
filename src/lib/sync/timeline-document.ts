@@ -90,6 +90,14 @@ const clipSchema = z
     }),
     keyframes: z.array(keyframeSchema),
     groupId: z.string().nullable(),
+    // Added after the first saves: a missing one means a plain cut.
+    transition: z
+      .object({
+        type: z.enum(["fade", "dip", "slide-left", "slide-right"]),
+        duration: z.number().positive(),
+      })
+      .nullable()
+      .optional(),
     locked: z.boolean(),
     isPlaceholder: z.boolean(),
   })

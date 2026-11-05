@@ -161,3 +161,47 @@ describe("fitContain", () => {
     expect(fitContain(0, 0, 1280, 720)).toEqual({ x: 0, y: 0, width: 1280, height: 720 });
   });
 });
+
+describe("buildScene during a transition", () => {
+  const frame = { width: 1920, height: 1080 };
+  const photo = (id: string, start: number, extra = {}) =>
+    makeClip({ id, trackId: "t1", kind: "image", sourceDuration: null, start, sourceIn: 0, sourceOut: 4, ...extra });
+  const project = (transition: { type: "fade" | "dip" | "slide-left" | "slide-right"; duration: number }) =>
+    makeProject(makeStandardTracks(), [photo("a", 0), photo("b", 4, { transition })]);
+
+  it("shows only the current clip outside the transition", () => {
+    const p = project({ type: "fade", duration: 1 });
+    expect(buildScene(p, 2.9, none, frame).map((i) => i.clipId)).toEqual(["a"]);
+    expect(buildScene(p, 4, none, frame).map((i) => i.clipId)).toEqual(["b"]);
+  });
+
+  it("draws the arriving clip under the leaving one while they cross", () => {
+    const items = buildScene(project({ type: "fade", duration: 1 }), 3.5, none, frame);
+    expect(items.map((i) => i.clipId)).toEqual(["b", "a"]);
+    expect(items[1].draw.opacity).toBeCloseTo(0.5);
+    expect(items[0].draw.opacity).toBe(1);
+  });
+
+  it("slides both clips by the frame's width", () => {
+    const items = buildScene(project({ type: "slide-left", duration: 1 }), 3.5, none, frame);
+    const byId = Object.fromEntries(items.map((i) => [i.clipId, i.draw.x]));
+    const home = items.find((i) => i.clipId === "a")!.draw.x + 0.5 * frame.width;
+    expect(byId.a).toBeCloseTo(home - 0.5 * frame.width);
+    expect(byId.b).toBeCloseTo(home + 0.5 * frame.width);
+  });
+
+  it("holds the arriving video's first frame: it draws the element it is given", () => {
+    const element = new FakeElement();
+    const video = makeProject(makeStandardTracks(), [
+      photo("a", 0),
+      makeClip({ id: "v", trackId: "t1", kind: "video", start: 4, sourceIn: 0, sourceOut: 4, transition: { type: "fade", duration: 1 } }),
+    ]);
+    const items = buildScene(video, 3.5, (id) => (id === "v" ? element : undefined), frame);
+    expect(items.find((i) => i.clipId === "v")?.content).toEqual({ type: "video", element });
+  });
+
+  it("does nothing without a transition on the clip", () => {
+    const plain = makeProject(makeStandardTracks(), [photo("a", 0), photo("b", 4)]);
+    expect(buildScene(plain, 3.5, none, frame).map((i) => i.clipId)).toEqual(["a"]);
+  });
+});

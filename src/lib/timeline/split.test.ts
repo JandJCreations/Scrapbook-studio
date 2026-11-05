@@ -195,3 +195,16 @@ describe("splitClip", () => {
     });
   });
 });
+
+describe("splitClip and transitions", () => {
+  it("keeps the transition into the left half, and gives the right half a plain cut", () => {
+    const project = makeProject(makeStandardTracks(), [
+      makeClip({ id: "a", start: 0, sourceOut: 4 }),
+      makeClip({ id: "b", start: 4, sourceOut: 8, transition: { type: "fade", duration: 1 } }),
+    ]);
+    const result = splitClip(project, "b", 8, seqIds("n"));
+    expect(result.clips.find((c) => c.id === "b")?.transition).toEqual({ type: "fade", duration: 1 });
+    const right = result.clips.find((c) => c.id !== "a" && c.id !== "b")!;
+    expect(right.transition ?? null).toBeNull();
+  });
+});
