@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import "@/test/dom-setup";
 
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TextSection } from "@/components/studio/text-section";
 import { DEFAULT_TEXT_ADJUSTMENTS } from "@/types/text-adjustments";
@@ -57,5 +57,53 @@ describe("TextSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Position middle" }));
     fireEvent.click(screen.getByRole("button", { name: "Position bottom" }));
     expect(h.onPosition.mock.calls.map((c) => c[0])).toEqual(["top", "middle", "bottom"]);
+  });
+});
+
+describe("TextSection saves typing without waiting for focus to leave", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("commits a moment after the last keystroke, once, and not again on blur", () => {
+    vi.useFakeTimers();
+    const h = setup();
+    const box = screen.getByLabelText("Text");
+    fireEvent.change(box, { target: { value: "H" } });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    fireEvent.change(box, { target: { value: "He" } });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(h.onCommit).not.toHaveBeenCalled(); // still typing: the wait started over
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(h.onCommit).toHaveBeenCalledTimes(1);
+    fireEvent.blur(box);
+    expect(h.onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("commits at once on blur, and the pending timer then does nothing more", () => {
+    vi.useFakeTimers();
+    const h = setup();
+    const box = screen.getByLabelText("Text");
+    fireEvent.change(box, { target: { value: "Hi" } });
+    fireEvent.blur(box);
+    expect(h.onCommit).toHaveBeenCalledTimes(1);
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(h.onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("commits on its own after a colour change too", () => {
+    vi.useFakeTimers();
+    const h = setup();
+    fireEvent.change(screen.getByLabelText("Text colour"), { target: { value: "#00ff00" } });
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+    expect(h.onCommit).toHaveBeenCalledTimes(1);
   });
 });

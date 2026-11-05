@@ -125,3 +125,57 @@ describe("addCaptionFor", () => {
     expect(addCaptionFor(base, "missing", frame, seqIds("n"))).toBeNull();
   });
 });
+
+describe("addText near or past the end of the video", () => {
+  const withVideo = () =>
+    makeProject(makeStandardTracks(), [makeClip({ id: "s", trackId: "t1", kind: "image", sourceDuration: null, start: 0, sourceIn: 0, sourceOut: 5 })]);
+  const startAt = (at: number) => {
+    const { project, clipId } = addText(withVideo(), frame, at, {}, seqIds("n"));
+    return findClip(project, clipId)!;
+  };
+
+  it("keeps the text inside the video: it is pulled back so it ends with the last picture", () => {
+    expect(startAt(5).start).toBeCloseTo(5 - TEXT_SECONDS); // the playhead is at the very end
+    expect(startAt(4).start).toBeCloseTo(5 - TEXT_SECONDS); // only a second left
+    expect(startAt(1).start).toBe(1); // plenty of room
+    expect(clipEnd(startAt(99))).toBeCloseTo(5);
+  });
+
+  it("starts at 0 when the video is shorter than the text, and leaves captions (a given span) alone", () => {
+    const short = makeProject(makeStandardTracks(), [makeClip({ id: "s", trackId: "t1", kind: "image", sourceDuration: null, start: 0, sourceIn: 0, sourceOut: 1 })]);
+    const { project, clipId } = addText(short, frame, 1, {}, seqIds("n"));
+    expect(findClip(project, clipId)!.start).toBe(0);
+    const caption = addText(withVideo(), frame, 0, { span: { start: 4.5, duration: 2 } }, seqIds("n"));
+    expect(findClip(caption.project, caption.clipId)!.start).toBe(4.5);
+  });
+
+  it("does not move text when there is no video yet", () => {
+    const { project, clipId } = addText(emptyTimeline("p"), frame, 7, {}, seqIds("n"));
+    expect(findClip(project, clipId)!.start).toBe(7);
+  });
+});
+
+describe("addText and hidden tracks", () => {
+  it("does not put text on an overlay track that is hidden, where it could not be seen", () => {
+    const hidden = makeProject(
+      [...makeStandardTracks(), { id: "h", type: "overlay", order: 9, muted: false, locked: false, hidden: true, solo: false }],
+      [],
+    );
+    const { project, clipId } = addText(hidden, frame, 0, {}, seqIds("n"));
+    expect(findClip(project, clipId)!.trackId).not.toBe("h");
+  });
+});
+
+describe("captions and their slides", () => {
+  it("stay where they are when the slide is deleted (they are not linked to it)", () => {
+    const slides = makeProject(makeStandardTracks(), [
+      makeClip({ id: "s1", trackId: "t1", kind: "image", sourceDuration: null, start: 0, sourceIn: 0, sourceOut: 4 }),
+      makeClip({ id: "s2", trackId: "t1", kind: "image", sourceDuration: null, start: 4, sourceIn: 0, sourceOut: 4 }),
+    ]);
+    const withCaption = addCaptionFor(slides, "s2", frame, seqIds("n"))!;
+    const captionStart = findClip(withCaption.project, withCaption.clipId)!.start;
+    const after = withCaption.project.clips.filter((c) => c.id !== "s1");
+    expect(captionStart).toBe(4);
+    expect(after.find((c) => c.id === withCaption.clipId)!.start).toBe(4);
+  });
+});

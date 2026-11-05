@@ -287,12 +287,13 @@ export function StudioView({ env }: { env: StudioEnv }) {
     const clip = selectedClip;
     if (!clip || !frame) return;
     let made = false;
-    put((p) => {
+    const added = put((p) => {
       const result = addCaptionFor(p, clip.id, frame);
       made = result !== null;
       return result ?? { project: p, clipId: "" };
     });
-    if (!made) say("Couldn't add a caption to that.");
+    if (made && added) say(null);
+    else say("Couldn't add a caption to that.");
   }
 
   /** Gives the selected photo or video the look of a filter from the gallery. */

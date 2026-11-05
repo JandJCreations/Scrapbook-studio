@@ -1,6 +1,6 @@
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { updateClip } from "@/lib/timeline/clip-edits";
-import { clipEnd } from "@/lib/timeline/clip-math";
+import { clipEnd, videoEnd } from "@/lib/timeline/clip-math";
 import { createId, type IdFn } from "@/lib/timeline/ids";
 import { clipDuration } from "@/lib/timeline/clip-math";
 import { insertClip } from "@/lib/timeline/place";
@@ -77,7 +77,7 @@ function boxFor(frame: FrameSize, text: TextAdjustments, position: TextPosition)
 /** An overlay track with no clip in [start, end), or a new one. */
 function overlayTrackFor(project: TimelineProject, start: number, end: number, newId: IdFn) {
   for (const track of project.tracks) {
-    if (track.type !== "overlay" || track.locked) continue;
+    if (track.type !== "overlay" || track.locked || track.hidden) continue;
     const busy = project.clips.some((c) => c.trackId === track.id && c.start < end && clipEnd(c) > start);
     if (!busy) return { project, trackId: track.id };
   }
@@ -102,8 +102,11 @@ export function addText(
   options: AddTextOptions = {},
   newId: IdFn = createId,
 ): AddResult {
-  const start = Math.max(0, options.span?.start ?? at);
   const duration = options.span?.duration ?? TEXT_SECONDS;
+  // Text added at the playhead has to be inside the video to be seen or exported: pull it back to end with the last picture.
+  const end = videoEnd(project);
+  const latestStart = end > 0 ? Math.max(0, end - duration) : Infinity;
+  const start = options.span ? Math.max(0, options.span.start) : Math.max(0, Math.min(at, latestStart));
   const text = textFor(frame, options.content ?? "Your text", options.style);
   const { project: withTrack, trackId } = overlayTrackFor(project, start, start + duration, newId);
   const box = boxFor(frame, text, options.style?.position ?? "middle");

@@ -30,7 +30,39 @@ const ALIGNS: Array<{ value: TextAlign; label: string; Icon: typeof AlignLeft }>
 const POSITIONS: TextPosition[] = ["top", "middle", "bottom"];
 
 /** The words and look of a text clip, in the Details panel. */
+/** How long typing (or a colour pick) may pause before it is saved as an edit of its own. */
+const COMMIT_AFTER_MS = 600;
+
 export function TextSection({ adjustments: adj, onPreview, onCommit, onApply, onPosition }: TextSectionProps) {
+  // A preview is not saved until it is committed, and a person can keep typing for minutes: save after each pause.
+  const timer = React.useRef<number | null>(null);
+  const commitNow = () => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = null;
+    onCommit();
+  };
+  /** Leaving a field: save what is still pending, if anything. */
+  const commitIfPending = () => {
+    if (timer.current !== null) commitNow();
+  };
+  const commitSoon = () => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(commitNow, COMMIT_AFTER_MS);
+  };
+  const latestCommit = React.useRef(commitNow);
+  React.useEffect(() => {
+    latestCommit.current = commitNow;
+  });
+  // Leaving the panel with a pause still pending saves it now.
+  React.useEffect(
+    () => () => {
+      if (timer.current !== null) {
+        window.clearTimeout(timer.current);
+        latestCommit.current();
+      }
+    },
+    [],
+  );
   return (
     <div className="space-y-3">
       <h2 className="text-sm font-semibold">Edit text</h2>
@@ -39,8 +71,11 @@ export function TextSection({ adjustments: adj, onPreview, onCommit, onApply, on
         aria-label="Text"
         value={adj.content}
         rows={3}
-        onChange={(event) => onPreview({ content: event.target.value })}
-        onBlur={onCommit}
+        onChange={(event) => {
+          onPreview({ content: event.target.value });
+          commitSoon();
+        }}
+        onBlur={commitIfPending}
         className="w-full resize-none rounded-md border border-border bg-background p-2 text-sm"
       />
 
@@ -69,8 +104,11 @@ export function TextSection({ adjustments: adj, onPreview, onCommit, onApply, on
           type="color"
           aria-label="Text colour"
           value={adj.color}
-          onChange={(event) => onPreview({ color: event.target.value })}
-          onBlur={onCommit}
+          onChange={(event) => {
+            onPreview({ color: event.target.value });
+            commitSoon();
+          }}
+          onBlur={commitIfPending}
           className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent"
         />
       </div>

@@ -33,6 +33,7 @@ export function TextTab({ selectedIsText, canCaption, onAddText, onPickStyle, on
       <p className="text-xs text-muted-foreground">
         {selectedIsText ? "Pick a style to restyle the selected text." : "Pick a style to add text in that style."}
       </p>
+      <p className="text-xs text-muted-foreground">A caption stays where it is if you later move or trim its slide.</p>
       <ul className="grid grid-cols-2 gap-2">
         {TEXT_STYLES.map((style) => (
           <li key={style.id}>

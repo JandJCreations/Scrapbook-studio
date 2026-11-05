@@ -43,4 +43,9 @@ describe("TextTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Caption for selected slide" }));
     expect(p.onAddCaption).toHaveBeenCalledTimes(1);
   });
+
+  it("tells the user a caption does not follow its slide if the slide is moved", () => {
+    render(<TextTab {...props()} />);
+    expect(screen.getByText(/caption stays where it is/i)).toBeTruthy();
+  });
 });
