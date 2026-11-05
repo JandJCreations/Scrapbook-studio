@@ -433,3 +433,39 @@ describe("StudioView dragging media onto the timeline", () => {
     expect(clips()).toHaveLength(2);
   });
 });
+
+describe("StudioView galleries", () => {
+  async function withTwo() {
+    render(<StudioView env={env({ library: [photo, forest] })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Beach" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Forest" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(2));
+  }
+
+  it("gives the selected photo the filter picked in the Filters gallery", async () => {
+    await withTwo();
+    fireEvent.click(screen.getByRole("tab", { name: "filters" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Filter Noir" }));
+    expect(clips()[1].adjustments.photo?.filterPreset).toBe("noir");
+    expect(screen.getByRole("button", { name: "Filter Noir" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("puts the transition picked in the Transitions gallery into the selected clip", async () => {
+    await withTwo();
+    fireEvent.click(screen.getByRole("tab", { name: "transitions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Transition Dip to black" }));
+    expect(clips()[1].transition).toEqual({ type: "dip", duration: 0.6 });
+    fireEvent.click(screen.getByRole("button", { name: "Transition None" }));
+    expect(clips()[1].transition ?? null).toBeNull();
+  });
+
+  it("opens the Transitions gallery from the box on a cut in the timeline", async () => {
+    await withTwo();
+    fireEvent.click(screen.getByRole("tab", { name: "filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Transition between slides" }));
+    expect(screen.getByRole("tab", { name: "transitions" }).getAttribute("aria-selected")).toBe("true");
+    expect(useClipProjectStore.getState().selectedClipIds).toEqual([clips()[1].id]);
+  });
+});

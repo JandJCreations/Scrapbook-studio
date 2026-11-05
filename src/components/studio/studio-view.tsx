@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Image as ImageIcon, Music, Pause, Play, SlidersHorizontal } from "lucide-react";
+import { ArrowLeftRight, Image as ImageIcon, Music, Palette, Pause, Play, SlidersHorizontal } from "lucide-react";
 
 import { AudioTab } from "@/components/studio/audio-tab";
 import { ClipTools } from "@/components/studio/clip-tools";
 import { EditTab } from "@/components/studio/edit-tab";
+import { FiltersTab } from "@/components/studio/filters-tab";
+import { TransitionsTab } from "@/components/studio/transitions-tab";
 import { ExportDialog } from "@/components/studio/export-dialog";
 import { StudioMediaPanel } from "@/components/studio/studio-media-panel";
 import type { StudioEnv } from "@/components/studio/studio-env";
@@ -40,6 +42,11 @@ import { readMediaInfo } from "@/lib/playback/browser";
 import { withBundledAssets } from "@/lib/sync/bundled-assets";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { projectDuration } from "@/lib/timeline/clip-math";
+import { videoLookForPreset } from "@/lib/appearance/filters";
+import { patchPhotoAdjustments, patchVideoAdjustments } from "@/lib/editor/ops";
+import { DEFAULT_TRANSITION_SECONDS, previousClip, setAllTransitions, setTransition } from "@/lib/timeline/transitions";
+import type { FilterPreset } from "@/types/photo-adjustments";
+import type { TransitionType } from "@/types/timeline";
 import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
 import type { TimelineProject } from "@/types/timeline";
 import {
@@ -54,7 +61,7 @@ import type { MediaItem } from "@/types/media";
 
 const FPS = 30;
 
-type Tab = "media" | "audio" | "edit";
+type Tab = "media" | "audio" | "filters" | "transitions" | "edit";
 
 function formatClock(seconds: number): string {
   const safe = Math.max(0, seconds);
@@ -76,7 +83,13 @@ function StudioSkeleton() {
 }
 
 /** The editor: pick photos, videos and music; the preview plays them through as the finished video. */
-const TAB_ICONS = { media: ImageIcon, audio: Music, edit: SlidersHorizontal } as const;
+const TAB_ICONS = {
+  media: ImageIcon,
+  audio: Music,
+  filters: Palette,
+  transitions: ArrowLeftRight,
+  edit: SlidersHorizontal,
+} as const;
 
 export function StudioView({ env }: { env: StudioEnv }) {
   useStudioTheme();
@@ -247,6 +260,42 @@ export function StudioView({ env }: { env: StudioEnv }) {
     }
   }
 
+  /** Gives the selected photo or video the look of a filter from the gallery. */
+  function applyFilter(preset: FilterPreset) {
+    const clip = selectedClip;
+    if (!clip) return;
+    useClipProjectStore.getState().apply((p) =>
+      clip.kind === "image"
+        ? patchPhotoAdjustments(p, clip.id, { filterPreset: preset })
+        : patchVideoAdjustments(p, clip.id, videoLookForPreset(preset)),
+    );
+  }
+
+  /** Puts the transition picked in the gallery into the selected clip (null for a plain cut), at its current length. */
+  function pickTransition(type: TransitionType | null) {
+    const clip = selectedClip;
+    if (!clip) return;
+    useClipProjectStore.getState().apply((p) =>
+      setTransition(p, clip.id, type === null ? null : { type, duration: clip.transition?.duration ?? DEFAULT_TRANSITION_SECONDS }),
+    );
+  }
+
+  function applyTransitionToAll() {
+    const clip = selectedClip;
+    if (!clip) return;
+    useClipProjectStore.getState().apply((p) => {
+      const own = p.clips.find((c) => c.id === clip.id)?.transition;
+      return own ? setAllTransitions(p, own) : p;
+    });
+  }
+
+  /** The box on a cut in the timeline was clicked: select the clip after it and show the transitions to pick from. */
+  function openTransition(clipId: string) {
+    useClipProjectStore.getState().setSelectedClipIds([clipId]);
+    setTab("transitions");
+    if (compact) setToolsOpen(true);
+  }
+
   /** Closes the tour, and remembers that it has been seen so it does not open by itself again. */
   function closeTour(open: boolean) {
     setTourOpen(open);
@@ -297,7 +346,9 @@ export function StudioView({ env }: { env: StudioEnv }) {
   if (status.phase === "loading") return <StudioSkeleton />;
 
   const duration = projectDuration(project);
-  const tabNames: Tab[] = compact ? ["media", "audio", "edit"] : ["media", "audio"];
+  const tabNames: Tab[] = compact
+    ? ["media", "audio", "filters", "transitions", "edit"]
+    : ["media", "audio", "filters", "transitions"];
   const shownTab: Tab = tabNames.includes(tab) ? tab : "media";
 
   const panels = (
@@ -347,6 +398,15 @@ export function StudioView({ env }: { env: StudioEnv }) {
             addMusic(track);
             setToolsOpen(false);
           }}
+        />
+      ) : shownTab === "filters" ? (
+        <FiltersTab clip={selectedClip} onPick={applyFilter} />
+      ) : shownTab === "transitions" ? (
+        <TransitionsTab
+          clip={selectedClip}
+          hasPrevious={selectedClip ? previousClip(project, selectedClip) !== null : false}
+          onPick={pickTransition}
+          onApplyToAll={applyTransitionToAll}
         />
       ) : (
         <EditTab clip={selectedClip} />
@@ -460,6 +520,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onStep={(direction) => session?.step(direction, FPS)}
               visuals={visuals ?? undefined}
               onDropMedia={dropMedia}
+              onOpenTransition={openTransition}
               onAddClip={() => {
                 setTab("media");
                 if (compact) setToolsOpen(true);

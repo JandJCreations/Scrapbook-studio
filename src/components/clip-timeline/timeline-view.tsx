@@ -25,7 +25,7 @@ import {
   zoomAround,
 } from "@/lib/timeline-ui/geometry";
 import { ZoomIn, ZoomOut, Plus } from "lucide-react";
-import { effectiveTransition } from "@/lib/timeline/transitions";
+import { effectiveTransition, previousClip } from "@/lib/timeline/transitions";
 import { hasMediaDrag, readMediaDrag, type MediaDragPayload } from "@/lib/dom/media-drag";
 import { commandForKey, nextSelection } from "@/lib/timeline-ui/interactions";
 import { viewWindow } from "@/lib/timeline-ui/visuals";
@@ -59,6 +59,8 @@ interface TimelineViewProps {
   onAddClip?: () => void;
   /** Present where media can be dropped on the timeline: gets what was dropped, the time it was dropped at, and the kind of track. */
   onDropMedia?: (payload: MediaDragPayload, time: number, trackType: "video" | "overlay" | "audio") => void;
+  /** Present where transitions can be edited: puts a box on each cut of the main strip that opens the transition into the clip after it. */
+  onOpenTransition?: (clipId: string) => void;
 }
 
 interface PressInfo {
@@ -119,7 +121,7 @@ function oncePerDrag(): IdFn {
   return () => (id ??= createId());
 }
 
-export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onDropMedia }: TimelineViewProps) {
+export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onDropMedia, onOpenTransition }: TimelineViewProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const rulerRef = React.useRef<HTMLDivElement>(null);
   const tracksRef = React.useRef<HTMLDivElement>(null);
@@ -649,6 +651,35 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onD
                         viewTo={visibleRange.to}
                       />
                     ))}
+                  {onOpenTransition &&
+                    track.type === "video" &&
+                    project.clips
+                      .filter((c) => c.trackId === track.id && previousClip(project, c) !== null)
+                      .map((c) => (
+                        <button
+                          key={`cut-${c.id}`}
+                          type="button"
+                          aria-label="Transition between slides"
+                          title="Transition"
+                          data-has-transition={effectiveTransition(project, c) !== null ? "true" : "false"}
+                          // Like the clips, it does not take keyboard focus on click, so Space keeps meaning play/pause.
+                          onMouseDown={(event) => event.preventDefault()}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenTransition(c.id);
+                          }}
+                          className={
+                            "absolute top-1/2 z-20 flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-[10px] shadow " +
+                            (effectiveTransition(project, c) !== null
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-card text-muted-foreground hover:border-primary")
+                          }
+                          style={{ left: timeToX(c.start, pps) }}
+                        >
+                          ⇄
+                        </button>
+                      ))}
                   {onAddClip && track.type === "video" && (
                     <button
                       type="button"

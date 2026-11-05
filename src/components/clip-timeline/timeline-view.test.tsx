@@ -514,3 +514,41 @@ describe("TimelineView dropping media", () => {
     expect(onDropMedia).not.toHaveBeenCalled();
   });
 });
+
+describe("TimelineView transition boxes", () => {
+  const strip = (transition: boolean) =>
+    makeProject(makeStandardTracks(), [
+      makeClip({ id: "a", name: "First", sourceOut: 4 }),
+      makeClip({ id: "b", name: "Second", start: 4, sourceOut: 4, transition: transition ? { type: "fade", duration: 1 } : null }),
+      makeClip({ id: "c", name: "Third", start: 8, sourceOut: 4 }),
+    ]);
+
+  it("has a box on each cut between clips of the strip (not before the first), that opens the transition for the clip after it", () => {
+    act(() => {
+      useClipProjectStore.getState().load(strip(false));
+      useTransportStore.getState().reset();
+    });
+    const onOpenTransition = vi.fn();
+    render(<TimelineView fps={30} onSeek={vi.fn()} onToggle={vi.fn()} onStep={vi.fn()} onOpenTransition={onOpenTransition} />);
+    const boxes = screen.getAllByRole("button", { name: "Transition between slides" });
+    expect(boxes).toHaveLength(2);
+    fireEvent.click(boxes[1]);
+    expect(onOpenTransition).toHaveBeenCalledWith("c");
+  });
+
+  it("shows which cuts already have a transition", () => {
+    act(() => {
+      useClipProjectStore.getState().load(strip(true));
+      useTransportStore.getState().reset();
+    });
+    render(<TimelineView fps={30} onSeek={vi.fn()} onToggle={vi.fn()} onStep={vi.fn()} onOpenTransition={vi.fn()} />);
+    const boxes = screen.getAllByRole("button", { name: "Transition between slides" });
+    expect(boxes[0].getAttribute("data-has-transition")).toBe("true");
+    expect(boxes[1].getAttribute("data-has-transition")).toBe("false");
+  });
+
+  it("has no boxes where transitions cannot be opened", () => {
+    mount(strip(false));
+    expect(screen.queryByRole("button", { name: "Transition between slides" })).toBeNull();
+  });
+});
