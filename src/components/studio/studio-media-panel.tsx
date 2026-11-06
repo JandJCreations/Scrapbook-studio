@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
 import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
 import { writeMediaDrag } from "@/lib/dom/media-drag";
+import { isUsable } from "@/lib/media/local-media";
 import type { MediaItem } from "@/types/media";
 
 interface StudioMediaPanelProps {
@@ -21,7 +22,7 @@ interface StudioMediaPanelProps {
 
 /** The user's photos and videos: tick any number and add them to the end of the video. */
 export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onUpload }: StudioMediaPanelProps) {
-  const pictures = items.filter((item) => item.status === "ready" && item.type !== "audio");
+  const pictures = items.filter((item) => isUsable(item) && item.type !== "audio");
   const [ticked, setTicked] = React.useState<Set<string>>(new Set());
   // In the order of the list, whatever order they were ticked in; items that went away drop out.
   const chosen = pictures.filter((item) => ticked.has(item.id));
@@ -115,6 +116,11 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onUpload }:
               onChange={() => toggle(item.id)}
               className="absolute left-1.5 top-1.5 size-4"
             />
+            {item.status === "processing" && (
+              <span className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
+                Uploading {Math.round(item.progress)}%
+              </span>
+            )}
             <div className="flex items-center gap-1 p-1">
               <span className="min-w-0 flex-1 truncate text-[11px]" title={item.name}>
                 {item.name}

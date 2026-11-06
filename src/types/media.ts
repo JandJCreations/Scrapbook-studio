@@ -22,4 +22,6 @@ export interface MediaItem {
   status: MediaStatus;
   progress: number;
   error?: string;
+  /** Where the file is on this computer, while it is uploading and for the rest of the session: it plays from here at once. */
+  localUrl?: string;
 }

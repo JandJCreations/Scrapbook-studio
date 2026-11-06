@@ -6,6 +6,7 @@ import { Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
 import { writeMediaDrag } from "@/lib/dom/media-drag";
+import { isUsable } from "@/lib/media/local-media";
 import { MUSIC_LIBRARY, type MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
 import { formatDuration } from "@/lib/media/format";
 import type { MediaItem } from "@/types/media";
@@ -22,7 +23,7 @@ interface AudioTabProps {
 export function AudioTab({ items, loading, onAddAudio, onAddMusic }: AudioTabProps) {
   const audioRef = React.useRef<HTMLAudioElement>(null);
   const [playingId, setPlayingId] = React.useState<string | null>(null);
-  const mine = items.filter((item) => item.type === "audio" && item.status === "ready");
+  const mine = items.filter((item) => item.type === "audio" && isUsable(item));
 
   // A preview stops when the tab is left.
   React.useEffect(() => {

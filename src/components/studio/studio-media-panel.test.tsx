@@ -139,4 +139,20 @@ describe("StudioMediaPanel", () => {
     expect(screen.getByRole("button", { name: "Import" })).toBeTruthy();
     expect(container.querySelector("input[type=file]")).not.toBeNull();
   });
+
+  it("lists a file that is still uploading if it is on this computer, with its progress, and can add it", () => {
+    const onAdd = vi.fn();
+    const uploading = item({ id: "u", name: "Fresh", status: "processing", progress: 35, localUrl: "blob:u" });
+    panel([uploading], { onAdd });
+    expect(screen.getByText("Fresh")).toBeTruthy();
+    expect(screen.getByText(/uploading 35%/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add Fresh to the video" }));
+    expect(onAdd).toHaveBeenCalledWith(uploading);
+  });
+
+  it("does not list an upload that has nothing local to play, or one that failed", () => {
+    panel([item({ id: "a", name: "Pending", status: "processing" }), item({ id: "b", name: "Broken", status: "error", localUrl: "blob:b" })]);
+    expect(screen.queryByText("Pending")).toBeNull();
+    expect(screen.queryByText("Broken")).toBeNull();
+  });
 });

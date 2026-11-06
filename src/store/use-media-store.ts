@@ -108,7 +108,9 @@ async function processMediaItem(
   }
 
   const supabase = createClient();
-  const localUrl = URL.createObjectURL(file);
+  // The file is usually already held locally (addFiles); one made here is ours to let go of.
+  const madeLocalUrl = item.localUrl === undefined;
+  const localUrl = item.localUrl ?? URL.createObjectURL(file);
 
   try {
     const storagePath = storagePathFor(userId, item.id, file.name);
@@ -142,6 +144,8 @@ async function processMediaItem(
         }
 
         if (!thumbnailBlob) return { thumbnailPath: null, duration };
+        // The tile can show its picture as soon as it exists, before anything is uploaded.
+        update(item.id, { thumbnailUrl: URL.createObjectURL(thumbnailBlob), duration });
 
         const thumbnailPath = thumbnailPathFor(userId, item.id);
         const { error: thumbError } = await supabase.storage
@@ -191,7 +195,7 @@ async function processMediaItem(
       error: err instanceof Error ? err.message : "Failed to process file",
     });
   } finally {
-    URL.revokeObjectURL(localUrl);
+    if (madeLocalUrl) URL.revokeObjectURL(localUrl);
   }
 }
 
@@ -323,6 +327,8 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     const newItems: MediaItem[] = files.map((file) => {
       const type = detectMediaType(file);
       return {
+        // Held in memory for the session: the file can be added to the video and played at once, while it uploads.
+        ...(type ? { localUrl: URL.createObjectURL(file) } : {}),
         id: id(),
         name: file.name,
         type: type ?? "image",
@@ -364,6 +370,7 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     const item = get().items.find((i) => i.id === itemId);
     set((state) => ({ items: state.items.filter((i) => i.id !== itemId) }));
     if (!item) return;
+    if (item.localUrl) URL.revokeObjectURL(item.localUrl);
 
     (async () => {
       const supabase = createClient();

@@ -616,3 +616,15 @@ describe("StudioView layout", () => {
     expect(screen.getByRole("button", { name: "Full screen" })).toBeTruthy();
   });
 });
+
+describe("StudioView with a file that is still uploading", () => {
+  it("adds a file that is on this computer but not uploaded yet, and plays it from there", async () => {
+    const fresh: MediaItem = { ...photo, id: "77777777-7777-4777-8777-777777777777", name: "Fresh", url: "", status: "processing", progress: 10, localUrl: "blob:fresh" };
+    const base = env();
+    render(<StudioView env={env({ library: [fresh], media: { ...base.media, urlFor: () => null } })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: "Add Fresh to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    expect(clips()[0].mediaId).toBe(fresh.id);
+  });
+});

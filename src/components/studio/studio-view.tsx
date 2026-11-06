@@ -150,7 +150,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
   /** Looks up a library file and reads its size and length; null (with a message) if it cannot be used. */
   async function loadEditorMedia(item: MediaItem): Promise<EditorMedia | null> {
     await mediaSource.ensure([item.id]);
-    const url = mediaSource.urlFor(item.id) ?? item.url;
+    const url = mediaSource.urlFor(item.id) ?? item.localUrl ?? item.url;
     if (!url) {
       say("That file isn't available right now.");
       return null;

@@ -67,4 +67,12 @@ describe("AudioTab", () => {
     expect(dragged(screen.getByText("My song").closest("li")!)).toEqual({ source: "library", id: "s1" });
     expect(dragged(screen.getByText(MUSIC_LIBRARY[0].name).closest("li")!)).toEqual({ source: "music", id: MUSIC_LIBRARY[0].id });
   });
+
+  it("lists a song that is still uploading if it is on this computer", () => {
+    const onAddAudio = vi.fn();
+    const fresh = item({ id: "f", name: "Fresh song", status: "processing", progress: 10, localUrl: "blob:f" });
+    render(<AudioTab items={[fresh]} loading={false} onAddAudio={onAddAudio} onAddMusic={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add Fresh song as music" }));
+    expect(onAddAudio).toHaveBeenCalledWith(fresh);
+  });
 });
