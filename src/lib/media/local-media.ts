@@ -34,3 +34,52 @@ export function withLocalFiles(source: MediaUrlSource, local: LocalFiles): Media
     getVersion: () => source.getVersion() + local.getVersion(),
   };
 }
+
+/** The part of the media store (zustand) that the local files need. */
+interface ItemsStore {
+  getState(): { items: MediaItem[] };
+  subscribe(listener: () => void): () => void;
+}
+
+/**
+ * The files this computer is holding, read from the media store. The store
+ * changes on every upload progress tick, so listeners hear only when a local
+ * file appears or goes away. One watch of the store serves every listener.
+ */
+export function createStoreLocalFiles(store: ItemsStore): LocalFiles {
+  const keyOf = () =>
+    store
+      .getState()
+      .items.filter((item) => item.localUrl !== undefined)
+      .map((item) => item.id + "=" + item.localUrl)
+      .join("|");
+  const listeners = new Set<() => void>();
+  let version = 0;
+  let key = "";
+  let stopWatching: (() => void) | null = null;
+
+  return {
+    urlFor: (id) => store.getState().items.find((item) => item.id === id)?.localUrl ?? null,
+    getVersion: () => version,
+    subscribe(listener) {
+      listeners.add(listener);
+      if (!stopWatching) {
+        key = keyOf();
+        stopWatching = store.subscribe(() => {
+          const next = keyOf();
+          if (next === key) return;
+          key = next;
+          version += 1;
+          for (const fn of Array.from(listeners)) fn();
+        });
+      }
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) {
+          stopWatching?.();
+          stopWatching = null;
+        }
+      };
+    },
+  };
+}

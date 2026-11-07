@@ -109,6 +109,7 @@ async function processMediaItem(
 
   const supabase = createClient();
   // The file is usually already held locally (addFiles); one made here is ours to let go of.
+  let earlyThumbnail: string | null = null;
   const madeLocalUrl = item.localUrl === undefined;
   const localUrl = item.localUrl ?? URL.createObjectURL(file);
 
@@ -145,7 +146,8 @@ async function processMediaItem(
 
         if (!thumbnailBlob) return { thumbnailPath: null, duration };
         // The tile can show its picture as soon as it exists, before anything is uploaded.
-        update(item.id, { thumbnailUrl: URL.createObjectURL(thumbnailBlob), duration });
+        earlyThumbnail = URL.createObjectURL(thumbnailBlob);
+        update(item.id, { thumbnailUrl: earlyThumbnail, duration });
 
         const thumbnailPath = thumbnailPathFor(userId, item.id);
         const { error: thumbError } = await supabase.storage
@@ -188,6 +190,8 @@ async function processMediaItem(
     });
     if (insertError) throw insertError;
 
+    // The thumbnail made on this computer gives way to the stored one.
+    if (earlyThumbnail && thumbnailUrl) URL.revokeObjectURL(earlyThumbnail);
     update(item.id, { progress: 100, status: "ready", url: url ?? "", thumbnailUrl, duration });
   } catch (err) {
     update(item.id, {
@@ -251,8 +255,11 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
       progress: 100,
     }));
 
+    // A file picked before the library finished loading is still uploading and is not in the list yet: keep it.
+    const inFlight = get().items.filter((i) => i.status === "processing" && !items.some((loaded) => loaded.id === i.id));
+
     set({
-      items,
+      items: [...inFlight, ...items],
       folders: (foldersRes.data ?? []).map(rowToFolder),
       loading: false,
       loaded: true,
@@ -394,6 +401,7 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
   deleteItems: (itemIds) => {
     const idSet = new Set(itemIds);
     const targets = get().items.filter((i) => idSet.has(i.id));
+    for (const target of targets) if (target.localUrl) URL.revokeObjectURL(target.localUrl);
     set((state) => ({ items: state.items.filter((i) => !idSet.has(i.id)) }));
     if (targets.length === 0) return;
 

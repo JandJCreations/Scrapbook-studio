@@ -627,4 +627,26 @@ describe("StudioView with a file that is still uploading", () => {
     await vi.waitFor(() => expect(clips()).toHaveLength(1));
     expect(clips()[0].mediaId).toBe(fresh.id);
   });
+
+  it("asks before leaving while a file the video uses is still uploading, and says when one failed", async () => {
+    const fresh: MediaItem = { ...photo, id: "88888888-8888-4888-8888-888888888888", name: "Fresh", url: "", status: "processing", progress: 10, localUrl: "blob:fresh" };
+    const shared = env({ library: [fresh] });
+    const view = render(<StudioView env={shared} />);
+    await screen.findByText("My trip");
+    const leave = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(leave()).toBe(false); // nothing in the video uses it yet
+    fireEvent.click(screen.getByRole("button", { name: "Add Fresh to the video" }));
+    await vi.waitFor(() => expect(clips()).toHaveLength(1));
+    expect(leave()).toBe(true);
+
+    // The upload then fails while the video still uses the file.
+    view.rerender(<StudioView env={{ ...shared, library: [{ ...fresh, status: "error", error: "Upload failed" }] }} />);
+    expect((await screen.findByRole("alert")).textContent).toMatch(/Fresh/);
+    expect(screen.getByRole("alert").textContent).toMatch(/did not upload/i);
+    expect(leave()).toBe(false);
+  });
 });

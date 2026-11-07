@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { isUsable, withLocalFiles } from "@/lib/media/local-media";
+import { createStoreLocalFiles, isUsable, withLocalFiles } from "@/lib/media/local-media";
 import type { MediaUrlSource } from "@/lib/sync/media-url-store";
 import type { MediaItem } from "@/types/media";
 
@@ -101,5 +101,63 @@ describe("withLocalFiles", () => {
     stop();
     l.change("another", "blob:another");
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("createStoreLocalFiles", () => {
+  /** A store like zustand's: state, and subscribe that is told about every change. */
+  function fakeStore(initial: MediaItem[]) {
+    let state = { items: initial };
+    const listeners = new Set<() => void>();
+    return {
+      getState: () => state,
+      subscribe: (fn: () => void) => {
+        listeners.add(fn);
+        return () => listeners.delete(fn);
+      },
+      set(items: MediaItem[]) {
+        state = { items };
+        for (const fn of Array.from(listeners)) fn();
+      },
+      count: () => listeners.size,
+    };
+  }
+
+  it("finds the local address of an item by id", () => {
+    const files = createStoreLocalFiles(fakeStore([item({ id: "a", localUrl: "blob:a" }), item({ id: "b" })]));
+    expect(files.urlFor("a")).toBe("blob:a");
+    expect(files.urlFor("b")).toBeNull();
+    expect(files.urlFor("zzz")).toBeNull();
+  });
+
+  it("tells every listener when a local file appears, not on a mere progress change", () => {
+    const store = fakeStore([]);
+    const files = createStoreLocalFiles(store);
+    const first = vi.fn();
+    const second = vi.fn();
+    files.subscribe(first);
+    files.subscribe(second);
+    store.set([item({ id: "a", status: "processing", progress: 0, localUrl: "blob:a" })]);
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    store.set([item({ id: "a", status: "processing", progress: 50, localUrl: "blob:a" })]);
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(files.getVersion()).toBe(1);
+  });
+
+  it("lets go of the store when the last listener leaves, and picks up again when one returns", () => {
+    const store = fakeStore([]);
+    const files = createStoreLocalFiles(store);
+    const stopA = files.subscribe(vi.fn());
+    const stopB = files.subscribe(vi.fn());
+    expect(store.count()).toBe(1);
+    stopA();
+    expect(store.count()).toBe(1);
+    stopB();
+    expect(store.count()).toBe(0);
+    const again = vi.fn();
+    files.subscribe(again);
+    store.set([item({ id: "n", localUrl: "blob:n" })]);
+    expect(again).toHaveBeenCalledTimes(1);
   });
 });

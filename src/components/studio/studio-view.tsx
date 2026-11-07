@@ -19,6 +19,7 @@ import { StudioToolbar } from "@/components/studio/studio-toolbar";
 import { useStudioMedia } from "@/components/studio/use-studio-media";
 import { useStudioPlayback } from "@/components/studio/use-studio-playback";
 import { useStudioThumbnail } from "@/components/studio/use-studio-thumbnail";
+import { useUploadGuard } from "@/components/studio/use-upload-guard";
 import { VersionHistoryDialog } from "@/components/studio/version-history-dialog";
 import { WelcomeTour } from "@/components/studio/welcome-tour";
 import { TimelineView } from "@/components/clip-timeline/timeline-view";
@@ -119,6 +120,10 @@ export function StudioView({ env }: { env: StudioEnv }) {
       aliveRef.current = false;
     };
   }, []);
+  // A file the video uses that is still uploading would be lost if the page closed; one that failed to upload is missing for good.
+  const usedMedia = new Set(project.clips.map((clip) => clip.mediaId));
+  useUploadGuard(env.library.some((item) => item.status === "processing" && usedMedia.has(item.id)));
+  const failedUploads = env.library.filter((item) => item.status === "error" && usedMedia.has(item.id));
   const [message, setMessage] = React.useState<string | null>(null);
   const say = (text: string | null) => {
     if (aliveRef.current) setMessage(text);
@@ -555,6 +560,11 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onFullscreen={() => void previewRef.current?.requestFullscreen?.()}
             />
           </div>
+          {failedUploads.length > 0 && (
+            <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
+              {failedUploads.map((item) => item.name).join(", ")} did not upload, so {failedUploads.length === 1 ? "it" : "they"} will be missing the next time you open this video. Import {failedUploads.length === 1 ? "it" : "them"} again.
+            </p>
+          )}
           {message && (
             <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
               {message}

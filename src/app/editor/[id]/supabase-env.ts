@@ -4,7 +4,7 @@ import * as React from "react";
 
 import type { StudioEnv } from "@/components/studio/studio-env";
 import { createClient } from "@/lib/supabase/client";
-import { withLocalFiles, type LocalFiles } from "@/lib/media/local-media";
+import { createStoreLocalFiles, withLocalFiles, type LocalFiles } from "@/lib/media/local-media";
 import { createMediaUrlStore, type MediaUrlStore } from "@/lib/sync/media-url-store";
 import { saveProjectFrameChecked } from "@/lib/sync/project-frame";
 import { createSupabaseMediaDeps } from "@/lib/sync/supabase-media-deps";
@@ -15,32 +15,8 @@ import { useProjectStore } from "@/store/use-project-store";
 const saveFrame = (projectId: string, frame: { width: number; height: number }) =>
   saveProjectFrameChecked(createClient(), projectId, frame);
 
-/** The files picked in this session, as the editor's media source needs them: which ids are on this computer, and when that changes. */
-const localFiles: LocalFiles = (() => {
-  let version = 0;
-  let key = "";
-  const keyOf = () =>
-    useMediaStore
-      .getState()
-      .items.filter((i) => i.localUrl !== undefined)
-      .map((i) => i.id + "=" + i.localUrl)
-      .join("|");
-  return {
-    urlFor: (id) => useMediaStore.getState().items.find((i) => i.id === id)?.localUrl ?? null,
-    getVersion: () => version,
-    subscribe(listener) {
-      key = keyOf();
-      // The store changes on every progress tick; only a file appearing or going away matters here.
-      return useMediaStore.subscribe(() => {
-        const next = keyOf();
-        if (next === key) return;
-        key = next;
-        version += 1;
-        listener();
-      });
-    },
-  };
-})();
+/** The files picked in this session, as the editor's media source needs them. */
+const localFiles: LocalFiles = createStoreLocalFiles(useMediaStore);
 
 /**
  * The studio's environment backed by Supabase. `env` is null until the project
