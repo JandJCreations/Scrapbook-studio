@@ -13,10 +13,10 @@ import { VisualTimelineTrack } from "@/components/timeline/visual-timeline-track
 import { useTimelinePlayback } from "@/hooks/use-timeline-playback";
 import { useVoiceoverRecorder } from "@/hooks/use-voiceover-recorder";
 import { formatDuration } from "@/lib/media/format";
-import { isStoryClip, storyClips } from "@/lib/story/story";
+import { isStoryClip, isTimed, storyClips, visualEnd as getVisualEnd } from "@/lib/story/story";
 import { cn } from "@/lib/utils";
 import { useAudioClips, useAudioStore, useAudioTracks } from "@/store/use-audio-store";
-import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
+import { useCanvasStore, usePageObjects } from "@/store/use-canvas-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import { useTimelineStore } from "@/store/use-timeline-store";
 import type { AudioClip } from "@/types/audio";
@@ -33,11 +33,11 @@ export function TimelinePanel({ projectId }: { projectId: string }) {
   const selectedClipId = useAudioStore((s) => s.selectedClipId);
   const setSelectedClipId = useAudioStore((s) => s.setSelectedClipId);
 
-  const objects = useCanvasObjects(projectId);
+  const objects = usePageObjects(projectId);
   const selectedIds = useCanvasStore((s) => s.selectedIds);
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
   const story = React.useMemo(() => storyClips(objects), [objects]);
-  const visualRows = objects.filter((o) => !isStoryClip(o)).reverse();
+  const visualRows = objects.filter((o) => !isStoryClip(o) && isTimed(o)).reverse();
 
   const collapsed = useEditorUiStore((s) => s.timelineCollapsed);
   const toggleCollapsed = useEditorUiStore((s) => s.toggleTimelineCollapsed);
@@ -64,7 +64,7 @@ export function TimelinePanel({ projectId }: { projectId: string }) {
     (max, c) => Math.max(max, c.startTime + (c.trimEnd - c.trimStart)),
     0,
   );
-  const visualEnd = objects.reduce((max, o) => Math.max(max, o.endTime), 0);
+  const visualEnd = getVisualEnd(objects);
   const contentEnd = Math.max(30, audioEnd, visualEnd);
   const timelineWidth = (contentEnd + 20) * pixelsPerSecond;
 

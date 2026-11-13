@@ -45,6 +45,29 @@ export type MotionType =
   | "pulse"
   | "shake";
 
+export type ShapeKind =
+  | "rectangle"
+  | "rounded"
+  | "circle"
+  | "triangle"
+  | "star"
+  | "heart"
+  | "line"
+  | "arrow";
+
+export interface ShapeSpec {
+  kind: ShapeKind;
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+}
+
+export interface BackgroundSpec {
+  color: string;
+  /** Second colour for a gradient; absent = solid. */
+  color2?: string;
+}
+
 export interface ObjectExtras {
   /**
    * Part of the main story track: plays in sequence with the other story
@@ -64,6 +87,12 @@ export interface ObjectExtras {
    * pulse or shake.
    */
   motion?: MotionType;
+  /** Which page of the project it's on (0 = first; absent = first). */
+  page?: number;
+  /** An editable basic shape (drawn from this spec as an SVG image). */
+  shape?: ShapeSpec;
+  /** The page's background fill — always drawn at the very back. */
+  background?: BackgroundSpec;
 }
 
 export const EMPTY_EXTRAS: ObjectExtras = {};

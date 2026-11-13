@@ -16,6 +16,8 @@ import {
   getAssetsByCategory,
 } from "@/lib/assets/asset-catalog";
 import { DEFAULT_OBJECT_SIZE } from "@/lib/canvas/constants";
+import { SHAPE_OPTIONS, shapeToDataUrl } from "@/lib/design/shapes";
+import type { ShapeKind } from "@/types/object-extras";
 import { useCanvasStore } from "@/store/use-canvas-store";
 import { useStickerStore } from "@/store/use-sticker-store";
 import type { AssetCategory } from "@/types/asset";
@@ -42,6 +44,7 @@ interface AssetPanelProps {
 
 export function AssetPanel({ projectId, stageWidth, stageHeight }: AssetPanelProps) {
   const addObject = useCanvasStore((s) => s.addObject);
+  const addShape = useCanvasStore((s) => s.addShape);
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
   const viewport = useCanvasStore((s) => s.viewport);
   const stickers = useStickerStore((s) => s.stickers);
@@ -74,9 +77,49 @@ export function AssetPanel({ projectId, stageWidth, stageHeight }: AssetPanelPro
     setSelectedIds([newId]);
   }
 
+  function addBasicShape(kind: ShapeKind) {
+    const worldCenterX = (-viewport.x + stageWidth / 2) / viewport.scale;
+    const worldCenterY = (-viewport.y + stageHeight / 2) / viewport.scale;
+    const width = kind === "line" || kind === "arrow" ? 260 : 200;
+    const height = kind === "line" ? 24 : kind === "arrow" ? 120 : 200;
+    const newId = addShape(
+      projectId,
+      { kind, fill: "#8b5cf6", stroke: "#4c1d95", strokeWidth: kind === "line" ? 6 : 0 },
+      { x: worldCenterX - width / 2, y: worldCenterY - height / 2, width, height },
+    );
+    setSelectedIds([newId]);
+  }
+
   return (
     <ScrollArea className="flex-1">
       <div className="flex flex-col gap-3 p-2">
+        <div>
+          <p className="mb-1.5 px-1 text-xs font-medium text-muted-foreground">Basic shapes</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {SHAPE_OPTIONS.map((option) => (
+              <button
+                key={option.kind}
+                type="button"
+                onClick={() => addBasicShape(option.kind)}
+                className="flex flex-col items-center gap-1 rounded-md border border-border p-1.5 hover:bg-accent"
+                title={`Add ${option.label.toLowerCase()} (colours are editable)`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shapeToDataUrl({
+                    kind: option.kind,
+                    fill: "#8b5cf6",
+                    stroke: "#4c1d95",
+                    strokeWidth: option.kind === "line" ? 6 : 0,
+                  })}
+                  alt=""
+                  className="size-8 object-contain"
+                />
+                <span className="text-[10px] text-muted-foreground">{option.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
         <div>
           <div className="mb-1.5 flex items-center justify-between px-1">
             <span className="text-xs font-semibold">My stickers</span>

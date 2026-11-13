@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/empty-state";
 import { MobileCreateBar } from "@/components/canvas/mobile-create-bar";
+import { PageBar } from "@/components/design/page-bar";
 import { WelcomeTourDialog } from "@/components/canvas/welcome-tour-dialog";
 import { useElementSize } from "@/hooks/use-element-size";
 import { useProjectContentSync } from "@/hooks/use-project-content-sync";
@@ -90,6 +91,12 @@ export function EditorView({ projectId }: { projectId: string }) {
   const undo = useHistoryStore((s) => s.undo);
   const redo = useHistoryStore((s) => s.redo);
   const resetHistory = useHistoryStore((s) => s.resetHistory);
+  const setCurrentPage = useCanvasStore((s) => s.setCurrentPage);
+
+  // Every project opens on its first page.
+  React.useEffect(() => {
+    setCurrentPage(0);
+  }, [projectId, setCurrentPage]);
 
   // Once a project's content is in place, that's the starting point — the
   // load itself shouldn't be something you can "undo" back to an empty canvas.
@@ -247,6 +254,7 @@ export function EditorView({ projectId }: { projectId: string }) {
           stageWidth={size.width}
           stageHeight={size.height}
         />
+        <PageBar projectId={projectId} />
         <TimelinePanel projectId={projectId} />
       </div>
       <WelcomeTourDialog />

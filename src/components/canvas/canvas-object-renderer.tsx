@@ -51,6 +51,21 @@ export const CanvasObjectRenderer = React.memo(function CanvasObjectRenderer({
     return null;
   }
 
+  // A page background: drawn behind everything, never selected or dragged,
+  // so clicking it behaves like clicking empty canvas.
+  if (object.extras?.background) {
+    return (
+      <KonvaImage
+        image={image ?? undefined}
+        x={object.x}
+        y={object.y}
+        width={object.width}
+        height={object.height}
+        listening={false}
+      />
+    );
+  }
+
   const transform = getInterpolatedTransform(object, playheadTime);
 
   const commonProps = {

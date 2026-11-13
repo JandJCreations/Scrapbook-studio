@@ -10,6 +10,11 @@ export function isStoryClip(object: CanvasObject): boolean {
   return Boolean(object.extras?.inStory);
 }
 
+/** The page an object is on (0-based). */
+export function pageOf(object: CanvasObject): number {
+  return object.extras?.page ?? 0;
+}
+
 export function storyClips(objects: CanvasObject[]): CanvasObject[] {
   return objects.filter(isStoryClip).sort(byStoryPosition);
 }
@@ -24,10 +29,10 @@ function byStoryPosition(a: CanvasObject, b: CanvasObject) {
   return am - bm;
 }
 
-/** When the story finishes (0 if there are no story clips). */
-export function storyEnd(objects: CanvasObject[]): number {
+/** When the story on `page` finishes (0 if it has no story clips). */
+export function storyEnd(objects: CanvasObject[], page = 0): number {
   return objects.reduce(
-    (max, o) => (isStoryClip(o) ? Math.max(max, o.endTime) : max),
+    (max, o) => (isStoryClip(o) && pageOf(o) === page ? Math.max(max, o.endTime) : max),
     0,
   );
 }
@@ -40,10 +45,36 @@ export function storyEnd(objects: CanvasObject[]): number {
  * callers can cheaply tell whether anything changed.
  */
 export function normalizeStory(objects: CanvasObject[]): CanvasObject[] {
-  const story = storyClips(objects);
-  if (story.length === 0) return objects;
+  const allStory = storyClips(objects);
+  if (allStory.length === 0) return objects;
 
   const placed = new Map<string, { startTime: number; endTime: number }>();
+  // Each page has its own story, starting at 0.
+  const pages = new Set(allStory.map(pageOf));
+  for (const page of pages) {
+    packStory(allStory.filter((o) => pageOf(o) === page), placed);
+  }
+
+  let changed = false;
+  const next = objects.map((o) => {
+    const p = placed.get(o.id);
+    if (!p) return o;
+    if (
+      Math.abs(p.startTime - o.startTime) < 1e-6 &&
+      Math.abs(p.endTime - o.endTime) < 1e-6
+    ) {
+      return o;
+    }
+    changed = true;
+    return { ...o, ...p };
+  });
+  return changed ? next : objects;
+}
+
+function packStory(
+  story: CanvasObject[],
+  placed: Map<string, { startTime: number; endTime: number }>,
+) {
   let cursor = 0;
   let previousLength = 0;
   story.forEach((clip, index) => {
@@ -66,21 +97,6 @@ export function normalizeStory(objects: CanvasObject[]): CanvasObject[] {
     cursor = startTime + length;
     previousLength = length;
   });
-
-  let changed = false;
-  const next = objects.map((o) => {
-    const p = placed.get(o.id);
-    if (!p) return o;
-    if (
-      Math.abs(p.startTime - o.startTime) < 1e-6 &&
-      Math.abs(p.endTime - o.endTime) < 1e-6
-    ) {
-      return o;
-    }
-    changed = true;
-    return { ...o, ...p };
-  });
-  return changed ? next : objects;
 }
 
 /** How long a video plays for on the timeline with its current trim and speed. */
@@ -143,4 +159,14 @@ export function storyTransitionWindows(
     result.set(prev.id, { ...result.get(prev.id), out: window });
   }
   return result;
+}
+
+/** Objects that live on the timeline (everything except page backgrounds). */
+export function isTimed(object: CanvasObject): boolean {
+  return !object.extras?.background;
+}
+
+/** When the last timed object on screen finishes. */
+export function visualEnd(objects: CanvasObject[]): number {
+  return objects.reduce((max, o) => (isTimed(o) ? Math.max(max, o.endTime) : max), 0);
 }

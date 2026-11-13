@@ -22,7 +22,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { downloadDataUrl, exportJpg, exportPdf, exportPng } from "@/lib/export/static-export";
+import {
+  downloadDataUrl,
+  exportJpg,
+  exportPdf,
+  exportPdfPages,
+  exportPng,
+} from "@/lib/export/static-export";
 import { RESOLUTION_PRESETS, resolveTargetSize } from "@/lib/export/export-resolutions";
 import { exportAnimated, type AnimatedFormat } from "@/lib/export/video-export";
 import {
@@ -35,7 +41,8 @@ import { mixdownAudio } from "@/lib/export/audio-mixdown";
 import { getRegisteredStage } from "@/lib/canvas/stage-registry";
 import { useAudioClips, useAudioTracks } from "@/store/use-audio-store";
 import { useCanvasFrame } from "@/store/use-canvas-frame-store";
-import { useCanvasObjects } from "@/store/use-canvas-store";
+import { useCanvasStore, usePageCount, usePageObjects } from "@/store/use-canvas-store";
+import { visualEnd } from "@/lib/story/story";
 import { useSettingsStore } from "@/store/use-settings-store";
 import { useTimelineStore } from "@/store/use-timeline-store";
 
@@ -47,7 +54,8 @@ interface ExportDialogProps {
 
 export function ExportDialog({ projectId, open, onOpenChange }: ExportDialogProps) {
   const frame = useCanvasFrame(projectId);
-  const objects = useCanvasObjects(projectId);
+  const objects = usePageObjects(projectId);
+  const pageCount = usePageCount(projectId);
   const audioClips = useAudioClips(projectId);
   const audioTracks = useAudioTracks(projectId);
   const setPlayheadTime = useTimelineStore((s) => s.setPlayheadTime);
@@ -78,7 +86,7 @@ export function ExportDialog({ projectId, open, onOpenChange }: ExportDialogProp
 
   const timelineEnd = Math.max(
     5,
-    ...objects.map((o) => o.endTime),
+    visualEnd(objects),
     ...audioClips.map((c) => c.startTime + (c.trimEnd - c.trimStart)),
   );
 
@@ -102,6 +110,29 @@ export function ExportDialog({ projectId, open, onOpenChange }: ExportDialogProp
       } else if (format === "jpg") {
         setProgressLabel("Rendering image...");
         exportJpg(stage, frame.width, frame.height, targetSize.width, `${filenameBase}.jpg`);
+      } else if (format === "pdf" && pageCount > 1) {
+        setProgressLabel(`Rendering ${pageCount} pages...`);
+        const startPage = useCanvasStore.getState().currentPage;
+        try {
+          await exportPdfPages(
+            stage,
+            pageCount,
+            async (page) => {
+              useCanvasStore.getState().setCurrentPage(page);
+              // Let React render the page and its images load/draw.
+              await new Promise((r) => setTimeout(r, 600));
+              await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+            },
+            frame.width,
+            frame.height,
+            targetSize.width,
+            targetSize.height,
+            `${filenameBase}.pdf`,
+            (ratio) => setProgress(Math.round(ratio * 100)),
+          );
+        } finally {
+          useCanvasStore.getState().setCurrentPage(startPage);
+        }
       } else if (format === "pdf") {
         setProgressLabel("Rendering PDF...");
         exportPdf(

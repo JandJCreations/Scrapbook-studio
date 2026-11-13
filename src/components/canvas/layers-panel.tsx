@@ -5,14 +5,14 @@ import { Film, Layers, Lock, Type, Unlock } from "lucide-react";
 import { EmptyState } from "@/components/common/empty-state";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
+import { useCanvasStore, usePageObjects } from "@/store/use-canvas-store";
 
 interface LayersPanelProps {
   projectId: string;
 }
 
 export function LayersPanel({ projectId }: LayersPanelProps) {
-  const objects = useCanvasObjects(projectId);
+  const objects = usePageObjects(projectId);
   const selectedIds = useCanvasStore((s) => s.selectedIds);
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
   const toggleLock = useCanvasStore((s) => s.toggleLock);

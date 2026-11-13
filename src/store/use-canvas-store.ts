@@ -1,3 +1,4 @@
+import * as React from "react";
 import { create } from "zustand";
 
 import { DEFAULT_OBJECT_SIZE, DEFAULT_TIMELINE_DURATION } from "@/lib/canvas/constants";
@@ -9,10 +10,17 @@ import {
   normalizeStory,
   storyClips as storyClipsInOrder,
   storyEnd,
+  pageOf,
 } from "@/lib/story/story";
+import { backgroundToDataUrl, shapeToDataUrl } from "@/lib/design/shapes";
 import type { CanvasObject, CanvasObjectType } from "@/types/canvas";
 import type { Keyframe } from "@/types/keyframe";
-import type { ObjectExtras, TransitionSpec } from "@/types/object-extras";
+import type {
+  BackgroundSpec,
+  ObjectExtras,
+  ShapeSpec,
+  TransitionSpec,
+} from "@/types/object-extras";
 import {
   DEFAULT_PHOTO_ADJUSTMENTS,
   type PhotoAdjustments,
@@ -60,6 +68,28 @@ interface FillPlaceholderInput {
 
 interface CanvasStore {
   objectsByProject: Record<string, CanvasObject[]>;
+  /** Page being edited (0-based); new objects land on it. */
+  currentPage: number;
+  /** Pages per project — can exceed the highest used page (a fresh blank page). */
+  pageCountByProject: Record<string, number>;
+  setCurrentPage: (page: number) => void;
+  addPage: (projectId: string, frame: { width: number; height: number }) => void;
+  duplicatePage: (projectId: string, page: number) => void;
+  deletePage: (projectId: string, page: number) => void;
+  /** Set the current page's background (null removes it). */
+  setPageBackground: (
+    projectId: string,
+    background: BackgroundSpec | null,
+    frame: { width: number; height: number },
+  ) => void;
+  /** Add an editable basic shape at the given spot. */
+  addShape: (
+    projectId: string,
+    spec: ShapeSpec,
+    at: { x: number; y: number; width: number; height: number },
+  ) => string;
+  /** Change a shape's colours/outline; its image is redrawn from the spec. */
+  updateShape: (projectId: string, objectId: string, patch: Partial<ShapeSpec>) => void;
   selectedIds: string[];
   snapToGrid: boolean;
   viewport: { x: number; y: number; scale: number };
@@ -204,6 +234,8 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
 
   return {
     objectsByProject: {},
+    currentPage: 0,
+    pageCountByProject: {},
     selectedIds: [],
     snapToGrid: true,
     viewport: { x: 0, y: 0, scale: 1 },
@@ -216,8 +248,9 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
           : input.inStory
             ? DEFAULT_STORY_PHOTO_SECONDS
             : DEFAULT_TIMELINE_DURATION;
+      const page = get().currentPage;
       const start = input.inStory
-        ? storyEnd(get().objectsByProject[projectId] ?? [])
+        ? storyEnd(get().objectsByProject[projectId] ?? [], page)
         : 0;
       const object: CanvasObject = {
         id: newId,
@@ -247,16 +280,24 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
         fadeIn: 0,
         fadeOut: 0,
         keyframes: [],
-        extras: input.inStory
-        ? {
-            inStory: true,
-            // Photos in a story get a slow zoom by default (alternating in
-            // and out) so a slideshow never feels like a frozen frame.
-            ...(input.type === "image"
-              ? { motion: storyPhotoMotion(get().objectsByProject[projectId] ?? []) }
-              : {}),
-          }
-        : {},
+        extras: {
+          ...(page > 0 ? { page } : {}),
+          ...(input.inStory
+            ? {
+                inStory: true,
+                // Photos in a story get a slow zoom by default (alternating
+                // in and out) so a slideshow never feels like a frozen frame.
+                ...(input.type === "image"
+                  ? {
+                      motion: storyPhotoMotion(
+                        get().objectsByProject[projectId] ?? [],
+                        page,
+                      ),
+                    }
+                  : {}),
+              }
+            : {}),
+        },
       };
       set((state) => ({
         objectsByProject: {
@@ -604,10 +645,151 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
 
     loadObjects: (projectId, objects) =>
       set((state) => ({
+        pageCountByProject: {
+          ...state.pageCountByProject,
+          [projectId]: Math.max(
+            // Undo can remove a page's last object; keep the page itself.
+            state.pageCountByProject[projectId] ?? 1,
+            1 + objects.reduce((max, o) => Math.max(max, o.extras?.page ?? 0), 0),
+          ),
+        },
         objectsByProject: {
           ...state.objectsByProject,
           // Older saves and version snapshots predate `extras`.
           [projectId]: objects.map((o) => (o.extras ? o : { ...o, extras: {} })),
+        },
+      })),
+
+    setCurrentPage: (page) => set({ currentPage: Math.max(0, page), selectedIds: [] }),
+
+    addPage: (projectId, frame) => {
+      const count = pageCount(get(), projectId);
+      const newPage = count;
+      const bg = makeBackgroundObject({ color: "#ffffff" }, frame, newPage);
+      set((state) => ({
+        pageCountByProject: { ...state.pageCountByProject, [projectId]: count + 1 },
+        objectsByProject: {
+          ...state.objectsByProject,
+          // A white background means the page exists in the saved data too.
+          [projectId]: [bg, ...(state.objectsByProject[projectId] ?? [])],
+        },
+        currentPage: newPage,
+        selectedIds: [],
+      }));
+    },
+
+    duplicatePage: (projectId, page) => {
+      const count = pageCount(get(), projectId);
+      set((state) => {
+        const objects = state.objectsByProject[projectId] ?? [];
+        const shifted = objects.map((o) =>
+          pageOf(o) > page ? { ...o, extras: { ...o.extras, page: pageOf(o) + 1 } } : o,
+        );
+        const groupIds = new Map<string, string>();
+        const copies = objects
+          .filter((o) => pageOf(o) === page)
+          .map((o) => {
+            let groupId: string | null = null;
+            if (o.groupId) {
+              if (!groupIds.has(o.groupId)) groupIds.set(o.groupId, id());
+              groupId = groupIds.get(o.groupId)!;
+            }
+            return { ...o, id: id(), groupId, extras: { ...o.extras, page: page + 1 } };
+          });
+        return {
+          pageCountByProject: { ...state.pageCountByProject, [projectId]: count + 1 },
+          objectsByProject: { ...state.objectsByProject, [projectId]: [...shifted, ...copies] },
+          currentPage: page + 1,
+          selectedIds: [],
+        };
+      });
+    },
+
+    deletePage: (projectId, page) => {
+      const count = pageCount(get(), projectId);
+      if (count <= 1) return;
+      set((state) => {
+        const objects = (state.objectsByProject[projectId] ?? [])
+          .filter((o) => pageOf(o) !== page)
+          .map((o) => {
+            if (pageOf(o) < page) return o;
+            const extras: ObjectExtras = { ...o.extras, page: pageOf(o) - 1 };
+            if (extras.page === 0) delete extras.page;
+            return { ...o, extras };
+          });
+        return {
+          pageCountByProject: { ...state.pageCountByProject, [projectId]: count - 1 },
+          objectsByProject: { ...state.objectsByProject, [projectId]: objects },
+          currentPage: Math.min(state.currentPage, count - 2),
+          selectedIds: [],
+        };
+      });
+    },
+
+    setPageBackground: (projectId, background, frame) =>
+      set((state) => {
+        const page = state.currentPage;
+        const objects = state.objectsByProject[projectId] ?? [];
+        const existing = objects.find((o) => o.extras?.background && pageOf(o) === page);
+        if (!background) {
+          return existing
+            ? {
+                objectsByProject: {
+                  ...state.objectsByProject,
+                  [projectId]: objects.filter((o) => o.id !== existing.id),
+                },
+              }
+            : {};
+        }
+        if (existing) {
+          return {
+            objectsByProject: {
+              ...state.objectsByProject,
+              [projectId]: objects.map((o) =>
+                o.id === existing.id
+                  ? {
+                      ...o,
+                      src: backgroundToDataUrl(background),
+                      x: 0,
+                      y: 0,
+                      width: frame.width,
+                      height: frame.height,
+                      extras: { ...o.extras, background },
+                    }
+                  : o,
+              ),
+            },
+          };
+        }
+        return {
+          objectsByProject: {
+            ...state.objectsByProject,
+            [projectId]: [makeBackgroundObject(background, frame, page), ...objects],
+          },
+        };
+      }),
+
+    addShape: (projectId, spec, at) => {
+      const newId = get().addObject(projectId, {
+        type: "image",
+        name: spec.kind.charAt(0).toUpperCase() + spec.kind.slice(1),
+        mediaId: `shape-${spec.kind}`,
+        src: shapeToDataUrl(spec),
+        ...at,
+      });
+      get().updateExtras(projectId, newId, { shape: spec });
+      return newId;
+    },
+
+    updateShape: (projectId, objectId, patch) =>
+      set((state) => ({
+        objectsByProject: {
+          ...state.objectsByProject,
+          [projectId]: (state.objectsByProject[projectId] ?? []).map((o) => {
+            if (o.id !== objectId || !o.extras?.shape) return o;
+            const shape = { ...o.extras.shape, ...patch };
+            return { ...o, src: shapeToDataUrl(shape), extras: { ...o.extras, shape } };
+          }),
         },
       })),
 
@@ -640,12 +822,13 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
     setTransitionForAll: (projectId, transition) =>
       set((state) => {
         const objects = state.objectsByProject[projectId] ?? [];
-        const first = storyClipsInOrder(objects)[0]?.id;
+        const page = state.currentPage;
+        const first = storyClipsInOrder(objects.filter((o) => pageOf(o) === page))[0]?.id;
         return {
           objectsByProject: {
             ...state.objectsByProject,
             [projectId]: objects.map((o) =>
-              isStoryClip(o) && o.id !== first
+              isStoryClip(o) && pageOf(o) === page && o.id !== first
                 ? { ...o, extras: withTransition(o.extras, transition) }
                 : o,
             ),
@@ -657,7 +840,7 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
       set((state) => {
         const objects = state.objectsByProject[projectId] ?? [];
         const idOrder = new Map(ids.map((objectId, i) => [objectId, i]));
-        let cursor = storyEnd(objects);
+        let cursor = storyEnd(objects, state.currentPage);
         const appended = new Map<string, Partial<CanvasObject>>();
         if (inStory) {
           // In the order the caller listed them, not canvas stacking order.
@@ -697,15 +880,75 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
           },
         };
       }),
-    };
+  };
+});
+
+export function useCanvasObjects(projectId: string): CanvasObject[] {
+  return useCanvasStore((s) => s.objectsByProject[projectId] ?? EMPTY_OBJECTS);
+}
+
+/** Only the objects on the page being edited. */
+export function usePageObjects(projectId: string): CanvasObject[] {
+  const objects = useCanvasObjects(projectId);
+  const page = useCanvasStore((s) => s.currentPage);
+  return React.useMemo(() => objects.filter((o) => pageOf(o) === page), [objects, page]);
+}
+
+export function usePageCount(projectId: string): number {
+  return useCanvasStore((s) => {
+    const objects = s.objectsByProject[projectId] ?? EMPTY_OBJECTS;
+    return Math.max(
+      s.pageCountByProject[projectId] ?? 1,
+      1 + objects.reduce((max, o) => Math.max(max, pageOf(o)), 0),
+    );
   });
+}
 
-  export function useCanvasObjects(projectId: string): CanvasObject[] {
-    return useCanvasStore((s) => s.objectsByProject[projectId] ?? EMPTY_OBJECTS);
-  }
+function pageCount(state: CanvasStore, projectId: string): number {
+  const objects = state.objectsByProject[projectId] ?? [];
+  return Math.max(
+    state.pageCountByProject[projectId] ?? 1,
+    1 + objects.reduce((max, o) => Math.max(max, pageOf(o)), 0),
+  );
+}
 
-  function storyPhotoMotion(objects: CanvasObject[]): "zoom-in" | "zoom-out" {
-  const photos = objects.filter((o) => isStoryClip(o) && o.type === "image").length;
+function makeBackgroundObject(
+  background: BackgroundSpec,
+  frame: { width: number; height: number },
+  page: number,
+): CanvasObject {
+  return {
+    id: id(),
+    type: "image",
+    name: "Background",
+    mediaId: "background",
+    src: backgroundToDataUrl(background),
+    videoSrc: null,
+    x: 0,
+    y: 0,
+    width: frame.width,
+    height: frame.height,
+    rotation: 0,
+    locked: true,
+    groupId: null,
+    adjustments: { ...DEFAULT_PHOTO_ADJUSTMENTS },
+    videoAdjustments: null,
+    textAdjustments: null,
+    isPlaceholder: false,
+    // Backgrounds ignore timing (always visible, kept off the timeline).
+    startTime: 0,
+    endTime: DEFAULT_TIMELINE_DURATION,
+    fadeIn: 0,
+    fadeOut: 0,
+    keyframes: [],
+    extras: { background, ...(page > 0 ? { page } : {}) },
+  };
+}
+
+function storyPhotoMotion(objects: CanvasObject[], page: number): "zoom-in" | "zoom-out" {
+  const photos = objects.filter(
+    (o) => isStoryClip(o) && o.type === "image" && pageOf(o) === page,
+  ).length;
   return photos % 2 === 0 ? "zoom-in" : "zoom-out";
 }
 
@@ -720,17 +963,17 @@ function withTransition(
 }
 
 function upsertKeyframe(
-    object: CanvasObject,
-    time: number,
-    transform: { x: number; y: number; rotation: number; opacity: number },
-  ): CanvasObject {
-    const existingIdx = object.keyframes.findIndex(
-      (k) => Math.abs(k.time - time) < 0.05,
-    );
-    const newKeyframe: Keyframe = {
-      id: existingIdx >= 0 ? object.keyframes[existingIdx].id : id(),
-      time,
-      ...transform,
+  object: CanvasObject,
+  time: number,
+  transform: { x: number; y: number; rotation: number; opacity: number },
+): CanvasObject {
+  const existingIdx = object.keyframes.findIndex(
+    (k) => Math.abs(k.time - time) < 0.05,
+  );
+  const newKeyframe: Keyframe = {
+    id: existingIdx >= 0 ? object.keyframes[existingIdx].id : id(),
+    time,
+    ...transform,
   };
   const keyframes =
     existingIdx >= 0

@@ -16,6 +16,7 @@ import {
   Undo2,
 } from "lucide-react";
 
+import { BackgroundPicker } from "@/components/design/background-picker";
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -169,6 +170,8 @@ export function CanvasToolbar({
         </TooltipTrigger>
         <TooltipContent>Add a text box to the canvas</TooltipContent>
       </Tooltip>
+
+      <BackgroundPicker projectId={projectId} />
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <Tooltip>

@@ -1,7 +1,8 @@
 import * as React from "react";
 
 import { useAudioClips, useAudioTracks } from "@/store/use-audio-store";
-import { useCanvasObjects } from "@/store/use-canvas-store";
+import { visualEnd } from "@/lib/story/story";
+import { usePageObjects } from "@/store/use-canvas-store";
 import { useTimelineStore } from "@/store/use-timeline-store";
 import { duckFactorAt, duckingRanges, isVoiceoverTrack, type AudioClip } from "@/types/audio";
 
@@ -13,7 +14,7 @@ export function useTimelinePlayback(projectId: string) {
   const isPlaying = useTimelineStore((s) => s.isPlaying);
   const clips = useAudioClips(projectId);
   const tracks = useAudioTracks(projectId);
-  const objects = useCanvasObjects(projectId);
+  const objects = usePageObjects(projectId);
   const audioElementsRef = React.useRef(new Map<string, HTMLAudioElement>());
   const rafRef = React.useRef<number | null>(null);
   const lastTsRef = React.useRef<number | null>(null);
@@ -51,7 +52,7 @@ export function useTimelinePlayback(projectId: string) {
     // story track, a video, a title) — not just the audio.
     const timelineEnd = Math.max(
       clips.reduce((max, c) => Math.max(max, clipEnd(c)), 0),
-      objects.reduce((max, o) => Math.max(max, o.endTime), 0),
+      visualEnd(objects),
     );
 
     function tick(ts: number) {

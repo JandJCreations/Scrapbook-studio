@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { CropDialog } from "@/components/canvas/crop-dialog";
 import { EditPanelShell } from "@/components/canvas/edit-panel-shell";
 import { MotionSection } from "@/components/canvas/motion-section";
+import { ShapeSection } from "@/components/design/shape-section";
 import { ObjectTimingPanel } from "@/components/canvas/object-timing-panel";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -109,6 +110,7 @@ export function PhotoEditPanel({
           defaultValue="transform"
           className="px-3"
         >
+          <ShapeSection projectId={projectId} object={object} />
           <MotionSection projectId={projectId} object={object} />
           <ObjectTimingPanel projectId={projectId} object={object} />
 

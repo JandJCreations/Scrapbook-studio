@@ -64,5 +64,7 @@ export function getInterpolatedTransform(
 }
 
 export function isObjectVisibleAt(object: CanvasObject, playheadTime: number) {
+  // A page background is on screen the whole time, however long the video.
+  if (object.extras?.background) return true;
   return playheadTime >= object.startTime && playheadTime <= object.endTime;
 }

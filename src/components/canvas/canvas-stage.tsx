@@ -22,7 +22,7 @@ import { isStoryClip, storyClips, storyTransitionWindows } from "@/lib/story/sto
 import { registerStage } from "@/lib/canvas/stage-registry";
 import { fitViewportToFrame, zoomAtPoint } from "@/lib/canvas/zoom";
 import { useCanvasFrame } from "@/store/use-canvas-frame-store";
-import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
+import { useCanvasStore, usePageObjects } from "@/store/use-canvas-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import { useTimelineStore } from "@/store/use-timeline-store";
 import type { CanvasObject } from "@/types/canvas";
@@ -42,7 +42,7 @@ const EDIT_PIXEL_RATIO =
   typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
 
 export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
-  const objects = useCanvasObjects(projectId);
+  const objects = usePageObjects(projectId);
   const frame = useCanvasFrame(projectId);
   const selectedIds = useCanvasStore((s) => s.selectedIds);
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
@@ -319,7 +319,12 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
   // story order, so each incoming clip sits on top of the one it's
   // transitioning from, and titles/stickers always stay above the story.
   const drawOrder = React.useMemo(
-    () => [...storyClips(objects), ...objects.filter((o) => !isStoryClip(o))],
+    () => [
+      // Page background at the very back, then the story, then everything else.
+      ...objects.filter((o) => o.extras?.background),
+      ...storyClips(objects),
+      ...objects.filter((o) => !isStoryClip(o) && !o.extras?.background),
+    ],
     [objects],
   );
   const transitionWindows = React.useMemo(() => storyTransitionWindows(objects), [objects]);
