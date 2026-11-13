@@ -37,7 +37,7 @@ import {
   TRANSPARENCY_SUPPORTED_FORMATS,
   type ExportFormat,
 } from "@/lib/export/export-formats";
-import { mixdownAudio } from "@/lib/export/audio-mixdown";
+import { mixdownAudio, videoSoundsFrom } from "@/lib/export/audio-mixdown";
 import { getRegisteredStage } from "@/lib/canvas/stage-registry";
 import { useAudioClips, useAudioTracks } from "@/store/use-audio-store";
 import { useCanvasFrame } from "@/store/use-canvas-frame-store";
@@ -145,9 +145,16 @@ export function ExportDialog({ projectId, open, onOpenChange }: ExportDialogProp
         );
       } else {
         setProgressLabel("Mixing audio...");
-        const audioBlob = await mixdownAudio(audioClips, audioTracks, timelineEnd);
+        const audioBlob = await mixdownAudio(
+          audioClips,
+          audioTracks,
+          timelineEnd,
+          44100,
+          videoSoundsFrom(objects),
+        );
 
         const blob = await exportAnimated(stage, setPlayheadTime, {
+          hasVideo: objects.some((o) => o.type === "video" && !o.isPlaceholder),
           format: format as AnimatedFormat,
           frame,
           targetWidth: targetSize.width,

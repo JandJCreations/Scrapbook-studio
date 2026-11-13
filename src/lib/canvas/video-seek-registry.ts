@@ -31,3 +31,7 @@ export async function waitForPendingSeeks(): Promise<void> {
     await Promise.all(Array.from(pending));
   }
 }
+
+export function hasPendingSeeks(): boolean {
+  return pending.size > 0;
+}
