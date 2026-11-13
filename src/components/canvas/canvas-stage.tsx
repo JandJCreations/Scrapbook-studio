@@ -10,7 +10,12 @@ import { CanvasObjectRenderer } from "@/components/canvas/canvas-object-renderer
 import { GridBackground } from "@/components/canvas/grid-background";
 import { computeSnap, snapToGrid, type GuideLine } from "@/lib/canvas/alignment";
 import { GRID_SIZE, SNAP_THRESHOLD } from "@/lib/canvas/constants";
-import { clipTransitionEffect } from "@/lib/canvas/effects";
+import {
+  clipTransitionEffect,
+  combineEffects,
+  NO_EFFECT,
+  objectAnimationEffect,
+} from "@/lib/canvas/effects";
 import { getInterpolatedTransform } from "@/lib/canvas/interpolate";
 import { isStoryClip, storyClips, storyTransitionWindows } from "@/lib/story/story";
 import { registerStage } from "@/lib/canvas/stage-registry";
@@ -317,6 +322,15 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
     [objects],
   );
   const transitionWindows = React.useMemo(() => storyTransitionWindows(objects), [objects]);
+  // Transition + entrance/exit animation at the current moment. Returns the
+  // shared NO_EFFECT object when nothing applies so memoized renderers skip.
+  function effectFor(object: CanvasObject) {
+    const transition = clipTransitionEffect(transitionWindows.get(object.id), playheadTime, frame);
+    const animation = objectAnimationEffect(object, playheadTime);
+    if (animation === NO_EFFECT) return transition;
+    if (transition === NO_EFFECT) return animation;
+    return combineEffects(transition, animation);
+  }
 
   return (
     <Stage
@@ -352,7 +366,7 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
           <CanvasObjectRenderer
             key={object.id}
             object={object}
-            effect={clipTransitionEffect(transitionWindows.get(object.id), playheadTime, frame)}
+            effect={effectFor(object)}
             isSelected={selectedIds.includes(object.id)}
             onSelect={handleSelect}
             onDragStart={handleObjectDragStart}

@@ -1,5 +1,10 @@
 import type { ClipTransitions, TransitionWindow } from "@/lib/story/story";
-import type { TransitionType } from "@/types/object-extras";
+import type { CanvasObject } from "@/types/canvas";
+import type {
+  AnimationInType,
+  AnimationOutType,
+  TransitionType,
+} from "@/types/object-extras";
 
 /**
  * A temporary visual change layered on top of an object's normal position —
@@ -14,6 +19,8 @@ export interface VisualEffect {
   rotation: number;
   opacity: number;
   origin: "center" | "left";
+  /** For text: how much of it is typed out so far (0–1). */
+  reveal?: number;
 }
 
 export const NO_EFFECT: VisualEffect = {
@@ -35,6 +42,10 @@ export function combineEffects(a: VisualEffect, b: VisualEffect): VisualEffect {
     rotation: a.rotation + b.rotation,
     opacity: a.opacity * b.opacity,
     origin: b.origin !== "center" ? b.origin : a.origin,
+    reveal:
+      a.reveal === undefined && b.reveal === undefined
+        ? undefined
+        : (a.reveal ?? 1) * (b.reveal ?? 1),
   };
 }
 
@@ -160,4 +171,117 @@ export const TRANSITION_LENGTHS = [
   { seconds: 0.4, label: "Quick" },
   { seconds: 0.8, label: "Medium" },
   { seconds: 1.4, label: "Slow" },
+];
+
+const easeOutBack = (t: number) => {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+};
+
+const easeOutBounce = (t: number) => {
+  const n1 = 7.5625;
+  const d1 = 2.75;
+  if (t < 1 / d1) return n1 * t * t;
+  if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + 0.75;
+  if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
+  return n1 * (t -= 2.625 / d1) * t + 0.984375;
+};
+
+/** Entrance animation; p goes 0→1 as the object arrives. */
+export function animationInEffect(
+  type: AnimationInType,
+  p: number,
+  size: { width: number; height: number },
+): VisualEffect {
+  switch (type) {
+    case "fade":
+      return { ...NO_EFFECT, opacity: easeOut(p) };
+    case "pop": {
+      const s = Math.max(0.001, easeOutBack(p));
+      return { ...NO_EFFECT, scaleX: s, scaleY: s, opacity: Math.min(1, p * 4) };
+    }
+    case "rise":
+      return { ...NO_EFFECT, dy: (1 - easeOut(p)) * size.height * 0.6, opacity: easeOut(p) };
+    case "slide-right":
+      return { ...NO_EFFECT, dx: -(1 - easeOut(p)) * size.width * 0.8, opacity: easeOut(p) };
+    case "drop":
+      return { ...NO_EFFECT, dy: -(1 - easeOutBounce(p)) * size.height * 1.2, opacity: Math.min(1, p * 5) };
+    case "zoom": {
+      const s = 2 - easeOut(p);
+      return { ...NO_EFFECT, scaleX: s, scaleY: s, opacity: easeOut(p) };
+    }
+    case "spin": {
+      const s = Math.max(0.001, easeOut(p));
+      return { ...NO_EFFECT, rotation: -180 * (1 - easeOut(p)), scaleX: s, scaleY: s, opacity: Math.min(1, p * 3) };
+    }
+    case "typewriter":
+      return { ...NO_EFFECT, reveal: p };
+  }
+}
+
+/** Exit animation; p goes 0→1 as the object leaves. */
+export function animationOutEffect(
+  type: AnimationOutType,
+  p: number,
+  size: { width: number; height: number },
+): VisualEffect {
+  const e = easeInOut(p);
+  switch (type) {
+    case "fade":
+      return { ...NO_EFFECT, opacity: 1 - e };
+    case "shrink": {
+      const s = Math.max(0.001, 1 - e);
+      return { ...NO_EFFECT, scaleX: s, scaleY: s };
+    }
+    case "sink":
+      return { ...NO_EFFECT, dy: e * size.height * 0.6, opacity: 1 - e };
+    case "slide-left":
+      return { ...NO_EFFECT, dx: -e * size.width * 0.8, opacity: 1 - e };
+    case "fly-up":
+      return { ...NO_EFFECT, dy: -e * size.height * 1.5, opacity: 1 - e };
+    case "spin": {
+      const s = Math.max(0.001, 1 - e);
+      return { ...NO_EFFECT, rotation: 180 * e, scaleX: s, scaleY: s, opacity: 1 - e };
+    }
+  }
+}
+
+/** The entrance/exit animation (if any) for an object at `time`. */
+export function objectAnimationEffect(object: CanvasObject, time: number): VisualEffect {
+  const { animIn, animOut } = object.extras ?? {};
+  if (!animIn && !animOut) return NO_EFFECT;
+  const length = object.endTime - object.startTime;
+  let effect = NO_EFFECT;
+  if (animIn && animIn.duration > 0) {
+    const d = Math.min(animIn.duration, length);
+    const p = (time - object.startTime) / d;
+    if (p >= 0 && p < 1) effect = combineEffects(effect, animationInEffect(animIn.type, p, object));
+  }
+  if (animOut && animOut.duration > 0) {
+    const d = Math.min(animOut.duration, length);
+    const p = 1 - (object.endTime - time) / d;
+    if (p > 0 && p <= 1) effect = combineEffects(effect, animationOutEffect(animOut.type, p, object));
+  }
+  return effect;
+}
+
+export const ANIMATION_IN_OPTIONS: { type: AnimationInType; label: string; textOnly?: boolean }[] = [
+  { type: "fade", label: "Fade in" },
+  { type: "pop", label: "Pop" },
+  { type: "rise", label: "Rise" },
+  { type: "slide-right", label: "Slide in" },
+  { type: "drop", label: "Bounce drop" },
+  { type: "zoom", label: "Zoom in" },
+  { type: "spin", label: "Spin in" },
+  { type: "typewriter", label: "Typewriter", textOnly: true },
+];
+
+export const ANIMATION_OUT_OPTIONS: { type: AnimationOutType; label: string }[] = [
+  { type: "fade", label: "Fade out" },
+  { type: "shrink", label: "Shrink" },
+  { type: "sink", label: "Sink" },
+  { type: "slide-left", label: "Slide out" },
+  { type: "fly-up", label: "Fly up" },
+  { type: "spin", label: "Spin out" },
 ];

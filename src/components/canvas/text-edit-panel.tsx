@@ -6,6 +6,7 @@ import {
   AlignLeft,
   AlignRight,
   Paintbrush,
+  Sparkles,
   Type,
   Upload,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { GOOGLE_FONTS } from "@/lib/fonts/google-fonts-catalog";
 import { loadGoogleFont } from "@/lib/fonts/load-google-font";
+import { TITLE_STYLES, type TitleStyle } from "@/lib/text/title-styles";
 import { useCanvasStore } from "@/store/use-canvas-store";
 import { useCustomFontStore } from "@/store/use-custom-font-store";
 import type { CanvasObject } from "@/types/canvas";
@@ -52,16 +54,30 @@ export function TextEditPanel({
   const addFont = useCustomFontStore((s) => s.addFont);
   const fetchFonts = useCustomFontStore((s) => s.fetchFonts);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const updateExtras = useCanvasStore((s) => s.updateExtras);
 
   React.useEffect(() => {
     fetchFonts();
   }, [fetchFonts]);
+
+  // So the style tiles preview in their real fonts.
+  React.useEffect(() => {
+    for (const style of TITLE_STYLES) {
+      if (style.text.fontFamily) void loadGoogleFont(style.text.fontFamily);
+    }
+  }, []);
 
   const adjustments = object.textAdjustments;
   if (!adjustments) return null;
 
   function patch(update: Partial<TextAdjustments>) {
     updateTextAdjustments(projectId, object.id, update);
+  }
+
+  async function applyTitleStyle(style: TitleStyle) {
+    if (style.text.fontFamily) await loadGoogleFont(style.text.fontFamily);
+    patch(style.text);
+    updateExtras(projectId, object.id, { animIn: style.animIn, animOut: style.animOut });
   }
 
   async function handleFontChange(family: string) {
@@ -86,9 +102,48 @@ export function TextEditPanel({
         <Accordion
           type="single"
           collapsible
-          defaultValue="content"
+          defaultValue="styles"
           className="px-3"
         >
+          <AccordionItem value="styles">
+            <AccordionTrigger>
+              <span className="flex items-center gap-2">
+                <Sparkles className="size-4 text-muted-foreground" />
+                Title styles
+              </span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="grid grid-cols-2 gap-2">
+                {TITLE_STYLES.map((style) => (
+                  <button
+                    key={style.id}
+                    type="button"
+                    onClick={() => void applyTitleStyle(style)}
+                    className="flex h-16 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-md border border-border px-1 transition-shadow hover:ring-2 hover:ring-primary"
+                    style={{ background: style.preview.background }}
+                    title={`Apply "${style.name}" (look + animation)`}
+                  >
+                    <span
+                      className="max-w-full truncate text-lg leading-tight"
+                      style={{
+                        fontFamily: `"${style.text.fontFamily}", sans-serif`,
+                        fontWeight: style.text.fontWeight,
+                        color: style.preview.color,
+                        textShadow: style.preview.textShadow,
+                      }}
+                    >
+                      Aa Title
+                    </span>
+                    <span className="text-[10px] text-neutral-500">{style.name}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Each style sets the font, colours and an entrance/exit animation. Fine-tune below.
+              </p>
+            </AccordionContent>
+          </AccordionItem>
+
           <AccordionItem value="content">
             <AccordionTrigger>
               <span className="flex items-center gap-2">

@@ -145,6 +145,9 @@ interface CanvasStore {
     frame: { width: number; height: number },
   ) => void;
 
+  /** Merge settings into an object's extras (animations etc.). */
+  updateExtras: (projectId: string, objectId: string, patch: Partial<ObjectExtras>) => void;
+
   /** Set (or clear, with null) how a story clip transitions in. */
   setTransitionIn: (
     projectId: string,
@@ -596,6 +599,22 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
           ...state.objectsByProject,
           // Older saves and version snapshots predate `extras`.
           [projectId]: objects.map((o) => (o.extras ? o : { ...o, extras: {} })),
+        },
+      })),
+
+    updateExtras: (projectId, objectId, patch) =>
+      set((state) => ({
+        objectsByProject: {
+          ...state.objectsByProject,
+          [projectId]: (state.objectsByProject[projectId] ?? []).map((o) => {
+            if (o.id !== objectId) return o;
+            const extras: ObjectExtras = { ...o.extras, ...patch };
+            // `undefined` in the patch means "remove".
+            for (const key of Object.keys(patch) as (keyof ObjectExtras)[]) {
+              if (patch[key] === undefined) delete extras[key];
+            }
+            return { ...o, extras };
+          }),
         },
       })),
 

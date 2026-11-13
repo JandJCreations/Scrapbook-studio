@@ -10,14 +10,27 @@ interface TextObjectRendererProps {
   object: CanvasObject;
   isSelected: boolean;
   commonProps: Record<string, unknown>;
+  /** Typewriter animation: fraction of the text typed out so far. */
+  reveal?: number;
 }
 
 export function TextObjectRenderer({
   object,
   isSelected,
   commonProps,
+  reveal,
 }: TextObjectRendererProps) {
-  const adjustments = object.textAdjustments as TextAdjustments;
+  const fullAdjustments = object.textAdjustments as TextAdjustments;
+  const adjustments =
+    reveal === undefined || reveal >= 1
+      ? fullAdjustments
+      : {
+          ...fullAdjustments,
+          content: fullAdjustments.content.slice(
+            0,
+            Math.floor(fullAdjustments.content.length * Math.max(0, reveal)),
+          ),
+        };
   const startEditing = useTextEditingStore((s) => s.startEditing);
   const isEditing = useTextEditingStore((s) => s.editingObjectId === object.id);
 

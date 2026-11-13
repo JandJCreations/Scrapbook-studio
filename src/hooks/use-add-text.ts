@@ -1,5 +1,7 @@
 import { useCanvasStore } from "@/store/use-canvas-store";
+import { DEFAULT_TIMELINE_DURATION } from "@/lib/canvas/constants";
 import { useTextEditingStore } from "@/store/use-text-editing-store";
+import { useTimelineStore } from "@/store/use-timeline-store";
 
 interface UseAddTextOptions {
   projectId: string;
@@ -13,6 +15,7 @@ export function useAddText({ projectId, stageWidth, stageHeight }: UseAddTextOpt
   const addObject = useCanvasStore((s) => s.addObject);
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
   const startEditing = useTextEditingStore((s) => s.startEditing);
+  const updateObject = useCanvasStore((s) => s.updateObject);
 
   return function addText() {
     const worldCenterX = (-viewport.x + stageWidth / 2) / viewport.scale;
@@ -27,6 +30,15 @@ export function useAddText({ projectId, stageWidth, stageHeight }: UseAddTextOpt
       width,
       height,
     });
+    // Appears at the point in the video you're looking at, so a title for
+    // the third clip shows up over the third clip.
+    const playhead = useTimelineStore.getState().playheadTime;
+    if (playhead > 0) {
+      updateObject(projectId, newId, {
+        startTime: playhead,
+        endTime: playhead + DEFAULT_TIMELINE_DURATION,
+      });
+    }
     setSelectedIds([newId]);
     startEditing(newId);
   };

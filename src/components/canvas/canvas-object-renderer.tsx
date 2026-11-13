@@ -139,6 +139,7 @@ export const CanvasObjectRenderer = React.memo(function CanvasObjectRenderer({
         object={object}
         isSelected={isSelected}
         commonProps={commonProps}
+        reveal={effect.reveal}
       />
     );
   }

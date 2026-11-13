@@ -18,6 +18,24 @@ export interface TransitionSpec {
   duration: number;
 }
 
+export type AnimationInType =
+  | "fade"
+  | "pop"
+  | "rise"
+  | "slide-right"
+  | "drop"
+  | "zoom"
+  | "spin"
+  | "typewriter";
+
+export type AnimationOutType = "fade" | "shrink" | "sink" | "slide-left" | "fly-up" | "spin";
+
+export interface AnimationSpec<T extends string> {
+  type: T;
+  /** Seconds. */
+  duration: number;
+}
+
 export interface ObjectExtras {
   /**
    * Part of the main story track: plays in sequence with the other story
@@ -27,6 +45,10 @@ export interface ObjectExtras {
   inStory?: boolean;
   /** How this story clip comes in from the clip before it. */
   transitionIn?: TransitionSpec;
+  /** One-tap entrance animation (titles, stickers, photos...). */
+  animIn?: AnimationSpec<AnimationInType>;
+  /** One-tap exit animation. */
+  animOut?: AnimationSpec<AnimationOutType>;
 }
 
 export const EMPTY_EXTRAS: ObjectExtras = {};
