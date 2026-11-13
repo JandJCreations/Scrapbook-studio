@@ -1,5 +1,6 @@
 import { clipGainAt, isAudible } from "@/lib/timeline/active-clips";
 import { clipDuration, projectDuration } from "@/lib/timeline/clip-math";
+import { duckBreakpoints, duckFactorAt, duckingRanges, isVoiceoverTrack, type DuckRange } from "@/lib/timeline/ducking";
 import { audioClipFor } from "@/lib/timeline/transitions";
 import type { Clip, TimelineProject } from "@/types/timeline";
 
@@ -54,10 +55,35 @@ export function gainEnvelope(clip: Clip): GainPoint[] {
   return locals.map((local) => ({ time: clip.start + local, value: clipGainAt(clip, local) }));
 }
 
+/**
+ * The clip's envelope with the voiceover dip multiplied in. Both curves are
+ * straight between their own breakpoints, so the product is sampled at every
+ * breakpoint of either, plus a midpoint in each span to follow the bend.
+ */
+export function duckedEnvelope(clip: Clip, ranges: DuckRange[]): GainPoint[] {
+  const base = gainEnvelope(clip);
+  const from = base[0].time;
+  const to = base[base.length - 1].time;
+  const marks = duckBreakpoints(ranges, from, to);
+  if (marks.length === 0 && duckFactorAt(ranges, (from + to) / 2) === 1) return base;
+
+  const times = Array.from(new Set([...base.map((p) => p.time), ...marks])).sort((a, b) => a - b);
+  const withMid: number[] = [];
+  times.forEach((time, i) => {
+    if (i > 0) withMid.push((times[i - 1] + time) / 2);
+    withMid.push(time);
+  });
+  return withMid.map((time) => ({
+    time,
+    value: clipGainAt(clip, time - clip.start) * duckFactorAt(ranges, time),
+  }));
+}
+
 /** Everything an offline renderer needs to mix the project's sound for export. */
 export function planMixdown(project: TimelineProject): MixdownPlan {
   const trackById = new Map(project.tracks.map((track) => [track.id, track]));
   const anySolo = project.tracks.some((track) => track.solo);
+  const ducking = duckingRanges(project);
 
   const items = project.clips
     .filter((clip) => {
@@ -73,7 +99,9 @@ export function planMixdown(project: TimelineProject): MixdownPlan {
         sourceOut: clip.sourceOut,
         playbackRate: clip.speed,
         reversed: clip.reversed,
-        gainPoints: gainEnvelope(audioClipFor(project, clip)),
+        gainPoints: isVoiceoverTrack(trackById.get(clip.trackId))
+          ? gainEnvelope(audioClipFor(project, clip))
+          : duckedEnvelope(audioClipFor(project, clip), ducking),
       }),
     )
     .sort((a, b) => a.startAt - b.startAt || a.clipId.localeCompare(b.clipId));

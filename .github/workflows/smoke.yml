@@ -15,11 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      # Real values come from repo secrets; the fallbacks let the signed-out checks run without them.
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321' }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy' }}
-      SMOKE_TEST_EMAIL: ${{ secrets.SMOKE_TEST_EMAIL }}
-      SMOKE_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_PASSWORD }}
+      # Real values come from repo secrets. Without them the checks run against
+      # scripts/mock-supabase.mjs, an in-memory stand-in, so the signed-in checks still run.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54329' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'mock-anon-key' }}
+      SMOKE_TEST_EMAIL: ${{ secrets.SMOKE_TEST_EMAIL || 'smoke@example.com' }}
+      SMOKE_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_PASSWORD || 'smoke-pass' }}
       AGENT_BROWSER_EXECUTABLE_PATH: /usr/bin/google-chrome
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
@@ -30,6 +31,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm install -g agent-browser@0.43.0
+      - name: Start the Supabase stand-in
+        if: env.NEXT_PUBLIC_SUPABASE_URL == 'http://127.0.0.1:54329'
+        run: node scripts/mock-supabase.mjs > mock-supabase.log 2>&1 &
       - run: npm run build
       - name: Start app
         run: |

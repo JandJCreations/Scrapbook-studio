@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   addAudioClip,
+  addVoiceoverClip,
   addToSequence,
   addToSequenceAt,
   fitMusicToVideo,
@@ -128,6 +129,30 @@ describe("addAudioClip", () => {
     const noAudio = { id: "p", tracks: base().tracks.filter((t) => t.type === "video"), clips: [] };
     const result = addAudioClip(noAudio, video("m", { kind: "audio" }), frame, 0, seqIds("n"));
     expect(result.project.tracks.map((t) => t.type).sort()).toEqual(["audio", "video"]);
+  });
+});
+
+describe("addVoiceoverClip", () => {
+  it("makes a voiceover lane that ducks, and puts the take at the requested time", () => {
+    const result = addVoiceoverClip(base(), video("rec", { kind: "audio", duration: 4 }), frame, 3, seqIds("v"));
+    const clip = findClip(result.project, result.clipId)!;
+    const lane = result.project.tracks.find((t) => t.id === clip.trackId)!;
+    expect(lane).toMatchObject({ type: "audio", role: "voiceover", duckOthers: true });
+    expect(lane.id).not.toBe("t-2");
+    expect(clip).toMatchObject({ kind: "audio", start: 3, sourceOut: 4 });
+  });
+
+  it("reuses the voiceover lane, and music never goes on it", () => {
+    const first = addVoiceoverClip(base(), video("rec", { kind: "audio", duration: 4 }), frame, 0, seqIds("v"));
+    const second = addVoiceoverClip(first.project, video("rec2", { kind: "audio", duration: 2 }), frame, 10, seqIds("w"));
+    const lanes = second.project.tracks.filter((t) => t.role === "voiceover");
+    expect(lanes).toHaveLength(1);
+    expect(findClip(second.project, second.clipId)!.trackId).toBe(lanes[0].id);
+
+    const withVoiceOnly = { ...first.project, tracks: first.project.tracks.filter((t) => t.id !== "t-2") };
+    const song = addAudioClip(withVoiceOnly, video("song", { kind: "audio", duration: 30 }), frame, 0, seqIds("s"));
+    const songTrack = song.project.tracks.find((t) => t.id === findClip(song.project, song.clipId)!.trackId)!;
+    expect(songTrack.role).not.toBe("voiceover");
   });
 });
 

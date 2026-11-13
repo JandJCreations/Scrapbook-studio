@@ -20,6 +20,7 @@ import { useStudioMedia } from "@/components/studio/use-studio-media";
 import { useStudioPlayback } from "@/components/studio/use-studio-playback";
 import { useStudioThumbnail } from "@/components/studio/use-studio-thumbnail";
 import { useUploadGuard } from "@/components/studio/use-upload-guard";
+import { useVoiceoverRecorder } from "@/components/studio/use-voiceover-recorder";
 import { VersionHistoryDialog } from "@/components/studio/version-history-dialog";
 import { WelcomeTour } from "@/components/studio/welcome-tour";
 import { TimelineView } from "@/components/clip-timeline/timeline-view";
@@ -34,6 +35,7 @@ import { MUSIC_LIBRARY, type MusicLibraryTrack } from "@/lib/audio/music-library
 import type { MediaDragPayload } from "@/lib/dom/media-drag";
 import {
   addAudioClip,
+  addVoiceoverClip,
   addToSequence,
   addToSequenceAt,
   fitMusicToVideo,
@@ -248,6 +250,62 @@ export function StudioView({ env }: { env: StudioEnv }) {
     if (put((p) => addAudioClip(p, media, frame, at !== undefined ? Math.max(0, at) : musicStartTime(p, playhead)), true)) say(null);
     else say("Couldn't add that to the video.");
   }
+
+  /** Records the user's voice from the playhead while the video plays; the take lands on the voiceover lane. */
+  const recorder = useVoiceoverRecorder();
+  const recordFromRef = React.useRef(0);
+  const [savingTake, setSavingTake] = React.useState(false);
+  async function toggleVoiceover() {
+    if (recorder.state.phase === "recording") {
+      session?.pause();
+      setSavingTake(true);
+      try {
+        const take = await recorder.stop();
+        if (!take || !frame || !aliveRef.current) return;
+        const ids = env.uploadFiles?.([take.file]);
+        const mediaId = Array.isArray(ids) ? ids[0] : undefined;
+        if (!mediaId) {
+          say("Couldn't keep that recording.");
+          return;
+        }
+        await mediaSource.ensure([mediaId]);
+        const media: EditorMedia = {
+          mediaId,
+          name: take.file.name.replace(/\.[a-z0-9]+$/i, ""),
+          kind: "audio",
+          duration: take.duration,
+          width: 0,
+          height: 0,
+        };
+        if (put((p) => addVoiceoverClip(p, media, frame, recordFromRef.current))) say(null);
+        else say("Couldn't add the recording to the video.");
+      } finally {
+        if (aliveRef.current) setSavingTake(false);
+      }
+      return;
+    }
+    if (!env.uploadFiles) {
+      say("Recording isn't available here.");
+      return;
+    }
+    // Inside the click: browsers only let sound start from a gesture.
+    void session?.graph.resume();
+    recordFromRef.current = useTransportStore.getState().time;
+    say(null);
+    const problem = await recorder.start();
+    if (problem) say(problem);
+    else if (aliveRef.current) session?.play();
+  }
+  const [recordedFor, setRecordedFor] = React.useState(0);
+  React.useEffect(() => {
+    if (recorder.state.phase !== "recording") return;
+    const startedAt = recorder.state.startedAt;
+    const timer = window.setInterval(() => setRecordedFor((performance.now() - startedAt) / 1000), 200);
+    return () => {
+      window.clearInterval(timer);
+      setRecordedFor(0);
+    };
+  }, [recorder.state]);
 
   /** Something from the media or audio panel was dropped on the timeline: photos and videos go on the strip, songs on the music lane. */
   function dropMedia(payload: MediaDragPayload, time: number, trackType: "video" | "overlay" | "audio") {
@@ -558,6 +616,16 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onToggle={() => session?.toggle()}
               onSeek={(t) => session?.seek(t)}
               onFullscreen={() => void previewRef.current?.requestFullscreen?.()}
+              voiceover={
+                env.uploadFiles
+                  ? {
+                      recording: recorder.state.phase === "recording",
+                      busy: recorder.state.phase === "starting" || savingTake,
+                      elapsed: recordedFor,
+                      onToggle: () => void toggleVoiceover(),
+                    }
+                  : undefined
+              }
             />
           </div>
           {failedUploads.length > 0 && (
