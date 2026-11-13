@@ -1,5 +1,8 @@
 import { ASSET_CATALOG } from "@/lib/assets/asset-catalog";
-import type { ScrapbookTemplate } from "@/types/template";
+import { TITLE_STYLES } from "@/lib/text/title-styles";
+import type { TransitionType } from "@/types/object-extras";
+import type { ScrapbookTemplate, TemplateObjectDef } from "@/types/template";
+import type { TextAdjustments } from "@/types/text-adjustments";
 
 function assetSrc(name: string): string {
   const found = ASSET_CATALOG.find((a) => a.name === name);
@@ -657,4 +660,271 @@ export const TEMPLATE_CATALOG: ScrapbookTemplate[] = [
       },
     ],
   },
+  ...videoStoryTemplates(),
 ];
+
+function titleStyle(id: string): Partial<TextAdjustments> {
+  return TITLE_STYLES.find((t) => t.id === id)?.text ?? {};
+}
+
+/** Full-frame tap-to-fill story slots. */
+function storySlots(
+  frame: { width: number; height: number },
+  slots: { type: "image" | "video"; seconds: number }[],
+  transitions: TransitionType[],
+): TemplateObjectDef[] {
+  return slots.map((slot, i) => ({
+    type: slot.type,
+    name: `${slot.type === "video" ? "Clip" : "Photo"} ${i + 1}`,
+    x: 0,
+    y: 0,
+    width: frame.width,
+    height: frame.height,
+    placeholder: true,
+    story: true,
+    duration: slot.seconds,
+    ...(i > 0
+      ? { transitionIn: { type: transitions[(i - 1) % transitions.length], duration: 0.6 } }
+      : {}),
+    ...(slot.type === "image" ? { motion: i % 2 === 0 ? ("zoom-in" as const) : ("zoom-out" as const) } : {}),
+  }));
+}
+
+function videoStoryTemplates(): ScrapbookTemplate[] {
+  const vertical = { width: 1080, height: 1920 };
+  const wide = { width: 1920, height: 1080 };
+  const square = { width: 1080, height: 1080 };
+
+  return [
+    {
+      id: "weekend-recap",
+      name: "Weekend Recap",
+      description: "A vertical reel: five tap-to-fill clips, crossfades, an upbeat song and animated titles.",
+      category: "Video story",
+      frame: vertical,
+      swatch: "from-amber-300/50 to-pink-400/40",
+      background: { color: "#fde68a", color2: "#f9a8d4" },
+      musicId: "confetti",
+      objects: [
+        ...storySlots(
+          vertical,
+          [
+            { type: "image", seconds: 3 },
+            { type: "video", seconds: 4 },
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3 },
+            { type: "video", seconds: 4 },
+          ],
+          ["crossfade"],
+        ),
+        {
+          type: "text",
+          name: "Title",
+          x: 90,
+          y: 260,
+          width: 900,
+          height: 200,
+          startTime: 0,
+          duration: 2.8,
+          text: { ...titleStyle("big-bold"), content: "WEEKEND RECAP", fontSize: 96 },
+          animIn: { type: "pop", duration: 0.5 },
+          animOut: { type: "fade", duration: 0.4 },
+        },
+        {
+          type: "text",
+          name: "Sign-off",
+          x: 90,
+          y: 1500,
+          width: 900,
+          height: 140,
+          startTime: -3,
+          duration: 3,
+          text: { ...titleStyle("handwritten"), content: "see you next weekend ♡", fontSize: 64, color: "#ffffff" },
+          animIn: { type: "typewriter", duration: 1.4 },
+        },
+      ],
+    },
+    {
+      id: "travel-montage",
+      name: "Travel Montage",
+      description: "Six widescreen moments with slides and pushes, a cinematic score and a headline.",
+      category: "Video story",
+      frame: wide,
+      swatch: "from-sky-400/50 to-emerald-300/40",
+      background: { color: "#0f172a" },
+      musicId: "wide-skies",
+      objects: [
+        ...storySlots(
+          wide,
+          [
+            { type: "video", seconds: 4 },
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3 },
+            { type: "video", seconds: 4 },
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 4 },
+          ],
+          ["slide-left", "slide-up", "zoom"],
+        ),
+        {
+          type: "text",
+          name: "Headline",
+          x: 160,
+          y: 420,
+          width: 1600,
+          height: 240,
+          startTime: 0.3,
+          duration: 3.2,
+          text: { ...titleStyle("headline"), content: "WHERE WE WANDERED", fontSize: 150, color: "#ffffff" },
+          animIn: { type: "slide-right", duration: 0.6 },
+          animOut: { type: "slide-left", duration: 0.5 },
+        },
+        {
+          type: "text",
+          name: "Place",
+          x: 160,
+          y: 900,
+          width: 900,
+          height: 90,
+          startTime: 4.5,
+          duration: 3,
+          text: { ...titleStyle("caption"), content: "Somewhere beautiful, 2026", fontSize: 44, color: "#ffffff" },
+          animIn: { type: "typewriter", duration: 1.2 },
+          animOut: { type: "fade", duration: 0.3 },
+        },
+      ],
+    },
+    {
+      id: "birthday-slideshow",
+      name: "Birthday Slideshow",
+      description: "Square photo slideshow that flips like scrapbook pages, with a bouncy title.",
+      category: "Video story",
+      frame: square,
+      swatch: "from-fuchsia-400/50 to-yellow-300/40",
+      background: { color: "#fce7f3" },
+      musicId: "confetti",
+      objects: [
+        ...storySlots(
+          square,
+          [
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3.5 },
+          ],
+          ["page-flip"],
+        ),
+        {
+          type: "text",
+          name: "Title",
+          x: 90,
+          y: 80,
+          width: 900,
+          height: 160,
+          startTime: 0,
+          duration: 3,
+          text: { ...titleStyle("marker"), content: "Happy Birthday!", fontSize: 92 },
+          animIn: { type: "drop", duration: 0.8 },
+          animOut: { type: "shrink", duration: 0.4 },
+        },
+      ],
+    },
+    {
+      id: "love-story",
+      name: "Love Story",
+      description: "Five soft moments joined by gentle fades, a romantic song and a script title.",
+      category: "Video story",
+      frame: wide,
+      swatch: "from-rose-300/50 to-amber-200/40",
+      background: { color: "#fff1f2" },
+      musicId: "golden-hour",
+      objects: [
+        ...storySlots(
+          wide,
+          [
+            { type: "image", seconds: 4 },
+            { type: "image", seconds: 4 },
+            { type: "video", seconds: 5 },
+            { type: "image", seconds: 4 },
+            { type: "image", seconds: 5 },
+          ],
+          ["fade-through", "crossfade"],
+        ),
+        {
+          type: "text",
+          name: "Title",
+          x: 360,
+          y: 420,
+          width: 1200,
+          height: 220,
+          startTime: 0.5,
+          duration: 3.2,
+          text: { ...titleStyle("script"), content: "Our Story", fontSize: 150, color: "#ffffff" },
+          animIn: { type: "fade", duration: 1 },
+          animOut: { type: "fade", duration: 0.8 },
+        },
+        {
+          type: "text",
+          name: "Ending",
+          x: 360,
+          y: 440,
+          width: 1200,
+          height: 200,
+          startTime: -3.5,
+          duration: 3.5,
+          text: { ...titleStyle("script"), content: "to be continued…", fontSize: 110, color: "#ffffff" },
+          animIn: { type: "fade", duration: 1 },
+        },
+      ],
+    },
+    {
+      id: "throwback-reel",
+      name: "Throwback Reel",
+      description: "A vertical memory reel where each photo drops onto the page, with a nostalgic tune.",
+      category: "Video story",
+      frame: vertical,
+      swatch: "from-orange-300/50 to-stone-300/40",
+      background: { color: "#fdf6e3" },
+      musicId: "sunday-morning",
+      objects: [
+        ...storySlots(
+          vertical,
+          [
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3 },
+            { type: "image", seconds: 3.5 },
+          ],
+          ["drop-in"],
+        ),
+        {
+          type: "text",
+          name: "Title",
+          x: 90,
+          y: 200,
+          width: 900,
+          height: 200,
+          startTime: 0,
+          duration: 3,
+          text: { ...titleStyle("sunset"), content: "Throwback", fontSize: 120 },
+          animIn: { type: "rise", duration: 0.7 },
+          animOut: { type: "sink", duration: 0.5 },
+        },
+        {
+          type: "image",
+          name: "Washi tape",
+          x: 380,
+          y: 60,
+          width: 320,
+          height: 80,
+          rotation: -4,
+          src: assetSrc("Pink stripes"),
+        },
+      ],
+    },
+  ];
+}
+

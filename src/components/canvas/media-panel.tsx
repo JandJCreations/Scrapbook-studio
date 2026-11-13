@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, CheckSquare, ImagePlus, X } from "lucide-react";
+import { Check, CheckSquare, Clapperboard, ImagePlus, X } from "lucide-react";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { MediaThumbnail } from "@/components/media/media-thumbnail";
@@ -9,12 +9,14 @@ import { MediaUploadButton } from "@/components/media/media-upload-button";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_OBJECT_SIZE } from "@/lib/canvas/constants";
-import { fitInsideFrame } from "@/lib/story/story";
+import { fitInsideFrame, isStoryClip } from "@/lib/story/story";
+import { buildAutoMontage } from "@/lib/templates/auto-montage";
 import { cn } from "@/lib/utils";
 import { useCanvasFrame } from "@/store/use-canvas-frame-store";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import { useMediaStore } from "@/store/use-media-store";
+import type { CanvasObject } from "@/types/canvas";
 import type { MediaItem } from "@/types/media";
 
 interface MediaPanelProps {
@@ -42,6 +44,7 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
   const addObject = useCanvasStore((s) => s.addObject);
   const updateObject = useCanvasStore((s) => s.updateObject);
   const fillPlaceholder = useCanvasStore((s) => s.fillPlaceholder);
+  const removeObjects = useCanvasStore((s) => s.removeObjects);
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
   const viewport = useCanvasStore((s) => s.viewport);
   const objects = useCanvasObjects(projectId);
@@ -66,10 +69,13 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
   // Includes items still processing (or errored) so uploads show up with a
   // thumbnail/progress indicator right away instead of vanishing from the
   // grid until they finish — only "ready" ones are actually clickable below.
+  // A story slot takes a photo or a video (it's swapped for the right kind
+  // of clip); a collage slot keeps its type.
+  const storySlot = Boolean(fillTarget && isStoryClip(fillTarget));
   const placeable = items.filter(
     (i) =>
       (i.type === "image" || i.type === "video") &&
-      (!fillTarget || i.type === fillTarget.type),
+      (!fillTarget || storySlot || i.type === fillTarget.type),
   );
 
   function exitSelectMode() {
@@ -112,6 +118,50 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       })
       .catch(() => {});
     return newId;
+  }
+
+  // Fill a story slot in place: same spot in the story, same transition and
+  // motion, fitted inside the frame once the real aspect ratio is known.
+  function fillStorySlot(slot: CanvasObject, item: MediaItem) {
+    const content = {
+      mediaId: item.id,
+      src: item.type === "video" ? (item.thumbnailUrl ?? item.url) : item.url,
+      videoSrc: item.type === "video" ? item.url : undefined,
+      duration: item.duration ?? undefined,
+      name: item.name,
+    };
+    let targetId = slot.id;
+    if (item.type === slot.type) {
+      fillPlaceholder(projectId, slot.id, content);
+    } else {
+      targetId = addObject(projectId, {
+        type: item.type as "image" | "video",
+        ...content,
+        x: slot.x,
+        y: slot.y,
+        width: slot.width,
+        height: slot.height,
+        inStory: true,
+      });
+      // Same timing as the slot so it lands in the slot's place in the story.
+      updateObject(projectId, targetId, {
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        extras: {
+          ...slot.extras,
+          motion: item.type === "image" ? slot.extras.motion : undefined,
+        },
+      });
+      removeObjects(projectId, [slot.id]);
+    }
+    setSelectedIds([targetId]);
+    loadImageDimensions(content.src)
+      .then((natural) => {
+        if (natural.width > 0 && natural.height > 0) {
+          updateObject(projectId, targetId, fitInsideFrame(natural, frame));
+        }
+      })
+      .catch(() => {});
   }
 
   function addItem(item: MediaItem, index: number): string {
@@ -175,6 +225,13 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       return;
     }
 
+    if (fillTarget && storySlot) {
+      fillStorySlot(fillTarget, item);
+      clearFillTarget();
+      setSidebarOpen(false);
+      return;
+    }
+
     if (fillTargetObjectId) {
       // Filling an existing template slot keeps its position/size exactly
       // as laid out — unlike a freely-added object, there's no "centered at
@@ -211,7 +268,7 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
   const fillBanner = fillTarget && (
     <div className="flex items-center justify-between gap-2 border-b border-primary/30 bg-primary/5 px-3 py-2">
       <span className="text-xs font-medium text-primary">
-        Choose a {fillTarget.type} for this slot
+        {storySlot ? "Choose a photo or video for this slot" : `Choose a ${fillTarget.type} for this slot`}
       </span>
       <Button
         variant="ghost"
@@ -224,6 +281,16 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       </Button>
     </div>
   );
+
+  async function handleMakeVideo() {
+    // In the order they appear in the grid, which is the order picked from.
+    const toAdd = placeable.filter((i) => i.status === "ready" && selectedMediaIds.has(i.id));
+    if (toAdd.length === 0) return;
+    exitSelectMode();
+    setSidebarOpen(false);
+    const ids = await buildAutoMontage(projectId, toAdd, frame);
+    setSelectedIds(ids.slice(0, 1));
+  }
 
   const selectBar = selectMode && (
     <div className="flex items-center justify-between gap-2 border-b border-primary/30 bg-primary/5 px-3 py-2">
@@ -240,6 +307,17 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
           onClick={handleAddSelected}
         >
           {placement === "story" ? "Add to story" : "Add to canvas"}
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="h-7 gap-1 px-2.5 text-xs"
+          disabled={selectedMediaIds.size < 2}
+          onClick={() => void handleMakeVideo()}
+          title="Turn these into a ready-made video: story order, transitions, motion, a title and music"
+        >
+          <Clapperboard className="size-3.5" />
+          Make a video
         </Button>
         <Button
           variant="ghost"

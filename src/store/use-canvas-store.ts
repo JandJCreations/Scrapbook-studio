@@ -332,7 +332,7 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
                   : o.videoAdjustments,
               endTime:
                 o.type === "video"
-                  ? (input.duration ?? DEFAULT_TIMELINE_DURATION)
+                  ? o.startTime + (input.duration ?? DEFAULT_TIMELINE_DURATION)
                   : o.endTime,
             };
           }),
