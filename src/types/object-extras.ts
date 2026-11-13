@@ -36,6 +36,15 @@ export interface AnimationSpec<T extends string> {
   duration: number;
 }
 
+export type MotionType =
+  | "zoom-in"
+  | "zoom-out"
+  | "pan-left"
+  | "pan-right"
+  | "float"
+  | "pulse"
+  | "shake";
+
 export interface ObjectExtras {
   /**
    * Part of the main story track: plays in sequence with the other story
@@ -49,6 +58,12 @@ export interface ObjectExtras {
   animIn?: AnimationSpec<AnimationInType>;
   /** One-tap exit animation. */
   animOut?: AnimationSpec<AnimationOutType>;
+  /**
+   * Movement for the whole time the object is on screen: a slow zoom/pan
+   * across a photo (the classic documentary look), or a playful float,
+   * pulse or shake.
+   */
+  motion?: MotionType;
 }
 
 export const EMPTY_EXTRAS: ObjectExtras = {};

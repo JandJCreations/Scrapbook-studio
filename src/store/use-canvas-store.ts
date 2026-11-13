@@ -247,7 +247,16 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
         fadeIn: 0,
         fadeOut: 0,
         keyframes: [],
-        extras: input.inStory ? { inStory: true } : {},
+        extras: input.inStory
+        ? {
+            inStory: true,
+            // Photos in a story get a slow zoom by default (alternating in
+            // and out) so a slideshow never feels like a frozen frame.
+            ...(input.type === "image"
+              ? { motion: storyPhotoMotion(get().objectsByProject[projectId] ?? []) }
+              : {}),
+          }
+        : {},
       };
       set((state) => ({
         objectsByProject: {
@@ -695,7 +704,12 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
     return useCanvasStore((s) => s.objectsByProject[projectId] ?? EMPTY_OBJECTS);
   }
 
-  function withTransition(
+  function storyPhotoMotion(objects: CanvasObject[]): "zoom-in" | "zoom-out" {
+  const photos = objects.filter((o) => isStoryClip(o) && o.type === "image").length;
+  return photos % 2 === 0 ? "zoom-in" : "zoom-out";
+}
+
+function withTransition(
   extras: ObjectExtras,
   transition: TransitionSpec | null,
 ): ObjectExtras {

@@ -3,6 +3,7 @@ import type { CanvasObject } from "@/types/canvas";
 import type {
   AnimationInType,
   AnimationOutType,
+  MotionType,
   TransitionType,
 } from "@/types/object-extras";
 
@@ -284,4 +285,49 @@ export const ANIMATION_OUT_OPTIONS: { type: AnimationOutType; label: string }[] 
   { type: "slide-left", label: "Slide out" },
   { type: "fly-up", label: "Fly up" },
   { type: "spin", label: "Spin out" },
+];
+
+/** Continuous movement across the object's whole time on screen. */
+export function objectMotionEffect(object: CanvasObject, time: number): VisualEffect {
+  const motion: MotionType | undefined = object.extras?.motion;
+  if (!motion) return NO_EFFECT;
+  const length = object.endTime - object.startTime;
+  if (length <= 0 || time < object.startTime || time > object.endTime) return NO_EFFECT;
+  const elapsed = time - object.startTime;
+  const p = elapsed / length;
+  switch (motion) {
+    case "zoom-in": {
+      const s = 1 + 0.15 * p;
+      return { ...NO_EFFECT, scaleX: s, scaleY: s };
+    }
+    case "zoom-out": {
+      const s = 1.15 - 0.15 * p;
+      return { ...NO_EFFECT, scaleX: s, scaleY: s };
+    }
+    case "pan-left":
+      // Slightly enlarged so the pan never reveals an edge.
+      return { ...NO_EFFECT, scaleX: 1.12, scaleY: 1.12, dx: object.width * 0.05 * (1 - 2 * p) };
+    case "pan-right":
+      return { ...NO_EFFECT, scaleX: 1.12, scaleY: 1.12, dx: -object.width * 0.05 * (1 - 2 * p) };
+    case "float":
+      return { ...NO_EFFECT, dy: Math.sin(elapsed * 2) * object.height * 0.03, rotation: Math.sin(elapsed * 1.3) * 1.5 };
+    case "pulse": {
+      const s = 1 + 0.04 * Math.max(0, Math.sin(elapsed * Math.PI * 2));
+      return { ...NO_EFFECT, scaleX: s, scaleY: s };
+    }
+    case "shake": {
+      const a = object.width * 0.01;
+      return { ...NO_EFFECT, dx: Math.sin(elapsed * 47) * a, dy: Math.cos(elapsed * 53) * a, rotation: Math.sin(elapsed * 31) * 0.8 };
+    }
+  }
+}
+
+export const MOTION_OPTIONS: { type: MotionType; label: string; hint: string }[] = [
+  { type: "zoom-in", label: "Slow zoom in", hint: "Gently pushes in over the clip" },
+  { type: "zoom-out", label: "Slow zoom out", hint: "Starts close and eases back" },
+  { type: "pan-left", label: "Pan left", hint: "Drifts across from right to left" },
+  { type: "pan-right", label: "Pan right", hint: "Drifts across from left to right" },
+  { type: "float", label: "Float", hint: "Bobs gently, like it's on water" },
+  { type: "pulse", label: "Pulse", hint: "A soft heartbeat, once a second" },
+  { type: "shake", label: "Shake", hint: "Handheld jitter for energy" },
 ];

@@ -25,7 +25,9 @@ import { AdjustmentSlider } from "@/components/canvas/adjustment-slider";
 import { Button } from "@/components/ui/button";
 import { CropDialog } from "@/components/canvas/crop-dialog";
 import { EditPanelShell } from "@/components/canvas/edit-panel-shell";
+import { MotionSection } from "@/components/canvas/motion-section";
 import { ObjectTimingPanel } from "@/components/canvas/object-timing-panel";
+import { VideoLooksSection } from "@/components/canvas/video-looks-section";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
@@ -105,6 +107,8 @@ export function VideoEditPanel({
           defaultValue="trim"
           className="px-3"
         >
+          <VideoLooksSection projectId={projectId} object={object} />
+          <MotionSection projectId={projectId} object={object} />
           <ObjectTimingPanel projectId={projectId} object={object} />
 
           <AccordionItem value="trim">

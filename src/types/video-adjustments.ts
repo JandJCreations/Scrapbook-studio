@@ -1,4 +1,4 @@
-import type { CropRect, ShadowEffect } from "@/types/photo-adjustments";
+import type { CropRect, FilterPreset, ShadowEffect } from "@/types/photo-adjustments";
 
 export interface VideoAdjustments {
   duration: number;
@@ -20,6 +20,9 @@ export interface VideoAdjustments {
   blur: number;
 
   shadow: ShadowEffect;
+
+  /** Which look was last picked (it sets brightness/contrast/saturation). */
+  filterPreset?: FilterPreset;
 }
 
 export function createDefaultVideoAdjustments(duration: number): VideoAdjustments {

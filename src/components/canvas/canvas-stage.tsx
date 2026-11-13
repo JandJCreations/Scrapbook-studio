@@ -15,6 +15,7 @@ import {
   combineEffects,
   NO_EFFECT,
   objectAnimationEffect,
+  objectMotionEffect,
 } from "@/lib/canvas/effects";
 import { getInterpolatedTransform } from "@/lib/canvas/interpolate";
 import { isStoryClip, storyClips, storyTransitionWindows } from "@/lib/story/story";
@@ -322,14 +323,16 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
     [objects],
   );
   const transitionWindows = React.useMemo(() => storyTransitionWindows(objects), [objects]);
-  // Transition + entrance/exit animation at the current moment. Returns the
+  // Transition + motion + entrance/exit animation at the current moment. Returns the
   // shared NO_EFFECT object when nothing applies so memoized renderers skip.
   function effectFor(object: CanvasObject) {
-    const transition = clipTransitionEffect(transitionWindows.get(object.id), playheadTime, frame);
-    const animation = objectAnimationEffect(object, playheadTime);
-    if (animation === NO_EFFECT) return transition;
-    if (transition === NO_EFFECT) return animation;
-    return combineEffects(transition, animation);
+    const parts = [
+      clipTransitionEffect(transitionWindows.get(object.id), playheadTime, frame),
+      objectMotionEffect(object, playheadTime),
+      objectAnimationEffect(object, playheadTime),
+    ].filter((e) => e !== NO_EFFECT);
+    if (parts.length === 0) return NO_EFFECT;
+    return parts.reduce(combineEffects);
   }
 
   return (
