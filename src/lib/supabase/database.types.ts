@@ -57,6 +57,8 @@ export interface Database {
           frame_width: number;
           frame_height: number;
           folder_id: string | null;
+          timeline: unknown;
+          timeline_rev: number;
           created_at: string;
           updated_at: string;
         };
@@ -70,6 +72,8 @@ export interface Database {
           frame_width?: number;
           frame_height?: number;
           folder_id?: string | null;
+          timeline?: unknown;
+          timeline_rev?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -83,6 +87,8 @@ export interface Database {
           frame_width?: number;
           frame_height?: number;
           folder_id?: string | null;
+          timeline?: unknown;
+          timeline_rev?: number;
           created_at?: string;
           updated_at?: string;
         };

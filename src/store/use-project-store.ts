@@ -2,11 +2,7 @@ import { create } from "zustand";
 
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/database.types";
-import {
-  loadProjectContent,
-  saveProjectContent,
-  saveProjectFrame,
-} from "@/lib/sync/project-content-sync";
+import { duplicatePayload } from "@/lib/projects/copy-project";
 import { dataUrlToBlob, getSignedUrl, getSignedUrls, MEDIA_BUCKET } from "@/lib/supabase/storage";
 import type { Project, ProjectFolder, ProjectId } from "@/types/project";
 
@@ -175,44 +171,24 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) throw new Error("You must be signed in to duplicate a project.");
 
-    // source.thumbnailUrl is a resolved signed URL (expires in 24h), not the
-    // raw storage path — copying it directly would go stale. Read the real
-    // path straight from the row instead; storage paths don't expire.
+    // Read the real row: the thumbnail on `source` is a signed URL that expires, the stored path does not.
     const { data: sourceRow } = await supabase
       .from("projects")
-      .select("thumbnail_path")
+      .select("name, folder_id, thumbnail_path, timeline, frame_width, frame_height")
       .eq("id", source.id)
       .single();
+    if (!sourceRow) throw new Error("Couldn't duplicate that project.");
 
     const { data, error } = await supabase
       .from("projects")
-      .insert({
-        owner_id: user.id,
-        name: `${source.name} (Copy)`,
-        thumbnail_path: sourceRow?.thumbnail_path ?? null,
-        folder_id: source.folderId,
-      })
+      .insert(duplicatePayload(sourceRow, user.id))
       .select()
       .single();
 
-    if (error || !data) return;
-    const project = rowToProject(data, source.thumbnailUrl);
-    set((state) => ({ projects: [project, ...state.projects] }));
-
-    const content = await loadProjectContent(source.id);
-    const trackIdMap = new Map(content.tracks.map((t) => [t.id, crypto.randomUUID()]));
-    const objects = content.objects.map((o) => ({ ...o, id: crypto.randomUUID() }));
-    const tracks = content.tracks.map((t) => ({ ...t, id: trackIdMap.get(t.id)! }));
-    const clips = content.clips.map((c) => ({
-      ...c,
-      id: crypto.randomUUID(),
-      trackId: trackIdMap.get(c.trackId)!,
-    }));
-
-    await saveProjectContent(project.id, objects, tracks, clips);
-    if (content.frame) await saveProjectFrame(project.id, content.frame);
+    if (error || !data) throw new Error("Couldn't duplicate that project.");
+    set((state) => ({ projects: [rowToProject(data, null), ...state.projects] }));
   },
 
   saveProjectThumbnail: async (id, dataUrl) => {

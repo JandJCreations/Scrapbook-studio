@@ -1,9 +1,10 @@
 import {
+  Clapperboard,
   Download,
   ImagePlus,
   type LucideIcon,
-  MousePointerClick,
   Music,
+  Play,
   Sparkles,
   Type,
 } from "lucide-react";
@@ -14,54 +15,59 @@ export interface TourStep {
   description: string;
   /** data-tour attribute value of the real element this step should point at. Omit for a centered, untargeted step (e.g. the welcome step). */
   targetSelector?: string;
-  /** Use this selector instead, on narrow viewports where targetSelector's element is hidden inside a closed sheet/drawer. */
+  /** Use this selector instead on narrow screens, where targetSelector's element is inside a closed sheet. */
   mobileTargetSelector?: string;
 }
 
 export const TOUR_STEPS: TourStep[] = [
   {
     icon: Sparkles,
-    title: "Welcome to Scrapbook Studio",
+    title: "Make a video from your photos and clips",
     description:
-      "Here's a quick, skippable look around before you start building. Each step points at the real button.",
+      "Here's a quick, skippable look around. Pick your photos and videos, choose some music, and export a finished video.",
   },
   {
     icon: ImagePlus,
-    title: "Add your photos and video",
+    title: "Add your photos and videos",
     description:
-      "Tap here to open your Media tab, then tap any photo or video to drop it onto the canvas.",
-    targetSelector: "media-tab",
-    mobileTargetSelector: "panels-button",
-  },
-  {
-    icon: Type,
-    title: "Add text",
-    description:
-      "Tap this to drop a text box onto the canvas. Double-tap it on the canvas anytime to edit the words.",
-    targetSelector: "add-text-button",
-    mobileTargetSelector: "add-text-button-mobile",
-  },
-  {
-    icon: MousePointerClick,
-    title: "Arrange and style anything",
-    description:
-      "Tap anything here to select it and drag to move it. The panel that opens lets you resize, crop, add filters, and more.",
-    targetSelector: "canvas-area",
+      "Import your files in the Media tab, then press Add. Tick several to add them all at once. They play one after another, in order.",
+    targetSelector: "tab-media",
+    mobileTargetSelector: "tools-button",
   },
   {
     icon: Music,
-    title: "Add music",
+    title: "Choose your music",
     description:
-      "Tap this to create an audio track, then add a clip from the built-in music library or upload your own.",
-    targetSelector: "add-audio-track-button",
+      "The Audio tab has your own songs and a built-in music library. Preview a track, then add it. It is cut to fit the length of your video.",
+    targetSelector: "tab-audio",
+    mobileTargetSelector: "tools-button",
+  },
+  {
+    icon: Type,
+    title: "Add text and captions",
+    description:
+      "The Text tab adds titles and captions in ready-made styles. A caption for the selected slide lasts exactly as long as that slide.",
+    targetSelector: "tab-text",
+    mobileTargetSelector: "tools-button",
+  },
+  {
+    icon: Play,
+    title: "Watch it play",
+    description: "The preview shows your video exactly as it will export. Press Space or the play button to watch it through.",
+    targetSelector: "stage",
+  },
+  {
+    icon: Clapperboard,
+    title: "Your timeline",
+    description:
+      "Drag clips to reorder them, drag their edges to trim, and use Split, Duplicate and Delete above it. Click a clip to change how long it shows, its colours or its sound.",
+    targetSelector: "timeline",
   },
   {
     icon: Download,
     title: "Export when you're ready",
-    description:
-      "Tap this to save your scrapbook as an image, GIF, or video, in whatever size fits where you're sharing it.",
+    description: "Save your video in the size that fits where you're sharing it.",
     targetSelector: "export-button",
-    mobileTargetSelector: "export-button-mobile",
   },
 ];
 
