@@ -7,10 +7,12 @@ import {
   fitInsideFrame,
   isStoryClip,
   normalizeStory,
+  storyClips as storyClipsInOrder,
   storyEnd,
 } from "@/lib/story/story";
 import type { CanvasObject, CanvasObjectType } from "@/types/canvas";
 import type { Keyframe } from "@/types/keyframe";
+import type { ObjectExtras, TransitionSpec } from "@/types/object-extras";
 import {
   DEFAULT_PHOTO_ADJUSTMENTS,
   type PhotoAdjustments,
@@ -142,6 +144,15 @@ interface CanvasStore {
     inStory: boolean,
     frame: { width: number; height: number },
   ) => void;
+
+  /** Set (or clear, with null) how a story clip transitions in. */
+  setTransitionIn: (
+    projectId: string,
+    objectId: string,
+    transition: TransitionSpec | null,
+  ) => void;
+  /** Use the same transition between every pair of story clips. */
+  setTransitionForAll: (projectId: string, transition: TransitionSpec | null) => void;
 
   setSelectedIds: (ids: string[]) => void;
   toggleSnapToGrid: () => void;
@@ -588,6 +599,32 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
         },
       })),
 
+    setTransitionIn: (projectId, objectId, transition) =>
+      set((state) => ({
+        objectsByProject: {
+          ...state.objectsByProject,
+          [projectId]: (state.objectsByProject[projectId] ?? []).map((o) =>
+            o.id === objectId ? { ...o, extras: withTransition(o.extras, transition) } : o,
+          ),
+        },
+      })),
+
+    setTransitionForAll: (projectId, transition) =>
+      set((state) => {
+        const objects = state.objectsByProject[projectId] ?? [];
+        const first = storyClipsInOrder(objects)[0]?.id;
+        return {
+          objectsByProject: {
+            ...state.objectsByProject,
+            [projectId]: objects.map((o) =>
+              isStoryClip(o) && o.id !== first
+                ? { ...o, extras: withTransition(o.extras, transition) }
+                : o,
+            ),
+          },
+        };
+      }),
+
     setInStory: (projectId, ids, inStory, frame) =>
       set((state) => {
         const objects = state.objectsByProject[projectId] ?? [];
@@ -626,6 +663,7 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
               if (!isStoryClip(o)) return o;
               const rest = { ...o.extras };
               delete rest.inStory;
+              delete rest.transitionIn;
               return { ...o, extras: rest };
             }),
           },
@@ -638,7 +676,17 @@ export const useCanvasStore = create<CanvasStore>((rawSet, get) => {
     return useCanvasStore((s) => s.objectsByProject[projectId] ?? EMPTY_OBJECTS);
   }
 
-  function upsertKeyframe(
+  function withTransition(
+  extras: ObjectExtras,
+  transition: TransitionSpec | null,
+): ObjectExtras {
+  const next = { ...extras };
+  if (transition) next.transitionIn = transition;
+  else delete next.transitionIn;
+  return next;
+}
+
+function upsertKeyframe(
     object: CanvasObject,
     time: number,
     transform: { x: number; y: number; rotation: number; opacity: number },

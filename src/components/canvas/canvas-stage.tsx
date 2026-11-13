@@ -10,7 +10,9 @@ import { CanvasObjectRenderer } from "@/components/canvas/canvas-object-renderer
 import { GridBackground } from "@/components/canvas/grid-background";
 import { computeSnap, snapToGrid, type GuideLine } from "@/lib/canvas/alignment";
 import { GRID_SIZE, SNAP_THRESHOLD } from "@/lib/canvas/constants";
+import { clipTransitionEffect } from "@/lib/canvas/effects";
 import { getInterpolatedTransform } from "@/lib/canvas/interpolate";
+import { isStoryClip, storyClips, storyTransitionWindows } from "@/lib/story/story";
 import { registerStage } from "@/lib/canvas/stage-registry";
 import { fitViewportToFrame, zoomAtPoint } from "@/lib/canvas/zoom";
 import { useCanvasFrame } from "@/store/use-canvas-frame-store";
@@ -307,6 +309,15 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
     updateObjectsBulk(projectId, patches);
   }, [selectedIds, objects, projectId, updateObjectsBulk, setKeyframeTransform, playheadTime]);
 
+  // Story clips are the "film" underneath everything else: drawn first, in
+  // story order, so each incoming clip sits on top of the one it's
+  // transitioning from, and titles/stickers always stay above the story.
+  const drawOrder = React.useMemo(
+    () => [...storyClips(objects), ...objects.filter((o) => !isStoryClip(o))],
+    [objects],
+  );
+  const transitionWindows = React.useMemo(() => storyTransitionWindows(objects), [objects]);
+
   return (
     <Stage
       ref={stageRef}
@@ -337,10 +348,11 @@ export function CanvasStage({ projectId, width, height }: CanvasStageProps) {
       </Layer>
 
       <Layer>
-        {objects.map((object) => (
+        {drawOrder.map((object) => (
           <CanvasObjectRenderer
             key={object.id}
             object={object}
+            effect={clipTransitionEffect(transitionWindows.get(object.id), playheadTime, frame)}
             isSelected={selectedIds.includes(object.id)}
             onSelect={handleSelect}
             onDragStart={handleObjectDragStart}

@@ -3,6 +3,7 @@
 import { Clapperboard, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { TransitionPicker } from "@/components/timeline/transition-picker";
 import { VisualTimelineClip } from "@/components/timeline/visual-timeline-clip";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import type { CanvasObject } from "@/types/canvas";
@@ -62,16 +63,27 @@ export function StoryTrack({
             Add photos and videos to play them in order
           </button>
         ) : (
-          clips.map((clip) => (
-            <VisualTimelineClip
-              key={clip.id}
-              projectId={projectId}
-              object={clip}
-              pixelsPerSecond={pixelsPerSecond}
-              isSelected={selectedIds.includes(clip.id)}
-              story
-            />
-          ))
+          <>
+            {clips.map((clip) => (
+              <VisualTimelineClip
+                key={clip.id}
+                projectId={projectId}
+                object={clip}
+                pixelsPerSecond={pixelsPerSecond}
+                isSelected={selectedIds.includes(clip.id)}
+                story
+              />
+            ))}
+            {clips.slice(1).map((clip, i) => (
+              <TransitionPicker
+                key={`t-${clip.id}`}
+                projectId={projectId}
+                clip={clip}
+                // Middle of the overlap (or the cut point when there's none).
+                left={((clip.startTime + clips[i].endTime) / 2) * pixelsPerSecond}
+              />
+            ))}
+          </>
         )}
       </div>
     </div>

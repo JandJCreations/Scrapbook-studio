@@ -2,6 +2,7 @@ import * as React from "react";
 import Konva from "konva";
 import { Group, Image as KonvaImage, Rect, Text } from "react-konva";
 
+import { effectNodeProps, NO_EFFECT, type VisualEffect } from "@/lib/canvas/effects";
 import { applyFilterAttrs, getActiveFilters } from "@/lib/canvas/get-active-filters";
 import { getInterpolatedTransform, isObjectVisibleAt } from "@/lib/canvas/interpolate";
 import { roundedRectClip } from "@/lib/canvas/rounded-rect-clip";
@@ -19,6 +20,8 @@ interface CanvasObjectRendererProps {
   onDragMove: (object: CanvasObject, node: Konva.Node) => void;
   onDragEnd: (object: CanvasObject, node: Konva.Node) => void;
   registerNode: (id: string, node: Konva.Node | null) => void;
+  /** Story transition (or animation) being applied at this moment. */
+  effect?: VisualEffect;
 }
 
 export const CanvasObjectRenderer = React.memo(function CanvasObjectRenderer({
@@ -29,6 +32,7 @@ export const CanvasObjectRenderer = React.memo(function CanvasObjectRenderer({
   onDragMove,
   onDragEnd,
   registerNode,
+  effect = NO_EFFECT,
 }: CanvasObjectRendererProps) {
   const image = useImageElement(object.src);
   const imageRef = React.useRef<Konva.Image>(null);
@@ -51,12 +55,16 @@ export const CanvasObjectRenderer = React.memo(function CanvasObjectRenderer({
 
   const commonProps = {
     ref: (node: Konva.Node | null) => registerNode(object.id, node),
-    x: transform.x,
-    y: transform.y,
     width: object.width,
     height: object.height,
-    rotation: transform.rotation,
-    opacity: transform.opacity,
+    ...(effect === NO_EFFECT
+      ? {
+          x: transform.x,
+          y: transform.y,
+          rotation: transform.rotation,
+          opacity: transform.opacity,
+        }
+      : effectNodeProps(transform, object, effect)),
     draggable: !object.locked,
     onClick: (e: Konva.KonvaEventObject<MouseEvent>) =>
       onSelect(object, e.evt.shiftKey),

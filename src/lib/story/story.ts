@@ -1,4 +1,5 @@
 import type { CanvasObject } from "@/types/canvas";
+import type { TransitionSpec } from "@/types/object-extras";
 
 /** Shortest a story clip can be trimmed to, in seconds. */
 export const MIN_STORY_CLIP_SECONDS = 0.5;
@@ -44,7 +45,8 @@ export function normalizeStory(objects: CanvasObject[]): CanvasObject[] {
 
   const placed = new Map<string, { startTime: number; endTime: number }>();
   let cursor = 0;
-  for (const clip of story) {
+  let previousLength = 0;
+  story.forEach((clip, index) => {
     // A story video lasts exactly as long as its trimmed footage at its
     // speed, so trimming or speeding it up in the video panel ripples too.
     const videoLength = videoPlayLength(clip);
@@ -52,9 +54,18 @@ export function normalizeStory(objects: CanvasObject[]): CanvasObject[] {
       MIN_STORY_CLIP_SECONDS,
       videoLength && videoLength > 0 ? videoLength : clip.endTime - clip.startTime,
     );
-    placed.set(clip.id, { startTime: cursor, endTime: cursor + length });
-    cursor += length;
-  }
+    // A transition overlaps this clip with the end of the previous one, so
+    // both are on screen while it plays. Never more than half of either
+    // clip, so a long transition can't swallow a short clip.
+    const overlap =
+      index > 0 && clip.extras?.transitionIn
+        ? Math.min(clip.extras.transitionIn.duration, previousLength / 2, length / 2)
+        : 0;
+    const startTime = cursor - overlap;
+    placed.set(clip.id, { startTime, endTime: startTime + length });
+    cursor = startTime + length;
+    previousLength = length;
+  });
 
   let changed = false;
   const next = objects.map((o) => {
@@ -96,4 +107,40 @@ export function fitInsideFrame(
     width,
     height,
   };
+}
+
+export interface TransitionWindow {
+  type: TransitionSpec["type"];
+  start: number;
+  end: number;
+}
+
+export interface ClipTransitions {
+  in?: TransitionWindow;
+  out?: TransitionWindow;
+}
+
+/**
+ * For each story clip, the window during which it is transitioning in (from
+ * the previous clip) and out (into the next one), derived from the actual
+ * overlap on the timeline.
+ */
+export function storyTransitionWindows(
+  objects: CanvasObject[],
+): Map<string, ClipTransitions> {
+  const result = new Map<string, ClipTransitions>();
+  const story = storyClips(objects);
+  for (let i = 1; i < story.length; i++) {
+    const clip = story[i];
+    const prev = story[i - 1];
+    const spec = clip.extras?.transitionIn;
+    if (!spec) continue;
+    const start = clip.startTime;
+    const end = Math.min(prev.endTime, clip.endTime);
+    if (end - start <= 1e-3) continue;
+    const window = { type: spec.type, start, end };
+    result.set(clip.id, { ...result.get(clip.id), in: window });
+    result.set(prev.id, { ...result.get(prev.id), out: window });
+  }
+  return result;
 }
