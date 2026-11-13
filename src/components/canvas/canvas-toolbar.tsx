@@ -11,7 +11,9 @@ import {
   Magnet,
   Minus,
   Plus,
+  Redo2,
   Type,
+  Undo2,
 } from "lucide-react";
 
 import { Logo } from "@/components/layout/logo";
@@ -39,6 +41,7 @@ import { saveProjectFrame } from "@/lib/sync/project-content-sync";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 import { useCanvasFrame, useCanvasFrameStore } from "@/store/use-canvas-frame-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
+import { useCanRedo, useCanUndo, useHistoryStore } from "@/store/use-history-store";
 import { useProjectStore } from "@/store/use-project-store";
 import { useSettingsStore } from "@/store/use-settings-store";
 
@@ -74,6 +77,10 @@ export function CanvasToolbar({
   const exportOpen = useEditorUiStore((s) => s.exportOpen);
   const setExportOpen = useEditorUiStore((s) => s.setExportOpen);
   const [versionsOpen, setVersionsOpen] = React.useState(false);
+  const undo = useHistoryStore((s) => s.undo);
+  const redo = useHistoryStore((s) => s.redo);
+  const canUndo = useCanUndo(projectId);
+  const canRedo = useCanRedo(projectId);
   const setTourOpen = useEditorUiStore((s) => s.setTourOpen);
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const addText = useAddText({ projectId, stageWidth, stageHeight });
@@ -164,6 +171,40 @@ export function CanvasToolbar({
       </Tooltip>
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-10 lg:size-8"
+              onClick={() => undo(projectId)}
+              disabled={!canUndo}
+              aria-label="Undo"
+            >
+              <Undo2 className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-10 lg:size-8"
+              onClick={() => redo(projectId)}
+              disabled={!canRedo}
+              aria-label="Redo"
+            >
+              <Redo2 className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Redo (Ctrl+Shift+Z)</TooltipContent>
+        </Tooltip>
+
+        <Separator orientation="vertical" className="h-6" />
+
         <Select
           value={activePresetId}
           onValueChange={(id) => {

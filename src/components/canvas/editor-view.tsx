@@ -25,6 +25,7 @@ import { TOUR_SEEN_STORAGE_KEY } from "@/lib/onboarding/tour-steps";
 import { useAudioClips, useAudioStore } from "@/store/use-audio-store";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
+import { useHistoryStore } from "@/store/use-history-store";
 import { useProjectStore } from "@/store/use-project-store";
 
 export function EditorView({ projectId }: { projectId: string }) {
@@ -85,6 +86,40 @@ export function EditorView({ projectId }: { projectId: string }) {
   const showVideoPanel =
     !selectedClip && selectedObject?.type === "video" && !selectedObject.isPlaceholder;
   const showTextPanel = !selectedClip && selectedObject?.type === "text";
+
+  const undo = useHistoryStore((s) => s.undo);
+  const redo = useHistoryStore((s) => s.redo);
+  const resetHistory = useHistoryStore((s) => s.resetHistory);
+
+  // Once a project's content is in place, that's the starting point — the
+  // load itself shouldn't be something you can "undo" back to an empty canvas.
+  React.useEffect(() => {
+    if (contentLoaded) resetHistory(projectId);
+  }, [projectId, contentLoaded, resetHistory]);
+
+  React.useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable)
+      ) {
+        return;
+      }
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo(projectId);
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        redo(projectId);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [projectId, undo, redo]);
 
   React.useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
