@@ -3,7 +3,7 @@ import * as React from "react";
 import { useAudioClips, useAudioTracks } from "@/store/use-audio-store";
 import { useCanvasObjects } from "@/store/use-canvas-store";
 import { useTimelineStore } from "@/store/use-timeline-store";
-import type { AudioClip } from "@/types/audio";
+import { duckFactorAt, duckingRanges, isVoiceoverTrack, type AudioClip } from "@/types/audio";
 
 function clipEnd(clip: AudioClip) {
   return clip.startTime + (clip.trimEnd - clip.trimStart);
@@ -46,6 +46,7 @@ export function useTimelinePlayback(projectId: string) {
     });
 
     const hasSolo = tracks.some((t) => t.solo);
+    const duckRanges = duckingRanges(clips, tracks);
     // Stop at the end of whatever finishes last — music or visuals (the
     // story track, a video, a title) — not just the audio.
     const timelineEnd = Math.max(
@@ -67,11 +68,18 @@ export function useTimelinePlayback(projectId: string) {
       }
 
       useTimelineStore.getState().setPlayheadTime(nextTime);
+      const recording = useTimelineStore.getState().recording;
+      const duck = duckFactorAt(nextTime, duckRanges);
+      if (Math.abs(duck - useTimelineStore.getState().duckFactor) > 0.01) {
+        useTimelineStore.setState({ duckFactor: duck });
+      }
 
       for (const clip of clips) {
         const track = tracks.find((t) => t.id === clip.trackId);
+        // While recording a voiceover, keep the project silent so it isn't
+        // picked up by the microphone.
         const audible =
-          !clip.muted && track && !track.muted && (!hasSolo || track.solo);
+          !recording && !clip.muted && track && !track.muted && (!hasSolo || track.solo);
         const end = clipEnd(clip);
         const inRange = nextTime >= clip.startTime && nextTime < end;
 
@@ -98,6 +106,7 @@ export function useTimelinePlayback(projectId: string) {
           if (clip.fadeOut > 0 && remaining < clip.fadeOut) {
             volume *= remaining / clip.fadeOut;
           }
+          if (!isVoiceoverTrack(track)) volume *= duck;
           el.volume = Math.max(0, Math.min(1, volume));
         } else if (!el.paused) {
           el.pause();

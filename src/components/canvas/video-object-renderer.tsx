@@ -33,6 +33,8 @@ export function VideoObjectRenderer({
   const lastTimeRef = React.useRef<number>(0);
   const timelinePlaying = useTimelineStore((s) => s.isPlaying);
   const playheadTime = useTimelineStore((s) => s.playheadTime);
+  const recording = useTimelineStore((s) => s.recording);
+  const duckFactor = useTimelineStore((s) => s.duckFactor);
 
   React.useEffect(() => {
     const video = videoRef.current;
@@ -55,11 +57,12 @@ export function VideoObjectRenderer({
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    video.volume = adjustments.muted ? 0 : Math.max(0, Math.min(1, adjustments.volume / 100));
-    video.muted = adjustments.muted;
+    const volume = (adjustments.volume / 100) * duckFactor;
+    video.volume = adjustments.muted ? 0 : Math.max(0, Math.min(1, volume));
+    video.muted = adjustments.muted || recording;
     video.playbackRate = adjustments.reversed ? 1 : adjustments.playbackRate;
     video.loop = false;
-  }, [videoRef, adjustments.volume, adjustments.muted, adjustments.playbackRate, adjustments.reversed]);
+  }, [videoRef, adjustments.volume, adjustments.muted, adjustments.playbackRate, adjustments.reversed, recording, duckFactor]);
 
   const hasFilters =
     adjustments.brightness !== 0 ||

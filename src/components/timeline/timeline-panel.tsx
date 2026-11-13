@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ChevronUp, Minus, Pause, Play, Plus, PlusCircle } from "lucide-react";
+import { ChevronDown, ChevronUp, Mic, Minus, Pause, Play, Plus, PlusCircle, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,6 +11,7 @@ import { TimelineRuler } from "@/components/timeline/timeline-ruler";
 import { TimelineTrack } from "@/components/timeline/timeline-track";
 import { VisualTimelineTrack } from "@/components/timeline/visual-timeline-track";
 import { useTimelinePlayback } from "@/hooks/use-timeline-playback";
+import { useVoiceoverRecorder } from "@/hooks/use-voiceover-recorder";
 import { formatDuration } from "@/lib/media/format";
 import { isStoryClip, storyClips } from "@/lib/story/story";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const EMPTY_CLIPS: AudioClip[] = [];
 
 export function TimelinePanel({ projectId }: { projectId: string }) {
   useTimelinePlayback(projectId);
+  const voiceover = useVoiceoverRecorder(projectId);
 
   const tracks = useAudioTracks(projectId);
   const clips = useAudioClips(projectId);
@@ -98,6 +100,24 @@ export function TimelinePanel({ projectId }: { projectId: string }) {
         >
           <PlusCircle className="size-3.5" />
           <span className="hidden sm:inline">Add audio track</span>
+        </Button>
+
+        <Button
+          variant={voiceover.isRecording ? "destructive" : "ghost"}
+          size="sm"
+          className="gap-1.5 text-xs"
+          onClick={() => (voiceover.isRecording ? voiceover.stop() : void voiceover.start())}
+          aria-label={voiceover.isRecording ? "Stop recording voiceover" : "Record voiceover"}
+          title="Record narration from your microphone while the video plays"
+        >
+          {voiceover.isRecording ? (
+            <Square className="size-3.5 fill-current" />
+          ) : (
+            <Mic className="size-3.5" />
+          )}
+          <span className="hidden sm:inline">
+            {voiceover.isRecording ? "Stop recording" : "Voiceover"}
+          </span>
         </Button>
 
         <div className="ml-auto flex items-center gap-1">

@@ -1,5 +1,12 @@
 import { audioBufferToWavBlob } from "@/lib/export/audio-buffer-to-wav";
-import type { AudioClip, AudioTrack } from "@/types/audio";
+import {
+  DUCK_RAMP_SECONDS,
+  DUCKED_VOLUME,
+  duckingRanges,
+  isVoiceoverTrack,
+  type AudioClip,
+  type AudioTrack,
+} from "@/types/audio";
 
 export async function mixdownAudio(
   clips: AudioClip[],
@@ -15,6 +22,8 @@ export async function mixdownAudio(
   });
 
   if (audibleClips.length === 0) return null;
+
+  const duckRanges = duckingRanges(clips, tracks);
 
   const offlineCtx = new OfflineAudioContext(
     2,
@@ -52,7 +61,23 @@ export async function mixdownAudio(
         }
 
         source.connect(gainNode);
-        gainNode.connect(offlineCtx.destination);
+        const track = tracks.find((t) => t.id === clip.trackId);
+        if (duckRanges.length > 0 && !isVoiceoverTrack(track)) {
+          // Music dips under the voiceover, same curve as live playback.
+          const duckNode = offlineCtx.createGain();
+          duckNode.gain.setValueAtTime(1, 0);
+          for (const r of duckRanges) {
+            const downStart = Math.max(0, r.start - DUCK_RAMP_SECONDS);
+            duckNode.gain.setValueAtTime(1, downStart);
+            duckNode.gain.linearRampToValueAtTime(DUCKED_VOLUME, Math.max(downStart, r.start));
+            duckNode.gain.setValueAtTime(DUCKED_VOLUME, r.end);
+            duckNode.gain.linearRampToValueAtTime(1, r.end + DUCK_RAMP_SECONDS);
+          }
+          gainNode.connect(duckNode);
+          duckNode.connect(offlineCtx.destination);
+        } else {
+          gainNode.connect(offlineCtx.destination);
+        }
         source.start(startTime, clip.trimStart, clipDuration);
       } catch {
         // Skip clips that fail to decode rather than aborting the whole export.

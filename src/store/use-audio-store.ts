@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import type { AudioClip, AudioTrack } from "@/types/audio";
+import { isVoiceoverTrack, type AudioClip, type AudioTrack } from "@/types/audio";
 
 const EMPTY_TRACKS: AudioTrack[] = [];
 const EMPTY_CLIPS: AudioClip[] = [];
@@ -27,6 +27,9 @@ interface AudioStore {
   removeTrack: (projectId: string, trackId: string) => void;
   toggleTrackMute: (projectId: string, trackId: string) => void;
   toggleTrackSolo: (projectId: string, trackId: string) => void;
+  updateTrack: (projectId: string, trackId: string, patch: Partial<AudioTrack>) => void;
+  /** The project's voiceover track, created (at the top) if there isn't one. */
+  ensureVoiceoverTrack: (projectId: string) => string;
 
   addClip: (projectId: string, input: AddClipInput) => string;
   updateClip: (
@@ -98,6 +101,37 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
         ),
       },
     })),
+
+  updateTrack: (projectId, trackId, patch) =>
+    set((state) => ({
+      tracksByProject: {
+        ...state.tracksByProject,
+        [projectId]: (state.tracksByProject[projectId] ?? []).map((t) =>
+          t.id === trackId ? { ...t, ...patch } : t,
+        ),
+      },
+    })),
+
+  ensureVoiceoverTrack: (projectId) => {
+    const existing = (get().tracksByProject[projectId] ?? []).find(isVoiceoverTrack);
+    if (existing) return existing.id;
+    const trackId = id();
+    const track: AudioTrack = {
+      id: trackId,
+      name: "Voiceover",
+      muted: false,
+      solo: false,
+      role: "voiceover",
+      duckOthers: true,
+    };
+    set((state) => ({
+      tracksByProject: {
+        ...state.tracksByProject,
+        [projectId]: [track, ...(state.tracksByProject[projectId] ?? [])],
+      },
+    }));
+    return trackId;
+  },
 
   toggleTrackSolo: (projectId, trackId) =>
     set((state) => ({

@@ -296,6 +296,7 @@ export interface Database {
           name: string;
           muted: boolean;
           solo: boolean;
+          extras: unknown;
           sort_order: number;
           created_at: string;
         };
@@ -305,6 +306,7 @@ export interface Database {
           name: string;
           muted?: boolean;
           solo?: boolean;
+          extras?: unknown;
           sort_order?: number;
           created_at?: string;
         };
@@ -314,6 +316,7 @@ export interface Database {
           name?: string;
           muted?: boolean;
           solo?: boolean;
+          extras?: unknown;
           sort_order?: number;
           created_at?: string;
         };

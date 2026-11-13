@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2, Volume2, VolumeX } from "lucide-react";
+import { AudioLines, Mic, Trash2, Volume2, VolumeX } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +12,7 @@ import { AddAudioPopover } from "@/components/timeline/add-audio-popover";
 import { TimelineClip } from "@/components/timeline/timeline-clip";
 import { cn } from "@/lib/utils";
 import { useAudioStore } from "@/store/use-audio-store";
-import type { AudioClip, AudioTrack } from "@/types/audio";
+import { isVoiceoverTrack, type AudioClip, type AudioTrack } from "@/types/audio";
 
 const TRACK_HEIGHT = 56;
 
@@ -36,13 +36,36 @@ export function TimelineTrack({
   const toggleTrackMute = useAudioStore((s) => s.toggleTrackMute);
   const toggleTrackSolo = useAudioStore((s) => s.toggleTrackSolo);
   const removeTrack = useAudioStore((s) => s.removeTrack);
+  const updateTrack = useAudioStore((s) => s.updateTrack);
+  const voiceover = isVoiceoverTrack(track);
+  const ducking = voiceover && track.duckOthers !== false;
 
   return (
     <div className="flex border-b border-border" style={{ height: TRACK_HEIGHT }}>
       <div className="flex w-40 shrink-0 items-center gap-1 border-r border-border bg-background px-2">
+        {voiceover && <Mic className="size-3.5 shrink-0 text-rose-500" />}
         <span className="min-w-0 flex-1 truncate text-xs font-medium">
           {track.name}
         </span>
+        {voiceover && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={ducking ? "secondary" : "ghost"}
+                size="icon"
+                className="size-6"
+                aria-pressed={ducking}
+                aria-label={ducking ? "Stop lowering music under voice" : "Lower music under voice"}
+                onClick={() => updateTrack(projectId, track.id, { duckOthers: !ducking })}
+              >
+                <AudioLines className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {ducking ? "Music dips while you talk (on)" : "Music dips while you talk (off)"}
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

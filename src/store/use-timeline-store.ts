@@ -7,6 +7,14 @@ export const DEFAULT_PIXELS_PER_SECOND = 40;
 interface TimelineStore {
   playheadTime: number;
   isPlaying: boolean;
+  /** A voiceover is being recorded — project audio stays silent meanwhile. */
+  recording: boolean;
+  /**
+   * Volume multiplier for non-voiceover audio right now (1 = full, lower
+   * while a voiceover speaks). Kept here so video sound ducks too.
+   */
+  duckFactor: number;
+  setRecording: (recording: boolean) => void;
   pixelsPerSecond: number;
 
   setPlayheadTime: (time: number) => void;
@@ -21,6 +29,9 @@ interface TimelineStore {
 export const useTimelineStore = create<TimelineStore>((set) => ({
   playheadTime: 0,
   isPlaying: false,
+  recording: false,
+  duckFactor: 1,
+  setRecording: (recording) => set({ recording }),
   pixelsPerSecond: DEFAULT_PIXELS_PER_SECOND,
 
   setPlayheadTime: (time) => set({ playheadTime: Math.max(0, time) }),

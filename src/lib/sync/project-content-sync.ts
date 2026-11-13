@@ -129,7 +129,18 @@ function canvasObjectToRow(
 }
 
 function rowToAudioTrack(row: AudioTrackRow): AudioTrack {
-  return { id: row.id, name: row.name, muted: row.muted, solo: row.solo };
+  const extras = ((row as { extras?: unknown }).extras ?? {}) as {
+    role?: "voiceover";
+    duckOthers?: boolean;
+  };
+  return {
+    id: row.id,
+    name: row.name,
+    muted: row.muted,
+    solo: row.solo,
+    ...(extras.role ? { role: extras.role } : {}),
+    ...(extras.duckOthers !== undefined ? { duckOthers: extras.duckOthers } : {}),
+  };
 }
 
 function audioTrackToRow(
@@ -143,6 +154,10 @@ function audioTrackToRow(
     name: track.name,
     muted: track.muted,
     solo: track.solo,
+    extras: {
+      ...(track.role ? { role: track.role } : {}),
+      ...(track.duckOthers !== undefined ? { duckOthers: track.duckOthers } : {}),
+    },
     sort_order: sortOrder,
   };
 }
@@ -192,7 +207,7 @@ function audioClipToRow(projectId: string, clip: AudioClip): AudioClipInsert {
 // upsert that includes it fails. Rather than break saving entirely, fall back
 // to saving without it (newer settings then just don't persist yet) and warn
 // once so it's obvious what's missing.
-let extrasColumnMissing = false;
+const extrasColumnMissing = new Set<string>();
 
 function isMissingExtrasColumn(error: { code?: string; message?: string }) {
   return (
@@ -201,27 +216,39 @@ function isMissingExtrasColumn(error: { code?: string; message?: string }) {
   );
 }
 
-async function upsertCanvasObjects(
+async function upsertWithExtras<T extends { extras?: unknown }>(
   supabase: ReturnType<typeof createClient>,
-  rows: CanvasObjectInsert[],
-) {
-  const payload = extrasColumnMissing
+  table: "canvas_objects" | "audio_tracks",
+  rows: T[],
+  migration: string,
+): Promise<void> {
+  const skip = extrasColumnMissing.has(table);
+  const payload = skip
     ? rows.map((row) => {
         const rest = { ...row };
         delete rest.extras;
         return rest;
       })
     : rows;
-  const { error } = await supabase.from("canvas_objects").upsert(payload);
+  // The two tables have different row types; the payload matches whichever
+  // table was named.
+  const { error } = await supabase.from(table).upsert(payload as never);
   if (!error) return;
-  if (!extrasColumnMissing && isMissingExtrasColumn(error)) {
-    extrasColumnMissing = true;
+  if (!skip && isMissingExtrasColumn(error)) {
+    extrasColumnMissing.add(table);
     console.warn(
-      "canvas_objects.extras is missing — run supabase/migrations/0006_object_extras.sql. Saving without story/transition/animation settings for now.",
+      `${table}.extras is missing — run supabase/migrations/${migration}. Saving without the newer settings for now.`,
     );
-    return upsertCanvasObjects(supabase, rows);
+    return upsertWithExtras(supabase, table, rows, migration);
   }
   throw error;
+}
+
+function upsertCanvasObjects(
+  supabase: ReturnType<typeof createClient>,
+  rows: CanvasObjectInsert[],
+) {
+  return upsertWithExtras(supabase, "canvas_objects", rows, "0006_object_extras.sql");
 }
 
 async function deleteMissing(
@@ -308,8 +335,7 @@ export async function saveProjectContent(
 
   const trackRows = tracks.map((t, i) => audioTrackToRow(projectId, t, i));
   if (trackRows.length > 0) {
-    const { error } = await supabase.from("audio_tracks").upsert(trackRows);
-    if (error) throw error;
+    await upsertWithExtras(supabase, "audio_tracks", trackRows, "0007_audio_track_extras.sql");
   }
   await deleteMissing(
     supabase,
