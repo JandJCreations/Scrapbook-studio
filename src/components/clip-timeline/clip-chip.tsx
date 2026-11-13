@@ -106,7 +106,12 @@ export const ClipChip = React.memo(function ClipChip({
           />
         </>
       )}
-      <span className="relative z-10 block truncate leading-tight [text-shadow:0_1px_2px_rgb(0_0_0/0.8)]">
+      {/* The round transition button sits on each cut, half over the clip after it: the name starts past it. */}
+      <span
+        className={`relative z-10 block truncate leading-tight [text-shadow:0_1px_2px_rgb(0_0_0/0.8)] ${
+          clip.kind === "image" || clip.kind === "video" ? "pl-2.5" : ""
+        }`}
+      >
         {clipLabel(clip)}
       </span>
     </button>

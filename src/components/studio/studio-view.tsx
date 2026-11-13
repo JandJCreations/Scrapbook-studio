@@ -32,6 +32,7 @@ import { useStudioTheme } from "@/hooks/use-studio-theme";
 import { useTimelineSync } from "@/hooks/use-timeline-sync";
 import { musicMediaId } from "@/lib/audio/music-keys";
 import { buildMontage } from "@/lib/editor/montage";
+import { refitToFrame } from "@/lib/timeline/refit";
 import { videoEnd } from "@/lib/timeline/clip-math";
 import { MUSIC_LIBRARY, type MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
 import type { MediaDragPayload } from "@/lib/dom/media-drag";
@@ -98,6 +99,14 @@ export function StudioView({ env }: { env: StudioEnv }) {
   useStudioTheme();
   const { status, frame, setFrame, reload } = useTimelineSync(env.projectId, env.storage);
   const project = useClipProjectStore(selectProject);
+  // The frame shape each side of a shape change was laid out for, so undo and redo can restore it.
+  const frameFor = React.useRef(new WeakMap<TimelineProject, FrameSize>());
+  React.useEffect(() => {
+    const wanted = frameFor.current.get(project);
+    if (!wanted || !frame || (wanted.width === frame.width && wanted.height === frame.height)) return;
+    setFrame(wanted);
+    env.saveFrame(wanted).catch(() => setFrame(frame));
+  }, [project, frame, setFrame, env]);
   const canUndo = useClipProjectStore(selectCanUndo);
   const canRedo = useClipProjectStore(selectCanRedo);
   const selectedIds = useClipProjectStore((s) => s.selectedClipIds);
@@ -437,11 +446,25 @@ export function StudioView({ env }: { env: StudioEnv }) {
     useClipProjectStore.getState().apply(() => restored);
     useClipProjectStore.getState().setSelectedClipIds([]);
     if (!frame || frame.width !== restoredFrame.width || frame.height !== restoredFrame.height) {
-      changeFrame(restoredFrame);
+      saveFrame(restoredFrame);
     }
   }
 
+  /** A new shape from the toolbar or the project panel: pictures and text move with it. */
   function changeFrame(preset: { width: number; height: number }) {
+    if (frame && (frame.width !== preset.width || frame.height !== preset.height)) {
+      const from = frame;
+      const store = useClipProjectStore.getState();
+      const before = store.history.present;
+      store.apply((current) => refitToFrame(current, from, preset));
+      // Undo and redo of this step bring the shape back with the layout.
+      frameFor.current.set(before, from);
+      frameFor.current.set(useClipProjectStore.getState().history.present, preset);
+    }
+    saveFrame(preset);
+  }
+
+  function saveFrame(preset: { width: number; height: number }) {
     const previous = frame;
     setFrame(preset);
     env.saveFrame(preset).catch(() => {

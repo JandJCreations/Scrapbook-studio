@@ -2,50 +2,50 @@
 
 import { motion } from "framer-motion";
 import {
-  Images,
-  Layers,
-  Music,
+  Download,
+  Mic,
   Palette,
-  Sparkles,
-  Video,
+  Scissors,
+  Type,
+  Wand2,
 } from "lucide-react";
 
 const FEATURES = [
   {
-    icon: Layers,
-    title: "Infinite canvas",
+    icon: Wand2,
+    title: "A video in one click",
     description:
-      "Pan and zoom across an unlimited workspace. Layer photos, video, text, and stickers exactly where memories belong.",
+      "Tick your photos and press Make a video: they're timed, gently animated and joined with transitions, with a title and a song underneath.",
   },
   {
-    icon: Video,
-    title: "Video editing built in",
+    icon: Scissors,
+    title: "A real timeline",
     description:
-      "Trim, crop, and layer video clips directly on the canvas — no need to leave the app to edit footage.",
+      "Trim, split, duplicate and reorder clips on video, overlay and audio lanes, with undo for every step.",
   },
   {
-    icon: Music,
-    title: "Audio timelines",
+    icon: Type,
+    title: "Titles and captions",
     description:
-      "Add narration and music with a multi-track timeline, complete with fades, trims, and waveform scrubbing.",
-  },
-  {
-    icon: Images,
-    title: "Powerful photo tools",
-    description:
-      "Crop, filter, and retouch images with a full editing panel — brightness, blend modes, borders, and more.",
+      "Ready-made text styles that fade in and out, placed at the top, middle or bottom of the picture.",
   },
   {
     icon: Palette,
-    title: "Stickers & decorations",
+    title: "Looks and filters",
     description:
-      "Washi tape, frames, torn paper, and textures to make every page feel handmade — or upload your own.",
+      "Vivid, vintage, warm, noir and more, plus brightness, contrast and colour for every photo and clip.",
   },
   {
-    icon: Sparkles,
-    title: "Cinematic export",
+    icon: Mic,
+    title: "Music and voiceover",
     description:
-      "Export to PNG, PDF, GIF, or MP4 up to 4K, ready to share or print.",
+      "Pick a song from the library or bring your own, then record your voice over the top. The music dips while you talk.",
+  },
+  {
+    icon: Download,
+    title: "Landscape, portrait or square",
+    description:
+      "Switch the shape for any screen and everything moves with it. Export MP4, MOV, WebM or GIF with sound, up to 4K.",
   },
 ];
 
@@ -57,8 +57,8 @@ export function FeatureGrid() {
           Everything you need to tell your story
         </h2>
         <p className="mt-4 text-balance text-muted-foreground">
-          Scrapbook Studio combines a design canvas, video editor, and audio
-          mixer into one focused creative tool.
+          Scrapbook Studio brings quick, friendly video editing, titles,
+          music and voiceover together in one place.
         </p>
       </div>
 
