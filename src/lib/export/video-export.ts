@@ -3,6 +3,7 @@ import type Konva from "konva";
 
 import { captureStageFrame, waitForNextFrame } from "@/lib/export/capture-frame";
 import { getFfmpeg } from "@/lib/export/ffmpeg-client";
+import { waitForPendingSeeks } from "@/lib/canvas/video-seek-registry";
 
 export type AnimatedFormat = "gif" | "mp4" | "mov" | "webm";
 
@@ -40,6 +41,10 @@ export async function exportAnimated(
   for (let i = 0; i < totalFrames; i++) {
     setPlayheadTime(i / fps);
     await waitForNextFrame();
+    await waitForNextFrame();
+    // Videos seek asynchronously — wait until each one is on the right frame
+    // for this moment, then let the canvas redraw before capturing.
+    await waitForPendingSeeks();
     await waitForNextFrame();
 
     const dataUrl = captureStageFrame(stage, {

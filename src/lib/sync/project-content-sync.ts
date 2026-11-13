@@ -4,6 +4,7 @@ import { getSignedUrls } from "@/lib/supabase/storage";
 import type { CanvasObject } from "@/types/canvas";
 import type { AudioClip, AudioTrack } from "@/types/audio";
 import type { Keyframe } from "@/types/keyframe";
+import type { ObjectExtras } from "@/types/object-extras";
 import type { PhotoAdjustments } from "@/types/photo-adjustments";
 import type { VideoAdjustments } from "@/types/video-adjustments";
 import type { TextAdjustments } from "@/types/text-adjustments";
@@ -89,6 +90,7 @@ function rowToCanvasObject(row: CanvasObjectRow): CanvasObject {
     fadeIn: row.fade_in,
     fadeOut: row.fade_out,
     keyframes: (row.keyframes as Keyframe[] | null) ?? [],
+    extras: ((row as { extras?: unknown }).extras as ObjectExtras | null) ?? {},
   };
 }
 
@@ -121,6 +123,7 @@ function canvasObjectToRow(
     fade_in: object.fadeIn,
     fade_out: object.fadeOut,
     keyframes: object.keyframes,
+    extras: object.extras ?? {},
     sort_order: sortOrder,
   };
 }
@@ -183,6 +186,42 @@ function audioClipToRow(projectId: string, clip: AudioClip): AudioClipInsert {
     muted: clip.muted,
     waveform_peaks: clip.waveformPeaks,
   };
+}
+
+// Until migration 0006 is run, the `extras` column doesn't exist and any
+// upsert that includes it fails. Rather than break saving entirely, fall back
+// to saving without it (newer settings then just don't persist yet) and warn
+// once so it's obvious what's missing.
+let extrasColumnMissing = false;
+
+function isMissingExtrasColumn(error: { code?: string; message?: string }) {
+  return (
+    (error.code === "PGRST204" || error.code === "42703") &&
+    (error.message ?? "").includes("extras")
+  );
+}
+
+async function upsertCanvasObjects(
+  supabase: ReturnType<typeof createClient>,
+  rows: CanvasObjectInsert[],
+) {
+  const payload = extrasColumnMissing
+    ? rows.map((row) => {
+        const rest = { ...row };
+        delete rest.extras;
+        return rest;
+      })
+    : rows;
+  const { error } = await supabase.from("canvas_objects").upsert(payload);
+  if (!error) return;
+  if (!extrasColumnMissing && isMissingExtrasColumn(error)) {
+    extrasColumnMissing = true;
+    console.warn(
+      "canvas_objects.extras is missing — run supabase/migrations/0006_object_extras.sql. Saving without story/transition/animation settings for now.",
+    );
+    return upsertCanvasObjects(supabase, rows);
+  }
+  throw error;
 }
 
 async function deleteMissing(
@@ -258,8 +297,7 @@ export async function saveProjectContent(
 
   const objectRows = objects.map((o, i) => canvasObjectToRow(projectId, o, i));
   if (objectRows.length > 0) {
-    const { error } = await supabase.from("canvas_objects").upsert(objectRows);
-    if (error) throw error;
+    await upsertCanvasObjects(supabase, objectRows);
   }
   await deleteMissing(
     supabase,

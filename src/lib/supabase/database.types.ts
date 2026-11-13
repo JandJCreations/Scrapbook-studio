@@ -224,6 +224,7 @@ export interface Database {
           fade_in: number;
           fade_out: number;
           keyframes: unknown;
+          extras: unknown;
           sort_order: number;
           created_at: string;
           updated_at: string;
@@ -252,6 +253,7 @@ export interface Database {
           fade_in?: number;
           fade_out?: number;
           keyframes?: unknown;
+          extras?: unknown;
           sort_order?: number;
           created_at?: string;
           updated_at?: string;
@@ -280,6 +282,7 @@ export interface Database {
           fade_in?: number;
           fade_out?: number;
           keyframes?: unknown;
+          extras?: unknown;
           sort_order?: number;
           created_at?: string;
           updated_at?: string;

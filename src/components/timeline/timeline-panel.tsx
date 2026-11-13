@@ -6,11 +6,13 @@ import { ChevronDown, ChevronUp, Minus, Pause, Play, Plus, PlusCircle } from "lu
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { StoryTrack } from "@/components/timeline/story-track";
 import { TimelineRuler } from "@/components/timeline/timeline-ruler";
 import { TimelineTrack } from "@/components/timeline/timeline-track";
 import { VisualTimelineTrack } from "@/components/timeline/visual-timeline-track";
 import { useTimelinePlayback } from "@/hooks/use-timeline-playback";
 import { formatDuration } from "@/lib/media/format";
+import { isStoryClip, storyClips } from "@/lib/story/story";
 import { cn } from "@/lib/utils";
 import { useAudioClips, useAudioStore, useAudioTracks } from "@/store/use-audio-store";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
@@ -32,7 +34,8 @@ export function TimelinePanel({ projectId }: { projectId: string }) {
   const objects = useCanvasObjects(projectId);
   const selectedIds = useCanvasStore((s) => s.selectedIds);
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
-  const visualRows = [...objects].reverse();
+  const story = React.useMemo(() => storyClips(objects), [objects]);
+  const visualRows = objects.filter((o) => !isStoryClip(o)).reverse();
 
   const collapsed = useEditorUiStore((s) => s.timelineCollapsed);
   const toggleCollapsed = useEditorUiStore((s) => s.toggleTimelineCollapsed);
@@ -144,9 +147,17 @@ export function TimelinePanel({ projectId }: { projectId: string }) {
             </div>
           </div>
 
+          <StoryTrack
+            projectId={projectId}
+            clips={story}
+            pixelsPerSecond={pixelsPerSecond}
+            selectedIds={selectedIds}
+            timelineWidth={timelineWidth}
+          />
+
           {visualRows.length === 0 ? (
             <div className="flex h-10 items-center border-b border-border px-3 text-xs text-muted-foreground">
-              No layers yet
+              No overlay layers yet
             </div>
           ) : (
             visualRows.map((object) => (

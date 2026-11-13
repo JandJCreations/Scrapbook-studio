@@ -3,7 +3,11 @@ import Konva from "konva";
 import { Group, Image as KonvaImage, Rect } from "react-konva";
 
 import { useVideoElement } from "@/hooks/use-video-element";
+import { isObjectVisibleAt } from "@/lib/canvas/interpolate";
 import { roundedRectClip } from "@/lib/canvas/rounded-rect-clip";
+import { seekVideo } from "@/lib/canvas/video-seek-registry";
+import { videoSourceTimeAt } from "@/lib/canvas/video-time";
+import { useTimelineStore } from "@/store/use-timeline-store";
 import { useVideoPlaybackStore } from "@/store/use-video-playback-store";
 import type { CanvasObject } from "@/types/canvas";
 import type { VideoAdjustments } from "@/types/video-adjustments";
@@ -27,6 +31,8 @@ export function VideoObjectRenderer({
   const adjustments = object.videoAdjustments as VideoAdjustments;
   const rafRef = React.useRef<number | null>(null);
   const lastTimeRef = React.useRef<number>(0);
+  const timelinePlaying = useTimelineStore((s) => s.isPlaying);
+  const playheadTime = useTimelineStore((s) => s.playheadTime);
 
   React.useEffect(() => {
     const video = videoRef.current;
@@ -142,6 +148,42 @@ export function VideoObjectRenderer({
     adjustments.trimEnd,
     adjustments.loop,
   ]);
+
+  // Follow the main timeline: while it plays, the video plays in step with
+  // the playhead (so story clips play one after another); while it's paused
+  // or being scrubbed — and during export, which steps the playhead frame by
+  // frame — the video shows exactly the frame for the playhead position.
+  // The per-video play button above still works when the timeline is idle.
+  React.useEffect(() => {
+    const video = videoRef.current;
+    const node = imageRef.current;
+    if (!video || !ready) return;
+    const redraw = () => {
+      if (hasFilters && node) node.cache();
+      node?.getLayer()?.batchDraw();
+    };
+    const visible = isObjectVisibleAt(object, playheadTime);
+    const target = videoSourceTimeAt(object, playheadTime);
+
+    if (timelinePlaying) {
+      if (!visible) {
+        if (!video.paused) video.pause();
+        return;
+      }
+      if (adjustments.reversed) {
+        void seekVideo(video, target).then(redraw);
+        return;
+      }
+      if (Math.abs(video.currentTime - target) > 0.3) video.currentTime = target;
+      if (video.paused) void video.play().catch(() => {});
+      redraw();
+      return;
+    }
+
+    if (isPlaying) return; // previewing this one video on its own
+    if (!video.paused) video.pause();
+    if (visible) void seekVideo(video, target).then(redraw);
+  }, [videoRef, ready, object, playheadTime, timelinePlaying, isPlaying, adjustments.reversed, hasFilters]);
 
   const radius = Math.min(RADIUS, object.width / 2, object.height / 2);
 

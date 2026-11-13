@@ -9,7 +9,9 @@ import { MediaUploadButton } from "@/components/media/media-upload-button";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DEFAULT_OBJECT_SIZE } from "@/lib/canvas/constants";
+import { fitInsideFrame } from "@/lib/story/story";
 import { cn } from "@/lib/utils";
+import { useCanvasFrame } from "@/store/use-canvas-frame-store";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 import { useEditorUiStore } from "@/store/use-editor-ui-store";
 import { useMediaStore } from "@/store/use-media-store";
@@ -46,6 +48,9 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
   const fillTargetObjectId = useEditorUiStore((s) => s.fillTargetObjectId);
   const clearFillTarget = useEditorUiStore((s) => s.clearFillTarget);
   const setSidebarOpen = useEditorUiStore((s) => s.setSidebarOpen);
+  const placement = useEditorUiStore((s) => s.mediaPlacement);
+  const setPlacement = useEditorUiStore((s) => s.setMediaPlacement);
+  const frame = useCanvasFrame(projectId);
 
   const [selectMode, setSelectMode] = React.useState(false);
   const [selectedMediaIds, setSelectedMediaIds] = React.useState<Set<string>>(new Set());
@@ -85,6 +90,34 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
   // batch add fans items out diagonally instead of stacking them exactly on
   // top of each other. Returns the new object's id so callers can select
   // everything they just placed together.
+  // Story placement: appended to the end of the story track and fitted
+  // inside the frame (whole photo visible), sized properly once the real
+  // aspect ratio is known — same instant-then-correct approach as below.
+  function addItemToStory(item: MediaItem): string {
+    const initial = fitInsideFrame({ width: 1, height: 1 }, frame);
+    const newId = addObject(projectId, {
+      type: item.type as "image" | "video",
+      mediaId: item.id,
+      src: item.type === "video" ? (item.thumbnailUrl ?? item.url) : item.url,
+      videoSrc: item.type === "video" ? item.url : undefined,
+      duration: item.duration ?? undefined,
+      name: item.name,
+      ...initial,
+      inStory: true,
+    });
+    loadImageDimensions(item.thumbnailUrl ?? item.url)
+      .then((natural) => {
+        if (natural.width <= 0 || natural.height <= 0) return;
+        updateObject(projectId, newId, fitInsideFrame(natural, frame));
+      })
+      .catch(() => {});
+    return newId;
+  }
+
+  function addItem(item: MediaItem, index: number): string {
+    return placement === "story" ? addItemToStory(item) : addItemToCanvas(item, index);
+  }
+
   function addItemToCanvas(item: MediaItem, index: number): string {
     const stagger = (STAGGER_SCREEN_PX * index) / viewport.scale;
     const worldCenterX = (-viewport.x + stageWidth / 2) / viewport.scale + stagger;
@@ -159,14 +192,14 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
       return;
     }
 
-    const newId = addItemToCanvas(item, 0);
+    const newId = addItem(item, 0);
     setSelectedIds([newId]);
   }
 
   function handleAddSelected() {
     const toAdd = placeable.filter((i) => i.status === "ready" && selectedMediaIds.has(i.id));
     if (toAdd.length === 0) return;
-    const newIds = toAdd.map((item, index) => addItemToCanvas(item, index));
+    const newIds = toAdd.map((item, index) => addItem(item, index));
     // Selecting everything just placed lets you immediately drag, nudge, or
     // batch-edit the whole group together via the selection toolbar —
     // picking several media items should let you work with them as a set,
@@ -206,7 +239,7 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
           disabled={selectedMediaIds.size === 0}
           onClick={handleAddSelected}
         >
-          Add to canvas
+          {placement === "story" ? "Add to story" : "Add to canvas"}
         </Button>
         <Button
           variant="ghost"
@@ -263,6 +296,44 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
           <MediaUploadButton folderId={null} />
         </div>
       </div>
+      {!fillTarget && (
+        <div className="px-2 pt-2">
+          <div
+            role="radiogroup"
+            aria-label="Where new media goes"
+            className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1 text-xs"
+          >
+            {(
+              [
+                { value: "story", label: "Story", hint: "Plays in order, fills the frame" },
+                { value: "canvas", label: "Canvas", hint: "Place freely, collage-style" },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={placement === option.value}
+                title={option.hint}
+                onClick={() => setPlacement(option.value)}
+                className={cn(
+                  "rounded px-2 py-1 font-medium transition-colors",
+                  placement === option.value
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 px-0.5 text-[11px] text-muted-foreground">
+            {placement === "story"
+              ? "Tap to add to the end of your story. Clips play one after another."
+              : "Tap to place on the canvas, then move and resize freely."}
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-2 p-2">
         {placeable.map((item) => {
           const isSelected = selectedMediaIds.has(item.id);
@@ -281,7 +352,9 @@ export function MediaPanel({ projectId, stageWidth, stageHeight }: MediaPanelPro
                 item.status === "ready"
                   ? selectMode
                     ? `Select "${item.name}"`
-                    : `Add "${item.name}" to canvas`
+                    : placement === "story"
+                      ? `Add "${item.name}" to the story`
+                      : `Add "${item.name}" to canvas`
                   : item.status === "error"
                     ? item.error
                     : "Uploading…"

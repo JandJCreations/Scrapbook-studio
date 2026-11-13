@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { useAudioClips, useAudioTracks } from "@/store/use-audio-store";
+import { useCanvasObjects } from "@/store/use-canvas-store";
 import { useTimelineStore } from "@/store/use-timeline-store";
 import type { AudioClip } from "@/types/audio";
 
@@ -12,6 +13,7 @@ export function useTimelinePlayback(projectId: string) {
   const isPlaying = useTimelineStore((s) => s.isPlaying);
   const clips = useAudioClips(projectId);
   const tracks = useAudioTracks(projectId);
+  const objects = useCanvasObjects(projectId);
   const audioElementsRef = React.useRef(new Map<string, HTMLAudioElement>());
   const rafRef = React.useRef<number | null>(null);
   const lastTsRef = React.useRef<number | null>(null);
@@ -44,9 +46,11 @@ export function useTimelinePlayback(projectId: string) {
     });
 
     const hasSolo = tracks.some((t) => t.solo);
-    const timelineEnd = clips.reduce(
-      (max, c) => Math.max(max, clipEnd(c)),
-      0,
+    // Stop at the end of whatever finishes last — music or visuals (the
+    // story track, a video, a title) — not just the audio.
+    const timelineEnd = Math.max(
+      clips.reduce((max, c) => Math.max(max, clipEnd(c)), 0),
+      objects.reduce((max, o) => Math.max(max, o.endTime), 0),
     );
 
     function tick(ts: number) {
@@ -109,5 +113,5 @@ export function useTimelinePlayback(projectId: string) {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [isPlaying, clips, tracks]);
+  }, [isPlaying, clips, tracks, objects]);
 }

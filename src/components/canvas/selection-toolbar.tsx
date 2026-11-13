@@ -5,6 +5,7 @@ import {
   ArrowUpToLine,
   ChevronDown,
   ChevronUp,
+  Clapperboard,
   Copy,
   Group as GroupIcon,
   Lock,
@@ -20,6 +21,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { isStoryClip } from "@/lib/story/story";
+import { useCanvasFrame } from "@/store/use-canvas-frame-store";
 import { useCanvasObjects, useCanvasStore } from "@/store/use-canvas-store";
 
 interface SelectionToolbarProps {
@@ -36,6 +39,8 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
   const toggleLock = useCanvasStore((s) => s.toggleLock);
   const group = useCanvasStore((s) => s.group);
   const ungroup = useCanvasStore((s) => s.ungroup);
+  const setInStory = useCanvasStore((s) => s.setInStory);
+  const frame = useCanvasFrame(projectId);
 
   if (selectedIds.length === 0) return null;
 
@@ -43,6 +48,8 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
   const allLocked = selectedObjects.every((o) => o.locked);
   const canGroup = selectedObjects.length > 1;
   const canUngroup = selectedObjects.some((o) => o.groupId !== null);
+  const media = selectedObjects.filter((o) => o.type !== "text" && !o.isPlaceholder);
+  const allInStory = media.length > 0 && media.every(isStoryClip);
 
   return (
     // z-[60]: the edit panel that opens alongside this (almost always, since
@@ -90,6 +97,33 @@ export function SelectionToolbar({ projectId }: SelectionToolbarProps) {
         </TooltipTrigger>
         <TooltipContent>{allLocked ? "Unlock" : "Lock"}</TooltipContent>
       </Tooltip>
+
+      {media.length > 0 && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={allInStory ? "secondary" : "ghost"}
+              size="icon"
+              className="size-10 shrink-0 lg:size-8"
+              aria-label={allInStory ? "Take out of story" : "Add to story"}
+              aria-pressed={allInStory}
+              onClick={() =>
+                setInStory(
+                  projectId,
+                  media.map((o) => o.id),
+                  !allInStory,
+                  frame,
+                )
+              }
+            >
+              <Clapperboard className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {allInStory ? "Take out of story" : "Add to story (plays in order)"}
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       <Separator orientation="vertical" className="h-6 shrink-0" />
 

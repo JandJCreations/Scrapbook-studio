@@ -19,6 +19,11 @@ interface EditorUiStore {
   fillTargetObjectId: string | null;
   openMediaFillFor: (objectId: string) => void;
   clearFillTarget: () => void;
+  // Where tapping a photo/video in the Media panel puts it: the story track
+  // (plays in order, fills the frame) or loose on the canvas (collage-style).
+  mediaPlacement: "story" | "canvas";
+  setMediaPlacement: (placement: "story" | "canvas") => void;
+  openMediaForStory: () => void;
 }
 
 export const useEditorUiStore = create<EditorUiStore>((set) => ({
@@ -38,4 +43,13 @@ export const useEditorUiStore = create<EditorUiStore>((set) => ({
   openMediaFillFor: (objectId) =>
     set({ fillTargetObjectId: objectId, sidebarOpen: true, sidebarTab: "media" }),
   clearFillTarget: () => set({ fillTargetObjectId: null }),
+  mediaPlacement: "story",
+  setMediaPlacement: (placement) => set({ mediaPlacement: placement }),
+  openMediaForStory: () =>
+    set({
+      mediaPlacement: "story",
+      fillTargetObjectId: null,
+      sidebarOpen: true,
+      sidebarTab: "media",
+    }),
 }));

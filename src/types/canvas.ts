@@ -1,4 +1,5 @@
 import type { Keyframe } from "@/types/keyframe";
+import type { ObjectExtras } from "@/types/object-extras";
 import type { PhotoAdjustments } from "@/types/photo-adjustments";
 import type { TextAdjustments } from "@/types/text-adjustments";
 import type { VideoAdjustments } from "@/types/video-adjustments";
@@ -33,4 +34,7 @@ export interface CanvasObject {
   fadeIn: number;
   fadeOut: number;
   keyframes: Keyframe[];
+
+  // Newer optional settings (story track, transitions, animations...).
+  extras: ObjectExtras;
 }

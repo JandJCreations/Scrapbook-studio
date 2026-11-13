@@ -15,6 +15,11 @@ interface VisualTimelineClipProps {
   object: CanvasObject;
   pixelsPerSecond: number;
   isSelected: boolean;
+  /**
+   * On the story track the clip's position is managed for it (clips sit end
+   * to end), so dragging reorders and only the right edge trims.
+   */
+  story?: boolean;
 }
 
 type DragMode =
@@ -28,6 +33,7 @@ export const VisualTimelineClip = React.memo(function VisualTimelineClip({
   object,
   pixelsPerSecond,
   isSelected,
+  story = false,
 }: VisualTimelineClipProps) {
   const updateObject = useCanvasStore((s) => s.updateObject);
   const setSelectedIds = useCanvasStore((s) => s.setSelectedIds);
@@ -59,11 +65,27 @@ export const VisualTimelineClip = React.memo(function VisualTimelineClip({
         );
         updateObject(projectId, object.id, { startTime: newStart });
       } else if (drag.kind === "trim-right") {
-        const newEnd = Math.max(
+        let newEnd = Math.max(
           object.startTime + MIN_CLIP_SECONDS,
           drag.originEnd + dxSeconds,
         );
-        updateObject(projectId, object.id, { endTime: newEnd });
+        const v = object.videoAdjustments;
+        if (story && v) {
+          // A story video can't run past the end of its footage: trimming
+          // its edge trims the video itself.
+          const rate = v.playbackRate || 1;
+          const trimEnd = Math.min(
+            v.duration || Infinity,
+            Math.max(v.trimStart + MIN_CLIP_SECONDS, v.trimStart + (newEnd - object.startTime) * rate),
+          );
+          newEnd = object.startTime + (trimEnd - v.trimStart) / rate;
+          updateObject(projectId, object.id, {
+            endTime: newEnd,
+            videoAdjustments: { ...v, trimEnd },
+          });
+        } else {
+          updateObject(projectId, object.id, { endTime: newEnd });
+        }
       }
     }
 
@@ -77,7 +99,7 @@ export const VisualTimelineClip = React.memo(function VisualTimelineClip({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [projectId, object, pixelsPerSecond, updateObject]);
+  }, [projectId, object, pixelsPerSecond, updateObject, story]);
 
   function selectWithModifier(shiftKey: boolean) {
     if (shiftKey) {
@@ -94,7 +116,8 @@ export const VisualTimelineClip = React.memo(function VisualTimelineClip({
   return (
     <div
       className={cn(
-        "absolute top-1 bottom-1 flex cursor-grab select-none items-center gap-1 overflow-hidden rounded-md border bg-gradient-to-b from-sky-500/80 to-sky-600/80 px-1.5 shadow-sm active:cursor-grabbing",
+        "absolute top-1 bottom-1 flex cursor-grab select-none items-center gap-1 overflow-hidden rounded-md border bg-gradient-to-b px-1.5 shadow-sm active:cursor-grabbing",
+        story ? "from-amber-500/80 to-orange-600/80" : "from-sky-500/80 to-sky-600/80",
         isSelected ? "border-primary ring-2 ring-primary" : "border-sky-700/40",
       )}
       style={{ left, width }}
@@ -138,6 +161,7 @@ export const VisualTimelineClip = React.memo(function VisualTimelineClip({
         />
       ))}
 
+      {!story && (
       <div
         className="absolute top-0 left-0 h-full w-2 cursor-ew-resize bg-white/0 hover:bg-white/20"
         onMouseDown={(e) => {
@@ -149,6 +173,7 @@ export const VisualTimelineClip = React.memo(function VisualTimelineClip({
           };
         }}
       />
+      )}
       <div
         className="absolute top-0 right-0 h-full w-2 cursor-ew-resize bg-white/0 hover:bg-white/20"
         onMouseDown={(e) => {
