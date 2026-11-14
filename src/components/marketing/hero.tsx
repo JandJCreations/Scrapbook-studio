@@ -21,7 +21,7 @@ export function Hero() {
           className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm"
         >
           <Sparkles className="size-3.5 text-primary" />
-          Photos, video, and audio in one canvas
+          Photos, video and music in one place
         </motion.div>
 
         <motion.h1
@@ -42,9 +42,9 @@ export function Hero() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="mt-6 max-w-2xl text-balance text-lg text-muted-foreground"
         >
-          An infinite, zoomable canvas for photos, video, and audio. Drag,
-          animate, and export cinematic scrapbooks — no design experience
-          required.
+          Turn your photos and clips into a video with music, titles and
+          transitions in a minute. Then fine-tune every moment on the
+          timeline. No editing experience needed.
         </motion.p>
 
         <motion.div

@@ -227,6 +227,14 @@ if (EMAIL && PASSWORD) {
     }
     throw new Error("the export did not finish in 3 minutes");
   });
+
+  check("switching to portrait reshapes the video, and undo brings landscape back", () => {
+    ab("press", "Escape"); // close the export dialog
+    ab("select", '[aria-label="Frame size"]', "portrait");
+    waitForSnapshot(/combobox "Frame size"[^\n]*Portrait/);
+    clickButton("Undo");
+    waitForSnapshot(/combobox "Frame size"[^\n]*Landscape/);
+  });
 }
 
 let failed = 0;
