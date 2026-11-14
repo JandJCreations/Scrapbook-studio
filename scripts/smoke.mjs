@@ -16,7 +16,8 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
 const BASE = (process.env.SMOKE_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -172,8 +173,17 @@ if (EMAIL && PASSWORD) {
     waitForSnapshot(/button "Import"/);
     const dir = mkdtempSync(join(tmpdir(), "smoke-"));
     const colours = [[240, 120, 80], [80, 140, 240], [120, 200, 120]];
-    ab("upload", "input[type=file]", ...photos.map((photo, i) => writePng(dir, photo, colours[i % colours.length])));
-    for (const photo of photos) waitForSnapshot(new RegExp(`button "Add ${photo.replace(".", "\\.")} to the video"`));
+    importFiles(photos.map((photo, i) => writePng(dir, photo, colours[i % colours.length])));
+  }
+
+  // Imports files into the open project's library and waits until each one can be added.
+  function importFiles(files) {
+    if (files.length === 0) return;
+    ab("upload", "input[type=file]", ...files);
+    for (const file of files) {
+      const name = basename(file).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      waitForSnapshot(new RegExp(`button "Add ${name} to the video"`), 30000);
+    }
   }
 
   // The voiceover check carries on in the project this one makes.
@@ -234,6 +244,17 @@ if (EMAIL && PASSWORD) {
     waitForSnapshot(/combobox "Frame size"[^\n]*Portrait/);
     clickButton("Undo");
     waitForSnapshot(/combobox "Frame size"[^\n]*Landscape/);
+  });
+
+  // A real video file (2 s, VP8 + Opus) from scripts/fixtures, imported on its own.
+  check("an imported video clip goes on the timeline as a video", () => {
+    newVideoWithPhotos("Clip test", []);
+    importFiles([join(dirname(fileURLToPath(import.meta.url)), "fixtures", "clip.webm")]);
+    clickButton("Add clip.webm to the video");
+    waitForSnapshot(/button "clip\.webm"/);
+    // The clip's tooltip names its kind, so a video that was read as a photo or a song fails here.
+    const title = ab("get", "attr", 'button[title^="clip.webm"]', "title");
+    expect(/\(video\)/.test(title), `expected the clip to be a video, got "${title}"`);
   });
 }
 
