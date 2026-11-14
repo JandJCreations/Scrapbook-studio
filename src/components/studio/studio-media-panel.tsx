@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { MediaThumbnail } from "@/components/media/media-thumbnail";
 import { Button } from "@/components/ui/button";
-import { Upload } from "lucide-react";
+import { Upload, Wand2 } from "lucide-react";
 import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
 import { writeMediaDrag } from "@/lib/dom/media-drag";
 import { isUsable } from "@/lib/media/local-media";
@@ -17,11 +17,13 @@ interface StudioMediaPanelProps {
   onAdd(item: MediaItem): void;
   /** Puts several, in the order of the list. */
   onAddMany(items: MediaItem[]): void;
+  /** Present where the ticked items can be turned into a finished video in one go. */
+  onMakeVideo?(items: MediaItem[]): void;
   onUpload?(files: File[]): void;
 }
 
 /** The user's photos and videos: tick any number and add them to the end of the video. */
-export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onUpload }: StudioMediaPanelProps) {
+export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onMakeVideo, onUpload }: StudioMediaPanelProps) {
   const pictures = items.filter((item) => isUsable(item) && item.type !== "audio");
   const [ticked, setTicked] = React.useState<Set<string>>(new Set());
   // In the order of the list, whatever order they were ticked in; items that went away drop out.
@@ -94,6 +96,20 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onUpload }:
           >
             Add {chosen.length} to the video
           </Button>
+          {onMakeVideo && chosen.length >= 2 && (
+            <Button
+              size="xs"
+              className="gap-1"
+              title="Photos and clips in order, with movement, transitions, a title and music"
+              onClick={() => {
+                onMakeVideo(chosen);
+                setTicked(new Set());
+              }}
+            >
+              <Wand2 className="size-3" />
+              Make a video
+            </Button>
+          )}
           <Button size="xs" variant="ghost" onClick={() => setTicked(new Set())}>
             Clear selection
           </Button>

@@ -31,6 +31,8 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useStudioTheme } from "@/hooks/use-studio-theme";
 import { useTimelineSync } from "@/hooks/use-timeline-sync";
 import { musicMediaId } from "@/lib/audio/music-keys";
+import { buildMontage } from "@/lib/editor/montage";
+import { videoEnd } from "@/lib/timeline/clip-math";
 import { MUSIC_LIBRARY, type MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
 import type { MediaDragPayload } from "@/lib/dom/media-drag";
 import {
@@ -219,6 +221,35 @@ export function StudioView({ env }: { env: StudioEnv }) {
     let failed = 0;
     for (const item of items) if (!(await addMedia(item, true))) failed += 1;
     if (failed > 1) say(`Couldn't add ${failed} of ${items.length} items.`);
+  }
+
+  /** The ticked photos and clips as a finished video: in order, moving, with transitions, a title and a song. One undo step. */
+  async function makeVideo(items: MediaItem[]) {
+    if (!frame) return;
+    say("Making your video…");
+    const media: EditorMedia[] = [];
+    for (const item of items) {
+      const loaded = await loadEditorMedia(item);
+      if (!aliveRef.current) return;
+      if (loaded) media.push(loaded);
+    }
+    if (media.length === 0) {
+      say("Couldn't use any of those files.");
+      return;
+    }
+    // A video that already has music keeps it; otherwise a bright song from the library goes underneath.
+    const hasMusic = project.clips.some((clip) => clip.kind === "audio");
+    const track = MUSIC_LIBRARY.find((t) => t.mood === "Upbeat") ?? MUSIC_LIBRARY[0];
+    const music: EditorMedia | null =
+      hasMusic || !track
+        ? null
+        : { mediaId: musicMediaId(track), name: track.name, kind: "audio", duration: track.duration, width: 0, height: 0 };
+    useClipProjectStore.getState().apply((p) =>
+      buildMontage(p, media, frame, { title: videoEnd(p) > 0 ? "" : env.projectName, music }).project,
+    );
+    useClipProjectStore.getState().setSelectedClipIds([]);
+    session?.seek(0);
+    say(media.length < items.length ? `Made your video. ${items.length - media.length} file(s) couldn't be used.` : null);
   }
 
   /** One of the user's own audio files, as the music: starts at the playhead and is cut at the end of the video. */
@@ -480,6 +511,9 @@ export function StudioView({ env }: { env: StudioEnv }) {
           onAdd={(item) => {
             void addMedia(item);
             setToolsOpen(false);
+          }}
+          onMakeVideo={(items) => {
+            void makeVideo(items);
           }}
           onAddMany={(items) => {
             void addMany(items);

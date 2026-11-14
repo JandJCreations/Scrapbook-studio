@@ -157,21 +157,28 @@ if (EMAIL && PASSWORD) {
   });
 
   // The checks below share one new video project.
-  check("a new video opens in the editor and photos go on the timeline", () => {
+  // Opens a brand-new video project in the editor and imports some photos into its library.
+  function newVideoWithPhotos(name, photos) {
     ab("open", `${BASE}/dashboard`);
     // The welcome tour is checked on its own; here it would only cover the editor.
     ab("eval", 'localStorage.setItem("scrapbook-studio:tour-seen", "1")');
     ab("find", "role", "button", "click", "--name", "New project");
     waitForSnapshot(/button "Create video"/);
     ab("wait", "500"); // let the dialog finish opening, or its backdrop takes the click
-    ab("find", "label", "Name", "fill", "Smoke test video");
+    ab("find", "label", "Name", "fill", name);
     clickButton("Create video");
     const path = waitForPath((p) => p.startsWith("/editor/"));
     expect(path.startsWith("/editor/"), `expected the editor, got ${path}`);
     waitForSnapshot(/button "Import"/);
     const dir = mkdtempSync(join(tmpdir(), "smoke-"));
-    ab("upload", "input[type=file]", writePng(dir, "sunrise.png", [240, 120, 80]), writePng(dir, "sea.png", [80, 140, 240]));
-    waitForSnapshot(/button "Add sunrise\.png to the video"/);
+    const colours = [[240, 120, 80], [80, 140, 240], [120, 200, 120]];
+    ab("upload", "input[type=file]", ...photos.map((photo, i) => writePng(dir, photo, colours[i % colours.length])));
+    for (const photo of photos) waitForSnapshot(new RegExp(`button "Add ${photo.replace(".", "\\.")} to the video"`));
+  }
+
+  // The voiceover check carries on in the project this one makes.
+  check("a new video opens in the editor and photos go on the timeline", () => {
+    newVideoWithPhotos("Smoke test video", ["sunrise.png", "sea.png"]);
     ab("find", "role", "button", "click", "--name", "Add sunrise.png to the video");
     ab("find", "role", "button", "click", "--name", "Add sea.png to the video");
     waitForSnapshot(/button "sea\.png"/);
@@ -189,6 +196,17 @@ if (EMAIL && PASSWORD) {
     waitForSnapshot(/button "Lower other sound while speaking"/);
     const pressed = ab("get", "attr", '[aria-label="Lower other sound while speaking"]', "aria-pressed");
     expect(/true/.test(pressed), `expected the music dip to be on, got ${pressed}`);
+  });
+
+  check("Make a video turns ticked photos into a titled video with music", () => {
+    newVideoWithPhotos("Beach day", ["one.png", "two.png", "three.png"]);
+    for (const photo of ["one.png", "two.png", "three.png"]) ab("find", "label", `Select ${photo}`, "check");
+    clickButton("Make a video");
+    // A title with the project's name opens it, and a song plays underneath.
+    waitForSnapshot(/button "Beach day"/);
+    waitForSnapshot(/button "Confetti"/);
+    // Later photos come in with a transition (the ⇄ on the clip).
+    waitForSnapshot(/button "⇄ three\.png"/);
   });
 }
 
