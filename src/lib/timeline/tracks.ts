@@ -35,7 +35,7 @@ export function addTrack(
   };
 }
 
-export type TrackPatch = Partial<Pick<Track, "muted" | "locked" | "hidden" | "solo">>;
+export type TrackPatch = Partial<Pick<Track, "muted" | "locked" | "hidden" | "solo" | "duckOthers">>;
 
 /** Always allowed, so a locked track can be unlocked. */
 export function updateTrack(

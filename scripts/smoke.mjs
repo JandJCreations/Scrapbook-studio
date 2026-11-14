@@ -14,18 +14,30 @@
 // Set AGENT_BROWSER_EXECUTABLE_PATH to reuse an existing Chrome/Chromium.
 
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { deflateSync } from "node:zlib";
 
 const BASE = (process.env.SMOKE_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 const EMAIL = process.env.SMOKE_TEST_EMAIL;
 const PASSWORD = process.env.SMOKE_TEST_PASSWORD;
 const SESSION = `scrapbook-smoke-${process.pid}`;
+// A pretend microphone (a test tone) that is always allowed, for the voiceover checks.
+process.env.AGENT_BROWSER_ARGS ??= "--use-fake-ui-for-media-stream,--use-fake-device-for-media-stream";
 
 function ab(...args) {
-  return execFileSync("agent-browser", ["--session", SESSION, ...args], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    shell: process.platform === "win32",
-  }).trim();
+  try {
+    return execFileSync("agent-browser", ["--session", SESSION, ...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: process.platform === "win32",
+    }).trim();
+  } catch (err) {
+    // Say which step failed, not just how.
+    const detail = (err.stderr || err.message || String(err)).toString().trim();
+    throw new Error(`${args.join(" ").slice(0, 100)}: ${detail}`);
+  }
 }
 
 function currentPath() {
@@ -44,6 +56,70 @@ function waitForPath(predicate, timeoutMs = 15000) {
 
 function expect(cond, message) {
   if (!cond) throw new Error(message);
+}
+
+// Polls the interactive snapshot until `pattern` shows up (or times out).
+function waitForSnapshot(pattern, timeoutMs = 15000) {
+  const end = Date.now() + timeoutMs;
+  while (Date.now() < end) {
+    const snap = ab("snapshot", "-i");
+    if (pattern.test(snap)) return snap;
+    ab("wait", "400");
+  }
+  throw new Error(`timed out waiting for ${pattern}`);
+}
+
+// Clicks the first element whose snapshot line matches.
+function clickFirst(pattern) {
+  const line = ab("snapshot", "-i").split("\n").find((l) => pattern.test(l));
+  const ref = line && line.match(/ref=(e\d+)/);
+  if (!ref) throw new Error(`no element matching ${pattern}`);
+  ab("click", `@${ref[1]}`);
+}
+
+function clickButton(name) {
+  ab("find", "role", "button", "click", "--name", name);
+}
+
+// A small solid-colour PNG, so the checks have photos to import.
+function writePng(dir, name, [r, g, b]) {
+  const width = 64;
+  const height = 48;
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3, 0).fill(Buffer.from([r, g, b]))]);
+  const raw = Buffer.concat(Array.from({ length: height }, () => row));
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buf) => {
+    let c = 0xffffffff;
+    for (const byte of buf) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const sum = Buffer.alloc(4);
+    sum.writeUInt32BE(crc(body));
+    return Buffer.concat([len, body, sum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  const file = join(dir, name);
+  writeFileSync(
+    file,
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      chunk("IHDR", header),
+      chunk("IDAT", deflateSync(raw)),
+      chunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
+  return file;
 }
 
 const checks = [];
@@ -78,6 +154,41 @@ if (EMAIL && PASSWORD) {
     ab("find", "role", "button", "click", "--name", "Sign in");
     const path = waitForPath((p) => p.startsWith("/dashboard"));
     expect(path.startsWith("/dashboard"), `expected /dashboard after sign-in, got ${path}`);
+  });
+
+  // The checks below share one new video project.
+  check("a new video opens in the editor and photos go on the timeline", () => {
+    ab("open", `${BASE}/dashboard`);
+    // The welcome tour is checked on its own; here it would only cover the editor.
+    ab("eval", 'localStorage.setItem("scrapbook-studio:tour-seen", "1")');
+    ab("find", "role", "button", "click", "--name", "New project");
+    waitForSnapshot(/button "Create video"/);
+    ab("wait", "500"); // let the dialog finish opening, or its backdrop takes the click
+    ab("find", "label", "Name", "fill", "Smoke test video");
+    clickButton("Create video");
+    const path = waitForPath((p) => p.startsWith("/editor/"));
+    expect(path.startsWith("/editor/"), `expected the editor, got ${path}`);
+    waitForSnapshot(/button "Import"/);
+    const dir = mkdtempSync(join(tmpdir(), "smoke-"));
+    ab("upload", "input[type=file]", writePng(dir, "sunrise.png", [240, 120, 80]), writePng(dir, "sea.png", [80, 140, 240]));
+    waitForSnapshot(/button "Add sunrise\.png to the video"/);
+    ab("find", "role", "button", "click", "--name", "Add sunrise.png to the video");
+    ab("find", "role", "button", "click", "--name", "Add sea.png to the video");
+    waitForSnapshot(/button "sea\.png"/);
+  });
+
+  check("a voiceover can be recorded and lowers the music while it plays", () => {
+    ab("find", "role", "tab", "click", "--name", "audio");
+    waitForSnapshot(/button "Add .* as music"/);
+    clickFirst(/button "Add .* as music"/);
+    clickButton("Record voiceover");
+    waitForSnapshot(/button "Stop recording voiceover"/);
+    ab("wait", "1500");
+    clickButton("Stop recording voiceover");
+    // The take lands on its own Voiceover lane, which dips the music by default.
+    waitForSnapshot(/button "Lower other sound while speaking"/);
+    const pressed = ab("get", "attr", '[aria-label="Lower other sound while speaking"]', "aria-pressed");
+    expect(/true/.test(pressed), `expected the music dip to be on, got ${pressed}`);
   });
 }
 

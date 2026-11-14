@@ -15,7 +15,13 @@ export interface Track {
   locked: boolean;
   hidden: boolean;
   solo: boolean;
+  /** "voiceover" marks the narration lane (an audio track). Absent or null for an ordinary track. */
+  role?: TrackRole | null;
+  /** On a voiceover track: whether other sound dips while the voice speaks. Absent means yes. */
+  duckOthers?: boolean;
 }
+
+export type TrackRole = "voiceover";
 
 export interface ClipTransform {
   x: number;

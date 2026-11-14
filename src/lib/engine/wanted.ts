@@ -1,5 +1,6 @@
 import { activeClipsAt, clipGainAt, isAudible } from "@/lib/timeline/active-clips";
 import { clipEnd } from "@/lib/timeline/clip-math";
+import { duckFactorAt, duckingRanges, isVoiceoverTrack } from "@/lib/timeline/ducking";
 import { activeTransitionsAt, audioClipFor, effectiveTransition } from "@/lib/timeline/transitions";
 import type { Clip, TimelineProject } from "@/types/timeline";
 
@@ -57,6 +58,9 @@ export function planWanted(
 ): WantedMedia[] {
   const wanted: WantedMedia[] = [];
   const chain: Clip[] = [];
+  // Everything but the voiceover itself dips while the voice speaks.
+  const ducking = duckingRanges(project);
+  const duck = ducking.length > 0 ? duckFactorAt(ducking, t) : 1;
 
   for (const a of activeClipsAt(project, t)) {
     // A reversed clip is silent live, so its sound never justifies an element.
@@ -72,7 +76,10 @@ export function planWanted(
       reversed: a.clip.reversed,
       shouldPlay: playing && !a.clip.reversed,
       // Browsers cannot play video backwards, so reversed clips are silent live.
-      gain: a.audible && !a.clip.reversed ? clipGainAt(audioClipFor(project, a.clip), a.localTime) : 0,
+      gain:
+        a.audible && !a.clip.reversed
+          ? clipGainAt(audioClipFor(project, a.clip), a.localTime) * (isVoiceoverTrack(a.track) ? 1 : duck)
+          : 0,
     });
   }
 

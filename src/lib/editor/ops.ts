@@ -38,7 +38,8 @@ function ensureTrack(
   type: TrackType,
   newId: IdFn,
 ): { project: TimelineProject; trackId: string } {
-  const existing = project.tracks.find((track) => track.type === type);
+  // The voiceover lane is for narration only: music and other audio go on an ordinary audio track.
+  const existing = project.tracks.find((track) => track.type === type && track.role !== "voiceover");
   if (existing) return { project, trackId: existing.id };
   const next = addTrack(project, type, newId);
   const created = next.tracks.find((track) => !project.tracks.some((old) => old.id === track.id));
@@ -91,6 +92,33 @@ export function addAudioClip(
   const clip = buildClip(
     media,
     trackId,
+    Math.max(0, at),
+    { x: 0, y: 0, width: frame.width, height: frame.height, rotation: 0, opacity: 1 },
+    newId,
+  );
+  return { project: insertClip(withTrack, clip), clipId: clip.id };
+}
+
+/** Puts a recorded voiceover on the voiceover lane (made if needed) at `at`, never trimmed to the video. */
+export function addVoiceoverClip(
+  project: TimelineProject,
+  media: EditorMedia,
+  frame: FrameSize,
+  at: number,
+  newId: IdFn = createId,
+): AddResult {
+  let withTrack = project;
+  let track = project.tracks.find((t) => t.type === "audio" && t.role === "voiceover");
+  if (!track) {
+    const added = addTrack(project, "audio", newId);
+    const created = added.tracks.find((t) => !project.tracks.some((old) => old.id === t.id));
+    if (!created) throw new Error("addTrack did not add a track");
+    track = { ...created, role: "voiceover", duckOthers: true };
+    withTrack = { ...added, tracks: added.tracks.map((t) => (t.id === created.id ? track! : t)) };
+  }
+  const clip = buildClip(
+    media,
+    track.id,
     Math.max(0, at),
     { x: 0, y: 0, width: frame.width, height: frame.height, rotation: 0, opacity: 1 },
     newId,

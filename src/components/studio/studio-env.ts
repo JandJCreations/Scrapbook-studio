@@ -24,6 +24,6 @@ export interface StudioEnv {
   hasThumbnail?: boolean;
   /** Present where the project has somewhere to keep a dashboard thumbnail. */
   saveThumbnail?(dataUrl: string): Promise<void>;
-  /** Present when the Media tab may offer an upload button. */
-  uploadFiles?(files: File[]): void;
+  /** Present when the Media tab may offer an upload button. Returns the new library ids, where known. */
+  uploadFiles?(files: File[]): string[] | void;
 }

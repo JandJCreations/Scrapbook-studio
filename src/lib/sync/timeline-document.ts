@@ -43,6 +43,9 @@ const trackSchema = z.object({
   locked: z.boolean(),
   hidden: z.boolean(),
   solo: z.boolean(),
+  // Added after the first saves: a missing role is an ordinary track.
+  role: z.enum(["voiceover"]).nullable().optional(),
+  duckOthers: z.boolean().optional(),
 });
 
 const keyframeSchema = z.object({

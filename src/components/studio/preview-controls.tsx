@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Maximize, Pause, Play } from "lucide-react";
+import { Maximize, Mic, Pause, Play, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +12,14 @@ interface PreviewControlsProps {
   onToggle(): void;
   onSeek(time: number): void;
   onFullscreen(): void;
+  /** Present where a voiceover can be recorded. */
+  voiceover?: {
+    recording: boolean;
+    busy: boolean;
+    /** Seconds recorded so far. */
+    elapsed: number;
+    onToggle(): void;
+  };
 }
 
 function clock(seconds: number): string {
@@ -21,7 +29,7 @@ function clock(seconds: number): string {
 }
 
 /** Under the preview: the time, a bar to drag to any moment, a big play button and full screen. */
-export function PreviewControls({ time, duration, playing, onToggle, onSeek, onFullscreen }: PreviewControlsProps) {
+export function PreviewControls({ time, duration, playing, onToggle, onSeek, onFullscreen, voiceover }: PreviewControlsProps) {
   return (
     <div className="flex flex-col gap-2 border-t px-4 py-2">
       <input
@@ -44,7 +52,21 @@ export function PreviewControls({ time, duration, playing, onToggle, onSeek, onF
             {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
           </Button>
         </div>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-1">
+          {voiceover && (
+            <Button
+              size="sm"
+              variant={voiceover.recording ? "destructive" : "ghost"}
+              className="gap-1.5"
+              aria-label={voiceover.recording ? "Stop recording voiceover" : "Record voiceover"}
+              title={voiceover.recording ? "Stop and keep the recording" : "Record your voice over the video from the playhead"}
+              disabled={voiceover.busy}
+              onClick={voiceover.onToggle}
+            >
+              {voiceover.recording ? <Square className="size-3.5 fill-current" /> : <Mic className="size-4" />}
+              <span className="tabular-nums">{voiceover.recording ? clock(voiceover.elapsed) : "Voiceover"}</span>
+            </Button>
+          )}
           <Button size="icon" variant="ghost" aria-label="Full screen" onClick={onFullscreen}>
             <Maximize className="size-4" />
           </Button>
