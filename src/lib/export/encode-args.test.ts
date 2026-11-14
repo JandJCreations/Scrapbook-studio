@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildEncodeArgs } from "@/lib/export/encode-args";
+import { buildEncodeArgs, frameExtensionFor } from "@/lib/export/encode-args";
 
 const args = (format: "gif" | "mp4" | "mov" | "webm", opts: { transparent?: boolean; audio?: boolean } = {}) =>
   buildEncodeArgs({
@@ -54,5 +54,39 @@ describe("buildEncodeArgs", () => {
     expect(args("webm")).toContain("yuv420p");
     expect(args("webm", { audio: true })).toContain("libopus");
     expect(args("webm")).toContain("libvpx-vp9");
+  });
+
+  it("reads JPEG frames when told to", () => {
+    const a = buildEncodeArgs({
+      format: "mp4",
+      fps: 24,
+      targetWidth: 1280,
+      transparent: false,
+      hasAudio: false,
+      outputName: "output.mp4",
+      frameExtension: "jpg",
+    });
+    expect(a.slice(0, 4)).toEqual(["-framerate", "24", "-i", "frame%05d.jpg"]);
+  });
+
+  it("uses the quick encoder settings and lets mp4 and mov start playing before they finish loading", () => {
+    for (const format of ["mp4", "mov"] as const) {
+      const a = args(format);
+      expect(a[a.indexOf("-preset") + 1]).toBe("veryfast");
+      expect(a[a.indexOf("-movflags") + 1]).toBe("+faststart");
+    }
+    const webm = args("webm");
+    expect(webm[webm.indexOf("-deadline") + 1]).toBe("realtime");
+    expect(webm).toContain("-row-mt");
+  });
+});
+
+describe("frameExtensionFor", () => {
+  it("uses JPEG for opaque video and keeps PNG where alpha or a clean palette matters", () => {
+    expect(frameExtensionFor("mp4", false)).toBe("jpg");
+    expect(frameExtensionFor("mov", true)).toBe("jpg");
+    expect(frameExtensionFor("webm", false)).toBe("jpg");
+    expect(frameExtensionFor("webm", true)).toBe("png");
+    expect(frameExtensionFor("gif", false)).toBe("png");
   });
 });

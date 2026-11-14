@@ -289,6 +289,27 @@ function handleRest(req, res, table, url, body) {
 
 const files = new Map(); // bucket/path -> { type, data }
 
+// supabase-js sends a File as multipart form data: keep only the file part, as real storage does.
+function uploadedFile(type, raw) {
+  const boundary = type.match(/^multipart\/form-data;\s*boundary=(.+)$/)?.[1];
+  if (!boundary) return { type, data: raw };
+  const delimiter = Buffer.from(`--${boundary}`);
+  let at = raw.indexOf(delimiter);
+  while (at !== -1) {
+    const next = raw.indexOf(delimiter, at + delimiter.length);
+    if (next === -1) break;
+    const part = raw.subarray(at + delimiter.length + 2, next - 2); // drop the CRLFs around the part
+    const split = part.indexOf("\r\n\r\n");
+    const headers = part.subarray(0, split).toString();
+    if (/filename=/.test(headers)) {
+      const partType = headers.match(/content-type:\s*([^\r\n]+)/i)?.[1] ?? "application/octet-stream";
+      return { type: partType, data: part.subarray(split + 4) };
+    }
+    at = next;
+  }
+  return { type, data: raw };
+}
+
 function handleStorage(req, res, rest, raw) {
   // object/<bucket>/<path>, object/sign/<bucket>/<path>, object/public/<bucket>/<path>
   const [kind, ...parts] = rest.split("/");
@@ -314,7 +335,7 @@ function handleStorage(req, res, rest, raw) {
   }
   const key = parts.join("/");
   if (req.method === "POST" || req.method === "PUT") {
-    files.set(key, { type: req.headers["content-type"] || "application/octet-stream", data: raw });
+    files.set(key, uploadedFile(req.headers["content-type"] || "application/octet-stream", raw));
     return send(res, 200, { Key: key, Id: randomUUID() });
   }
   if (req.method === "DELETE") {

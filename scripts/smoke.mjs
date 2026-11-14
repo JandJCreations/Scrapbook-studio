@@ -208,6 +208,25 @@ if (EMAIL && PASSWORD) {
     // Later photos come in with a transition (the ⇄ on the clip).
     waitForSnapshot(/button "⇄ three\.png"/);
   });
+
+  // Carries on in the "Beach day" video made above.
+  check("the video exports as an MP4 with its sound", () => {
+    clickFirst(/button "Export"/);
+    waitForSnapshot(/combobox "Resolution"/);
+    ab("wait", "500"); // let the dialog finish opening
+    ab("select", '[aria-label="Resolution"]', "720p");
+    ab("eval", '[...document.querySelectorAll("[role=dialog] button")].find((b) => b.textContent.trim() === "Export").click()');
+    const end = Date.now() + 180000;
+    let snap = "";
+    while (Date.now() < end) {
+      snap = ab("snapshot");
+      if (/Saved as .*\.mp4/.test(snap)) return;
+      const failure = snap.match(/alert[^\n]*(\n[^\n]*){0,2}/);
+      if (failure) throw new Error(`export failed: ${failure[0].replace(/\s+/g, " ")}`);
+      ab("wait", "1000");
+    }
+    throw new Error("the export did not finish in 3 minutes");
+  });
 }
 
 let failed = 0;

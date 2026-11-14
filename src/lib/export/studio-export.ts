@@ -2,7 +2,7 @@ import { fetchFile } from "@ffmpeg/util";
 import { jsPDF } from "jspdf";
 
 import { planMixdown } from "@/lib/engine/mixdown";
-import { buildEncodeArgs, type EncodeFormat } from "@/lib/export/encode-args";
+import { buildEncodeArgs, frameExtensionFor, type EncodeFormat } from "@/lib/export/encode-args";
 import { estimateExport, exportableProject, exportFrameTimes, stillTime } from "@/lib/export/export-plan";
 import { ANIMATED_FORMATS, TRANSPARENCY_SUPPORTED_FORMATS, type ExportFormat } from "@/lib/export/export-formats";
 import { getFfmpeg } from "@/lib/export/ffmpeg-client";
@@ -48,8 +48,18 @@ function throwIfAborted(signal?: AbortSignal) {
   if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
 }
 
-async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  return (await fetch(dataUrl)).blob();
+/** The bytes inside a base64 data URL, without a round trip through fetch. */
+export function dataUrlBytes(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// Not fetch(dataUrl): the page's content security policy does not allow fetching data: URLs.
+function dataUrlToBlob(dataUrl: string, type: string): Blob {
+  return new Blob([new Uint8Array(dataUrlBytes(dataUrl))], { type });
 }
 
 /** Renders the project to a file in the chosen format, using the same painter as the stage. */
@@ -95,7 +105,7 @@ export async function exportStudioProject(options: StudioExportOptions): Promise
         pdf.addImage(dataUrl, "JPEG", 0, 0, targetWidth, targetHeight);
         return { blob: pdf.output("blob"), extension: "pdf" };
       }
-      return { blob: await dataUrlToBlob(dataUrl), extension: format };
+      return { blob: dataUrlToBlob(dataUrl, MIME[format]), extension: format };
     }
 
     // Animated: render every frame, mix the sound, then let FFmpeg put them together.
@@ -110,23 +120,38 @@ export async function exportStudioProject(options: StudioExportOptions): Promise
       onProgress("encoding", Math.max(0, Math.min(1, progress)));
     ffmpeg.on("progress", onEncodeProgress);
     const times = exportFrameTimes(duration, fps);
-    const frameName = (i: number) => `frame${String(i).padStart(5, "0")}.png`;
+    const frameExtension = frameExtensionFor(encodeFormat, transparent);
+    const frameName = (i: number) => `frame${String(i).padStart(5, "0")}.${frameExtension}`;
+    const capture = frameExtension === "jpg"
+      ? { width: targetWidth, mimeType: "image/jpeg" as const, quality: 0.92 }
+      : { width: targetWidth, mimeType: "image/png" as const };
     const outputName = `output.${encodeFormat}`;
-    let written = 0;
+    let started = 0;
+    // The frame before is handed to FFmpeg while the next one is painted, so neither waits on the other.
+    let pending: Promise<unknown> = Promise.resolve();
     try {
       for (let i = 0; i < times.length; i++) {
         throwIfAborted(signal);
         await renderer.renderAt(times[i]);
-        const dataUrl = renderer.capture({ width: targetWidth, mimeType: "image/png" });
-        await ffmpeg.writeFile(frameName(i), await fetchFile(dataUrl));
-        written = i + 1;
-        onProgress("rendering", written / times.length);
+        const bytes = dataUrlBytes(renderer.capture(capture));
+        await pending;
+        started = i + 1;
+        pending = ffmpeg.writeFile(frameName(i), bytes).then(() => onProgress("rendering", (i + 1) / times.length));
       }
+      await pending;
       if (audio) await ffmpeg.writeFile("audio.wav", await fetchFile(audio));
       throwIfAborted(signal);
 
       const exitCode = await ffmpeg.exec(
-        buildEncodeArgs({ format: encodeFormat, fps, targetWidth, transparent, hasAudio: audio !== null, outputName }),
+        buildEncodeArgs({
+          format: encodeFormat,
+          fps,
+          targetWidth,
+          transparent,
+          hasAudio: audio !== null,
+          outputName,
+          frameExtension,
+        }),
       );
       throwIfAborted(signal);
       if (exitCode !== 0) throw new Error("The encoder could not make this file.");
@@ -138,7 +163,8 @@ export async function exportStudioProject(options: StudioExportOptions): Promise
     } finally {
       ffmpeg.off("progress", onEncodeProgress);
       // FFmpeg's disk lives in memory: always give it back, even after a failure or a cancel.
-      for (let i = 0; i < written; i++) await ffmpeg.deleteFile(frameName(i)).catch(() => {});
+      await pending.catch(() => {});
+      for (let i = 0; i < started; i++) await ffmpeg.deleteFile(frameName(i)).catch(() => {});
       await ffmpeg.deleteFile(outputName).catch(() => {});
       await ffmpeg.deleteFile("audio.wav").catch(() => {});
     }
