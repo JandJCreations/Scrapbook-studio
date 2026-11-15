@@ -256,6 +256,130 @@ if (EMAIL && PASSWORD) {
     const title = ab("get", "attr", 'button[title^="clip.webm"]', "title");
     expect(/\(video\)/.test(title), `expected the clip to be a video, got "${title}"`);
   });
+
+  // The editing checks below share one video: a 3-second photo, a 5-second photo and the 2-second clip.
+  // Runs JavaScript in the page and gives back what it returned.
+  function evalValue(js) {
+    return JSON.parse(ab("eval", js).split("\n").pop());
+  }
+  // The clips on the main strip, left to right, by name.
+  function stripOrder() {
+    return JSON.parse(
+      evalValue(`JSON.stringify([...document.querySelectorAll("main button[data-clip-id]")]
+        .filter((b) => /[(](image|video)[)]$/.test(b.title))
+        .sort((a, b) => a.getBoundingClientRect().x - b.getBoundingClientRect().x)
+        .map((b) => b.title.replace(/ [(].*/, "")))`),
+    );
+  }
+  // The video's length as the player shows it ("0:00.0 / 0:12.0" gives "0:12.0").
+  function videoLength() {
+    return evalValue('document.querySelector("main").innerText.match(/[/] (\\d+:\\d+[.]\\d)/)?.[1] ?? ""');
+  }
+  function waitFor(read, want, timeoutMs = 10000) {
+    const end = Date.now() + timeoutMs;
+    let got = read();
+    while (JSON.stringify(got) !== JSON.stringify(want) && Date.now() < end) {
+      ab("wait", "300");
+      got = read();
+    }
+    expect(JSON.stringify(got) === JSON.stringify(want), `expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`);
+  }
+  const chip = (name) => `main button[data-clip-id][title^="${name} ("]`;
+  function boxOf(selector) {
+    return JSON.parse(ab("get", "box", selector, "--json")).data;
+  }
+  // Presses a clip near its top (clear of the round transition button on each cut) and drags it to x.
+  function dragClip(name, toX) {
+    const box = boxOf(chip(name));
+    const y = box.y + 15;
+    ab("mouse", "move", String(box.x + box.width / 2), String(y));
+    ab("mouse", "down");
+    ab("mouse", "move", String(toX), String(y), "--steps", "15");
+    ab("mouse", "up");
+  }
+  // Moves the playhead by clicking the ruler above the timeline.
+  function seekTo(x) {
+    const ruler = boxOf('[aria-label="Timeline ruler"]');
+    ab("mouse", "move", String(x), String(ruler.y + ruler.height / 2));
+    ab("mouse", "down");
+    ab("mouse", "up");
+  }
+
+  check("a photo's length can be changed, and undo puts it back", () => {
+    newVideoWithPhotos("Editing test", ["short.png", "long.png"]);
+    importFiles([join(dirname(fileURLToPath(import.meta.url)), "fixtures", "clip.webm")]);
+    for (const name of ["short.png", "long.png", "clip.webm"]) clickButton(`Add ${name} to the video`);
+    waitFor(stripOrder, ["short.png", "long.png", "clip.webm"]);
+    waitFor(videoLength, "0:12.0");
+    // Zoom the timeline out so every clip is in view for the drags below.
+    ab("focus", '[aria-label="Timeline zoom"]');
+    for (let i = 0; i < 10; i++) ab("press", "ArrowLeft");
+    ab("click", chip("short.png"));
+    waitForSnapshot(/slider "Duration \(seconds\)"/);
+    ab("focus", '[aria-label="Duration (seconds)"]');
+    ab("press", "Home"); // the shortest a photo can be: half a second
+    waitFor(videoLength, "0:07.5");
+    clickButton("Undo");
+    waitFor(videoLength, "0:12.0");
+    clickButton("Redo");
+    waitFor(videoLength, "0:07.5");
+    clickButton("Undo");
+    // Three seconds, half a second a step, for the checks below.
+    ab("focus", '[aria-label="Duration (seconds)"]');
+    for (let i = 0; i < 4; i++) ab("press", "ArrowLeft");
+    waitFor(videoLength, "0:10.0");
+  });
+
+  check("a longer clip can be dragged in front of a shorter one", () => {
+    const first = boxOf(chip("short.png"));
+    dragClip("long.png", first.x + 10);
+    waitFor(stripOrder, ["long.png", "short.png", "clip.webm"]);
+    // ...and back to the end, past the video clip's middle.
+    const last = boxOf(chip("clip.webm"));
+    dragClip("long.png", last.x + last.width - 2);
+    waitFor(stripOrder, ["short.png", "clip.webm", "long.png"]);
+    clickButton("Undo");
+    waitFor(stripOrder, ["long.png", "short.png", "clip.webm"]);
+  });
+
+  check("a clip can be split at the playhead, and a piece deleted", () => {
+    const long = boxOf(chip("long.png"));
+    seekTo(long.x + long.width / 2);
+    ab("click", chip("long.png"));
+    clickButton("Split");
+    waitFor(stripOrder, ["long.png", "long.png", "short.png", "clip.webm"]);
+    waitFor(videoLength, "0:10.0");
+    ab("click", chip("long.png"));
+    clickButton("Delete");
+    waitFor(stripOrder, ["long.png", "short.png", "clip.webm"]);
+    waitFor(videoLength, "0:07.5");
+    clickButton("Undo");
+    waitFor(videoLength, "0:10.0");
+  });
+
+  check("a video clip can be trimmed from its end", () => {
+    const clip = boxOf(chip("clip.webm"));
+    const y = clip.y + 15;
+    ab("mouse", "move", String(clip.x + clip.width - 2), String(y));
+    ab("mouse", "down");
+    ab("mouse", "move", String(clip.x + clip.width / 2), String(y), "--steps", "10");
+    ab("mouse", "up");
+    const length = videoLength();
+    expect(length > "0:08.0" && length < "0:10.0", `expected the video to get shorter than 0:10.0, got ${length}`);
+  });
+
+  check("a photo gets a look and a caption", () => {
+    ab("click", chip("short.png"));
+    ab("find", "role", "tab", "click", "--name", "filters");
+    clickButton("Filter Mono");
+    const pressed = ab("get", "attr", '[aria-label="Filter Mono"]', "aria-pressed");
+    expect(/true/.test(pressed), `expected Mono to be picked, got ${pressed}`);
+    ab("find", "role", "tab", "click", "--name", "text");
+    clickButton("Caption for selected slide");
+    waitForSnapshot(/textbox "Text"/);
+    ab("fill", 'textarea[aria-label="Text"]', "Sunny day");
+    waitForSnapshot(/button "Sunny day"/);
+  });
 }
 
 let failed = 0;

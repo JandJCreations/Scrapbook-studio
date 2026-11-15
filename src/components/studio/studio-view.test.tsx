@@ -448,6 +448,22 @@ describe("StudioView galleries", () => {
     await vi.waitFor(() => expect(clips()).toHaveLength(2));
   }
 
+  it("opens the file picker from the timeline's + while the photos are showing, and shows the photos first otherwise", async () => {
+    render(<StudioView env={env({ uploadFiles: vi.fn() })} />);
+    await screen.findByText("My trip");
+    const picker = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    try {
+      fireEvent.click(screen.getByRole("tab", { name: "text" }));
+      fireEvent.click(screen.getAllByRole("button", { name: "Add media to the video" })[0]);
+      expect(screen.getByRole("tab", { name: "media" }).getAttribute("aria-selected")).toBe("true");
+      expect(picker).not.toHaveBeenCalled();
+      fireEvent.click(screen.getAllByRole("button", { name: "Add media to the video" })[0]);
+      expect(picker).toHaveBeenCalledTimes(1);
+    } finally {
+      picker.mockRestore();
+    }
+  });
+
   it("gives the selected photo the filter picked in the Filters gallery", async () => {
     await withTwo();
     fireEvent.click(screen.getByRole("tab", { name: "filters" }));

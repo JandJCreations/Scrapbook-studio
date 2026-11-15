@@ -143,6 +143,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
   };
 
   const [tab, setTab] = React.useState<Tab>("media");
+  // Opens the media panel's file picker while that panel is showing.
+  const openPickerRef = React.useRef<(() => void) | null>(null);
   const selectedClip =
     selectedIds.length === 1 ? (project.clips.find((c) => c.id === selectedIds[0]) ?? null) : null;
   // Below a laptop-sized screen the panels open from a button as a sheet.
@@ -543,6 +545,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
             setToolsOpen(false);
           }}
           onUpload={env.uploadFiles}
+          openPickerRef={openPickerRef}
         />
       ) : shownTab === "audio" ? (
         <AudioTab
@@ -706,6 +709,11 @@ export function StudioView({ env }: { env: StudioEnv }) {
               onDropMedia={dropMedia}
               onOpenTransition={openTransition}
               onAddClip={() => {
+                // With the photos and videos already in view, + means "bring in more": open the file picker.
+                if (shownTab === "media" && (!compact || toolsOpen) && openPickerRef.current) {
+                  openPickerRef.current();
+                  return;
+                }
                 setTab("media");
                 if (compact) setToolsOpen(true);
               }}

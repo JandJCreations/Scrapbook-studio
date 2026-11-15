@@ -120,13 +120,43 @@ describe("computeMove on the main track", () => {
     expect(result.guide).toEqual({ kind: "insert", time: 0 });
   });
 
+  it("puts a long clip in front of a shorter first clip when the pointer is over that clip's first half", () => {
+    const project = makeProject(makeStandardTracks(), [video("short", 0, 3), video("long", 3, 5)]);
+    const result = computeMove(project, {
+      ...base,
+      clipId: "long",
+      pointerTime: 0.2,
+      grabOffset: 2.5,
+      target: onTrack("t1"),
+    });
+    expect(findClip(result.project, "long")?.start).toBe(0);
+    expect(findClip(result.project, "short")?.start).toBe(5);
+  });
+
+  it("goes by the pointer, not by where the clip was grabbed", () => {
+    const project = makeProject(makeStandardTracks(), [video("short", 0, 3), video("long", 3, 5)]);
+    // Grabbed by its left edge and dropped at the very start.
+    const front = computeMove(project, { ...base, clipId: "long", pointerTime: 0, grabOffset: 0, target: onTrack("t1") });
+    expect(findClip(front.project, "long")?.start).toBe(0);
+    // Grabbed near its right end and moved a little: it stays where it is.
+    const still = computeMove(project, { ...base, clipId: "long", pointerTime: 7, grabOffset: 4.5, target: onTrack("t1") });
+    expect(still.project).toBe(project);
+  });
+
+  it("moves a long first clip to the end once the pointer passes the last clip's middle", () => {
+    const project = makeProject(makeStandardTracks(), [video("long", 0, 5), video("short", 5, 3)]);
+    const result = computeMove(project, { ...base, clipId: "long", pointerTime: 6.8, grabOffset: 2.5, target: onTrack("t1") });
+    expect(findClip(result.project, "short")?.start).toBe(0);
+    expect(findClip(result.project, "long")?.start).toBe(3);
+  });
+
   it("does not snap on the magnetic track", () => {
     const project = makeProject(makeStandardTracks(), [video("a", 0, 4), video("b", 4, 4)]);
     const result = computeMove(project, {
       ...base,
-      playhead: 4.05,
+      playhead: 6.05,
       clipId: "a",
-      pointerTime: 4.1,
+      pointerTime: 6.1,
       grabOffset: 0,
       target: onTrack("t1"),
     });
