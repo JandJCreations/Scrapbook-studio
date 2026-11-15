@@ -17,9 +17,10 @@ import type { Clip, TimelineProject } from "@/types/timeline";
 /**
  * Puts `clip` (which must not already be in the project) on its track. Free
  * tracks take it at `start`. Magnetic tracks insert it before the first clip
- * whose midpoint is later than the new clip's midpoint, then pack.
+ * whose midpoint is later than `orderAt` (by default the new clip's own
+ * midpoint), then pack.
  */
-export function placeClip(project: TimelineProject, clip: Clip): TimelineProject {
+export function placeClip(project: TimelineProject, clip: Clip, orderAt?: number): TimelineProject {
   const track = findTrack(project, clip.trackId);
   if (!track) return project;
 
@@ -27,7 +28,7 @@ export function placeClip(project: TimelineProject, clip: Clip): TimelineProject
   if (!isMagnetic(track)) return { ...project, clips: [...project.clips, placed] };
 
   const others = clipsOnTrack(project, track.id);
-  const midpoint = placed.start + clipDuration(placed) / 2;
+  const midpoint = orderAt ?? placed.start + clipDuration(placed) / 2;
   const index = others.filter((o) => o.start + clipDuration(o) / 2 < midpoint).length;
   const ordered = [...others.slice(0, index), placed, ...others.slice(index)];
   return replaceTrackClips(project, track.id, packClips(ordered));
@@ -37,11 +38,14 @@ export function placeClip(project: TimelineProject, clip: Clip): TimelineProject
  * Moves a clip to `to.start`, optionally onto another track. On a magnetic
  * target track this reorders the clips. Returns the same project when the
  * clip or target track is missing or locked, or the track cannot host the clip.
+ *
+ * `to.orderAt` is the time that decides the clip's place on a magnetic track
+ * (a drag passes the pointer's time); without it the clip's midpoint decides.
  */
 export function moveClip(
   project: TimelineProject,
   clipId: string,
-  to: { start: number; trackId?: string },
+  to: { start: number; trackId?: string; orderAt?: number },
 ): TimelineProject {
   const clip = findClip(project, clipId);
   if (!clip || isClipLocked(project, clip)) return project;
@@ -51,7 +55,7 @@ export function moveClip(
 
   const without = { ...project, clips: project.clips.filter((c) => c.id !== clipId) };
   const moved = packMagneticTracks(
-    placeClip(without, { ...clip, trackId: target.id, start: to.start }),
+    placeClip(without, { ...clip, trackId: target.id, start: to.start }, to.orderAt),
   );
   // A move that lands every clip where it already was is a no-op, so it must
   // not create an empty undo step.

@@ -81,7 +81,10 @@ export function computeMove(project: TimelineProject, input: MoveInput): DragRes
   if (!track) return unchanged(project);
 
   if (isMagnetic(track)) {
-    const next = moveClip(working, clip.id, { start: desired, trackId });
+    // The clip goes where the pointer is, not where its middle would be: a long
+    // clip grabbed by its middle could otherwise never get in front of a short
+    // first clip, because its start cannot go below 0.
+    const next = moveClip(working, clip.id, { start: desired, trackId, orderAt: input.pointerTime });
     if (next === working) return unchanged(project);
     const landed = findClip(next, clip.id);
     return { project: next, guide: landed ? { kind: "insert", time: landed.start } : null };

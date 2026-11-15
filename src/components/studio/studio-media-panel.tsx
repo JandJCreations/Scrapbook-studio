@@ -20,15 +20,24 @@ interface StudioMediaPanelProps {
   /** Present where the ticked items can be turned into a finished video in one go. */
   onMakeVideo?(items: MediaItem[]): void;
   onUpload?(files: File[]): void;
+  /** Filled in with a function that opens the file picker, so the timeline's + button can open it too. */
+  openPickerRef?: React.RefObject<(() => void) | null>;
 }
 
 /** The user's photos and videos: tick any number and add them to the end of the video. */
-export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onMakeVideo, onUpload }: StudioMediaPanelProps) {
+export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onMakeVideo, onUpload, openPickerRef }: StudioMediaPanelProps) {
   const pictures = items.filter((item) => isUsable(item) && item.type !== "audio");
   const [ticked, setTicked] = React.useState<Set<string>>(new Set());
   // In the order of the list, whatever order they were ticked in; items that went away drop out.
   const chosen = pictures.filter((item) => ticked.has(item.id));
   const fileInput = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (!openPickerRef || !onUpload) return;
+    openPickerRef.current = () => fileInput.current?.click();
+    return () => {
+      openPickerRef.current = null;
+    };
+  }, [openPickerRef, onUpload]);
   /** Files dropped anywhere on the panel are imported; any other drop is left alone. */
   const handleFileDrop = (event: React.DragEvent<HTMLElement>) => {
     if (!onUpload) return;
