@@ -257,6 +257,20 @@ if (EMAIL && PASSWORD) {
     expect(/\(video\)/.test(title), `expected the clip to be a video, got "${title}"`);
   });
 
+  // A file that can't be used stays in view with the reason and can be taken away, instead of quietly vanishing.
+  check("a file that can't be uploaded says why and can be removed", () => {
+    const dir = mkdtempSync(join(tmpdir(), "smoke-"));
+    const notes = join(dir, "notes.txt");
+    writeFileSync(notes, "not a photo");
+    ab("upload", "input[type=file]", notes);
+    waitForSnapshot(/button "Remove notes\.txt"/);
+    expect(/can't be used/.test(ab("get", "text", "body")), "expected a reason next to the failed file");
+    clickButton("Remove notes.txt");
+    const end = Date.now() + 10000;
+    while (/Remove notes\.txt/.test(ab("snapshot", "-i")) && Date.now() < end) ab("wait", "400");
+    expect(!/Remove notes\.txt/.test(ab("snapshot", "-i")), "the failed file was not removed");
+  });
+
   // The editing checks below share one video: a 3-second photo, a 5-second photo and the 2-second clip.
   // Runs JavaScript in the page and gives back what it returned.
   function evalValue(js) {

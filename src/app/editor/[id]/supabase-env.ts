@@ -76,6 +76,8 @@ export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null
       saveFrame: (frame) => saveFrame(projectId, frame),
       saveThumbnail: (dataUrl) => useProjectStore.getState().saveProjectThumbnail(projectId, dataUrl),
       uploadFiles: (files) => useMediaStore.getState().addFiles(files, null),
+      retryUpload: (id) => useMediaStore.getState().retryUpload(id),
+      removeUpload: (id) => useMediaStore.getState().deleteItem(id),
     };
   }, [mediaSource, projectName, hasThumbnail, projectId, storage, library, libraryLoading]);
 
