@@ -85,7 +85,12 @@ export function StudioMediaPanel({
           className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-4 text-center"
         >
           <Upload className="size-6 text-muted-foreground" aria-hidden />
-          <p className="text-xs text-muted-foreground">Drag photos, videos and songs here</p>
+          {/* The same line says how uploads are going, so nothing below jumps when they finish. */}
+          <p role="status" className="text-xs text-muted-foreground">
+            {busy.length > 0
+              ? `Uploading ${busy.length} ${busy.length === 1 ? "file" : "files"}. You can add them now.`
+              : "Drag photos, videos and songs here"}
+          </p>
           <Button size="sm" onClick={() => fileInput.current?.click()} aria-label="Import">
             Import
           </Button>
@@ -102,12 +107,6 @@ export function StudioMediaPanel({
             }}
           />
         </div>
-      )}
-
-      {busy.length > 0 && (
-        <p role="status" className="text-xs text-muted-foreground">
-          Uploading {busy.length} {busy.length === 1 ? "file" : "files"}. You can add them to the video now.
-        </p>
       )}
 
       {failed.length > 0 && (

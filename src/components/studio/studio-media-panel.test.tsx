@@ -185,7 +185,7 @@ describe("StudioMediaPanel", () => {
       item({ id: "w", name: "Next", status: "processing", stage: "waiting", progress: 0, localUrl: "blob:w" }),
       item({ id: "s", name: "Long clip", type: "video", status: "processing", stage: "shrinking", progress: 40, localUrl: "blob:s" }),
       item({ id: "v", name: "Nearly", status: "processing", stage: "saving", progress: 96, localUrl: "blob:v" }),
-    ]);
+    ], { onUpload: vi.fn() });
     expect(screen.getByText("Waiting…")).toBeTruthy();
     expect(screen.getByText("Making smaller 40%")).toBeTruthy();
     expect(screen.getByText("Saving…")).toBeTruthy();
