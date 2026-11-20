@@ -335,6 +335,12 @@ function handleStorage(req, res, rest, raw) {
   }
   const key = parts.join("/");
   if (req.method === "POST" || req.method === "PUT") {
+    // Optional knobs for trying uploads the way they feel on a real connection:
+    // MOCK_UPLOAD_KBPS slows each upload down, MOCK_MAX_UPLOAD_MB refuses big files like Storage does.
+    const maxMb = Number(process.env.MOCK_MAX_UPLOAD_MB || 0);
+    if (maxMb > 0 && raw.length > maxMb * 1024 * 1024) {
+      return send(res, 413, { statusCode: "413", error: "Payload too large", message: "The object exceeded the maximum allowed size" });
+    }
     files.set(key, uploadedFile(req.headers["content-type"] || "application/octet-stream", raw));
     return send(res, 200, { Key: key, Id: randomUUID() });
   }
@@ -350,7 +356,15 @@ function handleStorage(req, res, rest, raw) {
 
 createServer((req, res) => {
   const chunks = [];
-  req.on("data", (c) => chunks.push(c));
+  // MOCK_UPLOAD_KBPS reads request bodies slowly, so uploads behave like they do on a real connection.
+  const kbps = Number(process.env.MOCK_UPLOAD_KBPS || 0);
+  req.on("data", (c) => {
+    chunks.push(c);
+    if (kbps > 0) {
+      req.pause();
+      setTimeout(() => req.resume(), (c.length / 1024 / kbps) * 1000);
+    }
+  });
   req.on("end", () => {
     const raw = Buffer.concat(chunks);
     const url = new URL(req.url, `http://${req.headers.host}`);

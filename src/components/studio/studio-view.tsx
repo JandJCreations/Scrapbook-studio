@@ -545,6 +545,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
             setToolsOpen(false);
           }}
           onUpload={env.uploadFiles}
+          onRetryUpload={env.retryUpload}
+          onRemoveUpload={env.removeUpload}
           openPickerRef={openPickerRef}
         />
       ) : shownTab === "audio" ? (

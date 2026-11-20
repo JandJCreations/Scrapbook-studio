@@ -26,4 +26,8 @@ export interface StudioEnv {
   saveThumbnail?(dataUrl: string): Promise<void>;
   /** Present when the Media tab may offer an upload button. Returns the new library ids, where known. */
   uploadFiles?(files: File[]): string[] | void;
+  /** Tries a failed upload again. */
+  retryUpload?(id: string): void;
+  /** Takes a failed upload off the library. */
+  removeUpload?(id: string): void;
 }
