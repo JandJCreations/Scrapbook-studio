@@ -30,7 +30,8 @@ export function MediaLibraryView() {
     fetchMedia();
   }, [fetchMedia]);
 
-  const scopedItems = items.filter((i) => i.folderId === activeFolderId);
+  // "All media" (no folder picked) shows everything, folders included, matching its count.
+  const scopedItems = activeFolderId === null ? items : items.filter((i) => i.folderId === activeFolderId);
   const filteredItems = scopedItems.filter((i) =>
     i.name.toLowerCase().includes(search.trim().toLowerCase()),
   );

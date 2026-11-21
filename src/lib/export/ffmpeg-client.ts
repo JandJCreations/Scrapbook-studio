@@ -68,7 +68,15 @@ export function getFfmpeg(
     await ffmpeg.load({ coreURL, wasmURL, classWorkerURL });
     ffmpegInstance = ffmpeg;
     return ffmpeg;
-  })();
+  })().catch((error: unknown) => {
+    // Forget the failure so the next export tries again (a dropped
+    // connection would otherwise break exporting until the page reloads).
+    loadPromise = null;
+    throw new Error(
+      "Couldn't download the video tools needed to export. Check your internet connection and try again.",
+      { cause: error },
+    );
+  });
 
   return loadPromise;
 }

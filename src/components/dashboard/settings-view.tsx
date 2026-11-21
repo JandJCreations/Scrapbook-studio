@@ -174,10 +174,9 @@ export function SettingsView({ email }: { email: string }) {
           <div className="flex items-center gap-3 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
             <CloudCheck className="size-5 shrink-0 text-primary" />
             <p>
-              Everything autosaves to the cloud as you work — projects,
-              canvas content, media, fonts, stickers, and these
-              preferences. Sign in on another device to pick up right
-              where you left off.
+              Everything saves to the cloud as you work: your videos,
+              your photos, clips and songs, and these settings. Sign in on
+              another device to pick up right where you left off.
             </p>
           </div>
         </CardContent>

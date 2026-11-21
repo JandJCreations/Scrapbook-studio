@@ -10,7 +10,7 @@ import type { SyncStatus } from "@/lib/sync/timeline-sync";
 const base = {
   projectName: "My trip",
   backHref: "/dashboard",
-  status: { phase: "ready", error: null } as SyncStatus,
+  status: { phase: "ready", error: null, unsaved: false } as SyncStatus,
   canUndo: true,
   canRedo: false,
   onUndo: vi.fn(),
@@ -31,14 +31,16 @@ describe("StudioToolbar", () => {
 
   it("reports each sync state in words", () => {
     const { rerender } = render(
-      <StudioToolbar {...base} status={{ phase: "loading", error: null }} />,
+      <StudioToolbar {...base} status={{ phase: "loading", error: null, unsaved: false }} />,
     );
     expect(screen.getByText("Loading…")).toBeTruthy();
-    rerender(<StudioToolbar {...base} status={{ phase: "error", error: "offline" }} />);
+    rerender(<StudioToolbar {...base} status={{ phase: "error", error: "offline", unsaved: false }} />);
     expect(screen.getByText(/couldn.t save/i)).toBeTruthy();
     expect(screen.getByText(/offline/)).toBeTruthy();
-    rerender(<StudioToolbar {...base} status={{ phase: "conflict", error: null }} />);
+    rerender(<StudioToolbar {...base} status={{ phase: "conflict", error: null, unsaved: false }} />);
     expect(screen.getByText(/changed elsewhere/i)).toBeTruthy();
+    rerender(<StudioToolbar {...base} status={{ phase: "ready", error: null, unsaved: true }} />);
+    expect(screen.getByText("Saving…")).toBeTruthy();
   });
 
   it("enables undo and redo only when there is something to do, and calls back", () => {
@@ -70,7 +72,7 @@ describe("StudioToolbar", () => {
     render(
       <StudioToolbar
         {...base}
-        status={{ phase: "ready", error: "Couldn't save your changes. Will retry on your next edit." }}
+        status={{ phase: "ready", error: "Couldn't save your changes. Will retry on your next edit.", unsaved: true }}
       />,
     );
     expect(screen.queryByText("Saved")).toBeNull();

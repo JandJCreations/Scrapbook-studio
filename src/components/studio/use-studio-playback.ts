@@ -10,9 +10,11 @@ import {
   createBrowserAudioContext,
   createBrowserElement,
 } from "@/lib/playback/browser";
+import { stillTime } from "@/lib/export/export-plan";
 import { loadGoogleFont } from "@/lib/fonts/load-google-font";
 import { createImageCache } from "@/lib/playback/image-cache";
 import { buildScene } from "@/lib/playback/scene";
+import { projectDuration } from "@/lib/timeline/clip-math";
 import { createPlaybackSession, type PlaybackSession } from "@/lib/playback/session";
 import type { MediaUrlSource } from "@/lib/sync/media-url-store";
 import type { FrameSize } from "@/lib/sync/timeline-document";
@@ -92,9 +94,10 @@ export function useStudioPlayback(options: { media: MediaUrlSource; frame: Frame
       onFrame: (frameState, pool) => {
         if (!alive) return;
         useTransportStore.getState().setFrame(frameState.time, frameState.playing);
-        painter.render(
-          buildScene(getProject(), frameState.time, (clipId) => pool.elementForClip(clipId), size),
-        );
+        const project = getProject();
+        // At the very end nothing is "on" any more; show the last frame rather than black.
+        const drawAt = stillTime(frameState.time, projectDuration(project));
+        painter.render(buildScene(project, drawAt, (clipId) => pool.elementForClip(clipId), size));
       },
       onDispose: () => {
         imageCache.dispose();

@@ -380,6 +380,16 @@ if (EMAIL && PASSWORD) {
     ab("fill", 'textarea[aria-label="Text"]', "Sunny day");
     waitForSnapshot(/button "Sunny day"/);
   });
+
+  check("picking another song swaps the music instead of playing both", () => {
+    ab("press", "Home");
+    ab("find", "role", "tab", "click", "--name", "audio");
+    clickButton("Add Golden Hour as music");
+    clickButton("Add Sunday Morning as music");
+    const text = ab("get", "text", "body");
+    expect(/Swapped Golden Hour for Sunday Morning/.test(text), "no swap message after picking a second song");
+    expect(!/Golden Hour \(audio\)/.test(ab("snapshot", "-i")), "the first song is still on the timeline");
+  });
 }
 
 let failed = 0;

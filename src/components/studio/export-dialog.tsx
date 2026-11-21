@@ -23,6 +23,7 @@ import {
   type ExportFormat,
 } from "@/lib/export/export-formats";
 import { RESOLUTION_PRESETS, resolveTargetSize } from "@/lib/export/export-resolutions";
+import { useSettingsStore } from "@/store/use-settings-store";
 import {
   exportStudioProject,
   type ExportStage,
@@ -96,8 +97,13 @@ export function ExportDialog({
   playhead,
   exporter = exportStudioProject,
 }: ExportDialogProps) {
-  const [format, setFormat] = React.useState<ExportFormat>("mp4");
-  const [resolutionId, setResolutionId] = React.useState("1080p");
+  // Starts from the export defaults in Settings until the user picks something here.
+  const defaultFormat = useSettingsStore((s) => s.defaultExportFormat);
+  const defaultResolutionId = useSettingsStore((s) => s.defaultResolutionId);
+  const [pickedFormat, setFormat] = React.useState<ExportFormat | null>(null);
+  const [pickedResolutionId, setResolutionId] = React.useState<string | null>(null);
+  const format = pickedFormat ?? defaultFormat;
+  const resolutionId = pickedResolutionId ?? defaultResolutionId;
   const [fps, setFps] = React.useState(30);
   const [transparent, setTransparent] = React.useState(false);
   const [run, setRun] = React.useState<Run>({ state: "idle" });
@@ -180,7 +186,7 @@ export function ExportDialog({
                     size="sm"
                     role="radio"
                     aria-checked={format === value}
-                    variant={format === value ? "secondary" : "outline"}
+                    variant={format === value ? "default" : "outline"}
                     disabled={running}
                     onClick={() => setFormat(value)}
                   >

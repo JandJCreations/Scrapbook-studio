@@ -8,6 +8,8 @@ export type SyncPhase = "loading" | "ready" | "error" | "conflict";
 export interface SyncStatus {
   phase: SyncPhase;
   error: string | null;
+  /** True while an edit is waiting to be saved (or being saved). */
+  unsaved: boolean;
 }
 
 export interface TimelineSyncOptions {
@@ -28,6 +30,8 @@ export interface TimelineSync {
   /** (Re)starts loading. Also how the UI retries after an error or reloads after a conflict. */
   load(): void;
   flush(): Promise<void>;
+  /** Whether an edit has not reached storage yet; closing the page now would lose it. */
+  hasUnsavedChanges(): boolean;
   /** Abandons loading, stops listening, and saves any pending edit. */
   stop(): Promise<void>;
 }
@@ -56,13 +60,23 @@ export function createTimelineSync(options: TimelineSyncOptions): TimelineSync {
   let finalProject: TimelineProject | null = null;
   let saveFailures = 0;
   let saveErrorShown = false;
+  let lastError: string | null = null;
+  let unsaved = false;
 
   // A stopped controller must never report: its editor may already show a
   // different project.
   function setStatus(next: SyncPhase, error: string | null = null) {
     if (stopped) return;
     phase = next;
-    onStatus({ phase: next, error });
+    lastError = error;
+    if (next !== "ready") unsaved = false;
+    onStatus({ phase: next, error, unsaved });
+  }
+
+  function setUnsaved(next: boolean) {
+    if (stopped || unsaved === next) return;
+    unsaved = next;
+    onStatus({ phase, error: lastError, unsaved });
   }
 
   // Saving is only ever possible in the "ready" phase, so a failed or
@@ -96,6 +110,7 @@ export function createTimelineSync(options: TimelineSyncOptions): TimelineSync {
       saveErrorShown = false;
       setStatus("ready");
     }
+    if ((finalProject ?? getSavable()) === lastSaved) setUnsaved(false);
   }
 
   const autosaver = createAutosaver({
@@ -139,8 +154,12 @@ export function createTimelineSync(options: TimelineSyncOptions): TimelineSync {
         unsubscribe?.();
         unsubscribe = subscribe(() => {
           if (phase !== "ready") return;
-          if (getSavable() === lastSaved) return;
+          if (getSavable() === lastSaved) {
+            setUnsaved(false);
+            return;
+          }
           saveFailures = 0;
+          setUnsaved(true);
           autosaver.schedule();
         });
         setStatus("ready");
@@ -177,6 +196,10 @@ export function createTimelineSync(options: TimelineSyncOptions): TimelineSync {
 
     flush() {
       return autosaver.flush();
+    },
+
+    hasUnsavedChanges() {
+      return phase === "ready" && lastSaved !== null && getSavable() !== lastSaved;
     },
 
     async stop() {
