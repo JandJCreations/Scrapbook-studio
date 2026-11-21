@@ -30,6 +30,12 @@ function clock(seconds: number): string {
 
 /** Under the preview: the time, a bar to drag to any moment, a big play button and full screen. */
 export function PreviewControls({ time, duration, playing, onToggle, onSeek, onFullscreen, voiceover }: PreviewControlsProps) {
+  // iPhone Safari cannot make the preview full screen, so the button would do nothing there.
+  const [canFullscreen, setCanFullscreen] = React.useState(true);
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- document only exists on the client
+    if (document.fullscreenEnabled === false) setCanFullscreen(false);
+  }, []);
   return (
     <div className="flex flex-col gap-2 border-t px-4 py-2">
       <input
@@ -67,9 +73,11 @@ export function PreviewControls({ time, duration, playing, onToggle, onSeek, onF
               <span className="tabular-nums">{voiceover.recording ? clock(voiceover.elapsed) : "Voiceover"}</span>
             </Button>
           )}
-          <Button size="icon" variant="ghost" aria-label="Full screen" onClick={onFullscreen}>
-            <Maximize className="size-4" />
-          </Button>
+          {canFullscreen && (
+            <Button size="icon" variant="ghost" aria-label="Full screen" onClick={onFullscreen}>
+              <Maximize className="size-4" />
+            </Button>
+          )}
         </div>
       </div>
     </div>

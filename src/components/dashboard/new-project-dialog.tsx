@@ -26,9 +26,22 @@ import { useDashboardUiStore } from "@/store/use-dashboard-ui-store";
 import { useProjectStore } from "@/store/use-project-store";
 import { useSettingsStore } from "@/store/use-settings-store";
 
+// A name is optional: a blank one becomes "My video, <today>", so the first video is one tap away.
 const formSchema = z.object({
-  name: z.string().trim().min(1, "Give your video a name").max(80, "Keep it under 80 characters"),
+  name: z.string().trim().max(80, "Keep it under 80 characters"),
 });
+
+/** The name a video gets when none is typed, e.g. "My video, Nov 21". */
+export function defaultVideoName(now = new Date()): string {
+  return `My video, ${now.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+}
+
+// The shapes, named by where people share them rather than by their ratio.
+const SHAPE_CHOICES = [
+  { id: "landscape", label: "Wide", hint: "YouTube, TV, computer" },
+  { id: "portrait", label: "Tall", hint: "Reels, TikTok, Stories" },
+  { id: "square", label: "Square", hint: "Instagram, Facebook posts" },
+] as const;
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -40,6 +53,9 @@ export function NewProjectDialog({ children }: { children: React.ReactNode }) {
   const fetchSettings = useSettingsStore((s) => s.fetchSettings);
   const activeFolderId = useDashboardUiStore((s) => s.activeFolderId);
   const router = useRouter();
+  // Starts on the shape from Settings; a pick here is for this video only.
+  const [pickedShape, setPickedShape] = React.useState<string | null>(null);
+  const shapeId = pickedShape ?? defaultFramePresetId;
 
   React.useEffect(() => {
     fetchSettings();
@@ -57,9 +73,9 @@ export function NewProjectDialog({ children }: { children: React.ReactNode }) {
 
   async function onSubmit(values: FormValues) {
     try {
-      const project = await createProject(values.name, activeFolderId);
+      const project = await createProject(values.name || defaultVideoName(), activeFolderId);
       try {
-        const preset = FRAME_PRESETS.find((p) => p.id === defaultFramePresetId) ?? DEFAULT_FRAME_PRESET;
+        const preset = FRAME_PRESETS.find((p) => p.id === shapeId) ?? DEFAULT_FRAME_PRESET;
         await saveProjectFrameChecked(createClient(), project.id, { width: preset.width, height: preset.height });
         toast.success(`"${project.name}" created`);
       } catch (error) {
@@ -71,6 +87,7 @@ export function NewProjectDialog({ children }: { children: React.ReactNode }) {
         );
       }
       reset();
+      setPickedShape(null);
       setOpen(false);
       router.push(`/editor/${project.id}`);
     } catch (error) {
@@ -83,7 +100,10 @@ export function NewProjectDialog({ children }: { children: React.ReactNode }) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) reset();
+        if (!next) {
+          reset();
+          setPickedShape(null);
+        }
       }}
     >
       <DialogTrigger asChild>{children}</DialogTrigger>
@@ -92,15 +112,50 @@ export function NewProjectDialog({ children }: { children: React.ReactNode }) {
           <DialogHeader>
             <DialogTitle>New video</DialogTitle>
             <DialogDescription>
-              Give your video a name. You add photos, clips and music next, and can rename it anytime.
+              Pick a shape, then choose your photos and clips. You can change both later.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="project-name">Name</Label>
-              <Input id="project-name" placeholder="e.g. Summer Road Trip 2026" autoFocus {...register("name")} />
+              <Label htmlFor="project-name">
+                Name <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input id="project-name" placeholder="e.g. Summer Road Trip 2026" {...register("name")} />
               {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+            </div>
+            <div role="radiogroup" aria-label="Shape" className="grid gap-2">
+              <p className="text-sm font-medium">Shape</p>
+              <div className="grid grid-cols-3 gap-2">
+                {SHAPE_CHOICES.map(({ id, label, hint }) => {
+                  const preset = FRAME_PRESETS.find((p) => p.id === id)!;
+                  const ratio = preset.width / preset.height;
+                  const picked = shapeId === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={picked}
+                      aria-label={`${label}: ${hint}`}
+                      onClick={() => setPickedShape(id)}
+                      className={
+                        "flex min-h-24 flex-col items-center gap-1.5 rounded-lg border-2 p-2 text-center transition-colors " +
+                        (picked ? "border-primary bg-primary/10" : "border-border hover:border-primary/50")
+                      }
+                    >
+                      <span className="flex h-9 items-center justify-center" aria-hidden>
+                        <span
+                          className={"block rounded-sm border-2 " + (picked ? "border-primary" : "border-muted-foreground")}
+                          style={{ width: `${Math.round(30 * Math.min(1, ratio))}px`, height: `${Math.round(30 / Math.max(1, ratio))}px` }}
+                        />
+                      </span>
+                      <span className="text-sm font-medium">{label}</span>
+                      <span className="text-[11px] leading-tight text-muted-foreground">{hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

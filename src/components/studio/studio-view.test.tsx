@@ -315,9 +315,12 @@ describe("StudioView", () => {
 });
 
 describe("StudioView tour", () => {
-  it("opens the welcome tour the first time, and not again once it has been closed", async () => {
+  it("opens the welcome tour once the video has something in it, and not again once it has been closed", async () => {
     const first = render(<StudioView env={env({ welcomeTour: true })} />);
     await screen.findByText("My trip");
+    // An empty video shows the start card instead.
+    expect(screen.queryByText(TOUR_STEPS[0].title)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add Beach to the video" }));
     expect(await screen.findByText(TOUR_STEPS[0].title)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /skip/i }));
     expect(window.localStorage.getItem("scrapbook-studio:tour-seen")).toBe("1");
@@ -348,6 +351,58 @@ describe("StudioView tour", () => {
       if (!selector) continue;
       expect(document.querySelector(`[data-tour="${selector}"]`), selector).not.toBeNull();
     }
+  });
+});
+
+describe("StudioView start card", () => {
+  it("leads an empty video from choosing photos to a finished video in one tap", async () => {
+    const uploadFiles = vi.fn();
+    const base = env({ library: [], uploadFiles });
+    const view = render(<StudioView env={base} />);
+    await screen.findByText("My trip");
+    expect(screen.getByRole("heading", { name: /let.s make your video/i })).toBeTruthy();
+    const file = new File(["x"], "beach.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), { target: { files: [file] } });
+    expect(uploadFiles).toHaveBeenCalledWith([file]);
+
+    // The picked files arrive in the library (still uploading, but already on this device).
+    const picked = [
+      { ...photo, status: "processing" as const, progress: 10, localUrl: "blob:a" },
+      { ...forest, status: "processing" as const, progress: 10, localUrl: "blob:b" },
+    ];
+    view.rerender(<StudioView env={{ ...base, library: picked }} />);
+    expect(screen.getByText("2 photos and clips picked")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /make my video/i }));
+    await vi.waitFor(() => expect(clips().filter((c) => c.kind === "image")).toHaveLength(2));
+    // A song and a title come with it, and the card is gone.
+    expect(clips().some((c) => c.kind === "audio")).toBe(true);
+    expect(screen.queryByRole("button", { name: /make my video/i })).toBeNull();
+  });
+
+  it("can add the picked files without the extras, or send the user to files already in the library", async () => {
+    const uploadFiles = vi.fn();
+    const base = env({ library: [photo], uploadFiles });
+    const view = render(<StudioView env={base} />);
+    await screen.findByText("My trip");
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["x"], "forest.jpg", { type: "image/jpeg" })] },
+    });
+    view.rerender(<StudioView env={{ ...base, library: [photo, forest] }} />);
+    expect(screen.getByText("1 photo or clip picked")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /arrange them myself/i }));
+    // Only the new one goes in, with no music.
+    await vi.waitFor(() => expect(clips().map((c) => c.mediaId)).toEqual([forest.id]));
+  });
+
+  it("offers the library when it already has photos, and is not shown without a way to upload", async () => {
+    const first = render(<StudioView env={env({ uploadFiles: vi.fn() })} />);
+    await screen.findByText("My trip");
+    fireEvent.click(screen.getByRole("button", { name: /already added/i }));
+    expect(screen.queryByRole("heading", { name: /let.s make your video/i })).toBeNull();
+    first.unmount();
+    render(<StudioView env={env()} />);
+    await screen.findByText("My trip");
+    expect(screen.queryByRole("heading", { name: /let.s make your video/i })).toBeNull();
   });
 });
 

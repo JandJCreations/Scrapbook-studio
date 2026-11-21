@@ -22,15 +22,15 @@ export interface TourStep {
 export const TOUR_STEPS: TourStep[] = [
   {
     icon: Sparkles,
-    title: "Make a video from your photos and clips",
+    title: "Your video is on its way",
     description:
-      "Here's a quick, skippable look around. Pick your photos and videos, choose some music, and export a finished video.",
+      "Here's a quick, skippable look at how to change it: add more photos, swap the music, add words, then export.",
   },
   {
     icon: ImagePlus,
     title: "Add your photos and videos",
     description:
-      "Import your files in the Media tab, then press Add. Tick several to add them all at once. They play one after another, in order.",
+      "Press Import to bring in more, then Add to put one at the end. Tap several pictures to tick them and add them all at once.",
     targetSelector: "tab-media",
     mobileTargetSelector: "tools-button",
   },
@@ -38,7 +38,7 @@ export const TOUR_STEPS: TourStep[] = [
     icon: Music,
     title: "Choose your music",
     description:
-      "The Audio tab has your own songs and a built-in music library. Preview a track, then add it. It is cut to fit the length of your video.",
+      "Pick a song from the built-in library or your own. Picking another one swaps it, and it is cut to fit your video.",
     targetSelector: "tab-audio",
     mobileTargetSelector: "tools-button",
   },
@@ -60,13 +60,13 @@ export const TOUR_STEPS: TourStep[] = [
     icon: Clapperboard,
     title: "Your timeline",
     description:
-      "Drag clips to reorder them, drag their edges to trim, and use Split, Duplicate and Delete above it. Click a clip to change how long it shows, its colours or its sound.",
+      "Drag clips to reorder them and drag their edges to trim. Tap a clip to change how long it shows, its look or its sound.",
     targetSelector: "timeline",
   },
   {
     icon: Download,
     title: "Export when you're ready",
-    description: "Save your video in the size that fits where you're sharing it.",
+    description: "When you like it, press Export to save it to your phone or computer, ready to share.",
     targetSelector: "export-button",
   },
 ];
