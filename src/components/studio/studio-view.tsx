@@ -638,11 +638,11 @@ export function StudioView({ env }: { env: StudioEnv }) {
       <WelcomeTour open={tourOpen} onOpenChange={closeTour} />
       {compact && (
         <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
-          <SheetContent side="bottom" className="h-[70svh] gap-0 p-0">
+          <SheetContent side="bottom" className="gap-0 p-0 data-[side=bottom]:h-[70svh]">
             <SheetHeader className="sr-only">
               <SheetTitle>Tools</SheetTitle>
             </SheetHeader>
-            <div className="flex min-h-0 flex-1 flex-col" onClickCapture={blurOnMouseClick}>
+            <div className="flex min-h-0 flex-1 flex-col [&>[role=tablist]]:pr-11" onClickCapture={blurOnMouseClick}>
               {panels}
             </div>
           </SheetContent>

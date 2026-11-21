@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/layout/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { ServiceWorkerRegistration } from "@/components/layout/service-worker-registration";
+import { ClientErrorReporter } from "@/components/common/client-error-reporter";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -63,6 +64,7 @@ export default function RootLayout({
           </TooltipProvider>
         </ThemeProvider>
         <ServiceWorkerRegistration />
+        <ClientErrorReporter />
       </body>
     </html>
   );

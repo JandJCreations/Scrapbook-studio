@@ -390,6 +390,23 @@ if (EMAIL && PASSWORD) {
     expect(/Swapped Golden Hour for Sunday Morning/.test(text), "no swap message after picking a second song");
     expect(!/Golden Hour \(audio\)/.test(ab("snapshot", "-i")), "the first song is still on the timeline");
   });
+
+  // By now the library holds enough photos to overflow a phone screen.
+  check("on a phone, the tools sheet fits the screen so its tabs and close button work", () => {
+    ab("set", "viewport", "390", "660");
+    try {
+      ab("wait", "800");
+      ab("find", "role", "button", "click", "--name", "Add", "--exact");
+      waitForSnapshot(/tab "Audio"/i);
+      ab("find", "role", "tab", "click", "--name", "audio");
+      waitForSnapshot(/button "Add .* as music"/);
+      clickButton("Close");
+      ab("wait", "500");
+      expect(!/tab "Audio"/i.test(ab("snapshot", "-i")), "the tools sheet did not close");
+    } finally {
+      ab("set", "viewport", "1280", "800");
+    }
+  });
 }
 
 let failed = 0;
