@@ -33,8 +33,17 @@ async function upsertSettings(
     .upsert({ owner_id: user.id, ...patch }, { onConflict: "owner_id" });
 }
 
+function settingsRow(s: Pick<SettingsStore, "defaultExportFormat" | "defaultResolutionId" | "defaultFramePresetId">) {
+  return {
+    default_export_format: s.defaultExportFormat,
+    default_resolution_id: s.defaultResolutionId,
+    default_frame_preset_id: s.defaultFramePresetId,
+  };
+}
+
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
-  defaultExportFormat: "png",
+  // A video app: new accounts export a video unless they choose otherwise.
+  defaultExportFormat: "mp4",
   defaultResolutionId: "1080p",
   defaultFramePresetId: DEFAULT_FRAME_PRESET.id,
   loaded: false,
@@ -69,16 +78,18 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set({ loading: false, loaded: true });
   },
 
+  // Every save writes all three, so a first save of one setting never lets
+  // the database fill the others in with its own (older) defaults.
   setDefaultExportFormat: (format) => {
     set({ defaultExportFormat: format });
-    void upsertSettings({ default_export_format: format });
+    void upsertSettings(settingsRow(get()));
   },
   setDefaultResolutionId: (id) => {
     set({ defaultResolutionId: id });
-    void upsertSettings({ default_resolution_id: id });
+    void upsertSettings(settingsRow(get()));
   },
   setDefaultFramePresetId: (id) => {
     set({ defaultFramePresetId: id });
-    void upsertSettings({ default_frame_preset_id: id });
+    void upsertSettings(settingsRow(get()));
   },
 }));

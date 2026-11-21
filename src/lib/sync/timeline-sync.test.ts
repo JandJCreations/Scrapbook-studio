@@ -376,7 +376,7 @@ describe("save failures are reported (review fixes)", () => {
     storage.saveFailures = 0;
     touch();
     await vi.advanceTimersByTimeAsync(DELAY);
-    expect(statuses[statuses.length - 1]).toEqual({ phase: "ready", error: null });
+    expect(statuses[statuses.length - 1]).toEqual({ phase: "ready", error: null, unsaved: false });
   });
 
   it("treats an unwritable document as permanent: reports it and does not retry", async () => {
@@ -392,5 +392,23 @@ describe("save failures are reported (review fixes)", () => {
       phase: "ready",
       error: expect.stringContaining("clips.0.start"),
     });
+  });
+});
+
+describe("unsaved changes", () => {
+  it("reports an edit as unsaved until it is stored, so the page can say Saving… and warn before closing", async () => {
+    const storage = new MemoryTimelineStorage();
+    const { sync, statuses } = await start(storage);
+    expect(sync.hasUnsavedChanges()).toBe(false);
+    expect(statuses[statuses.length - 1].unsaved).toBe(false);
+
+    touch();
+    expect(sync.hasUnsavedChanges()).toBe(true);
+    expect(statuses[statuses.length - 1]).toEqual({ phase: "ready", error: null, unsaved: true });
+
+    await vi.advanceTimersByTimeAsync(DELAY);
+    expect(storage.saveAttempts).toBe(1);
+    expect(sync.hasUnsavedChanges()).toBe(false);
+    expect(statuses[statuses.length - 1]).toEqual({ phase: "ready", error: null, unsaved: false });
   });
 });

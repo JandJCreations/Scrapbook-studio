@@ -22,6 +22,7 @@ const SHAPES = [
   { id: "landscape", label: "Landscape 16:9" },
   { id: "portrait", label: "Portrait 9:16" },
   { id: "square", label: "Square 1:1" },
+  { id: "classic", label: "Classic 4:3" },
 ] as const;
 
 /** What the Details panel shows when no clip is selected: the video itself, its shape and length. */
@@ -32,7 +33,7 @@ export function ProjectPanel({ frame, duration, clipCount, onFrameChange }: Proj
 
       <section className="space-y-2">
         <h3 className="text-xs font-medium text-muted-foreground">Shape</h3>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-1.5">
           {SHAPES.map(({ id, label }) => {
             const preset = FRAME_PRESETS.find((p) => p.id === id)!;
             const current = frame?.width === preset.width && frame?.height === preset.height;

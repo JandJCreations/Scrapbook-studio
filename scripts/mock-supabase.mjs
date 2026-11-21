@@ -333,6 +333,13 @@ function handleStorage(req, res, rest, raw) {
     res.writeHead(200, { "content-type": file.type, "access-control-allow-origin": "*" });
     return res.end(file.data);
   }
+  if (parts[0] === "copy" && req.method === "POST") {
+    const { bucketId, sourceKey, destinationKey } = JSON.parse(raw.toString() || "{}");
+    const file = files.get(`${bucketId}/${sourceKey}`);
+    if (!file) return send(res, 404, { message: "not found" });
+    files.set(`${bucketId}/${destinationKey}`, file);
+    return send(res, 200, { Key: `${bucketId}/${destinationKey}` });
+  }
   const key = parts.join("/");
   if (req.method === "POST" || req.method === "PUT") {
     files.set(key, uploadedFile(req.headers["content-type"] || "application/octet-stream", raw));

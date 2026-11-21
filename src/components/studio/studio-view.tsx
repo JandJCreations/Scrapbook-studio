@@ -37,7 +37,7 @@ import { videoEnd } from "@/lib/timeline/clip-math";
 import { MUSIC_LIBRARY, type MusicLibraryTrack } from "@/lib/audio/music-library-catalog";
 import type { MediaDragPayload } from "@/lib/dom/media-drag";
 import {
-  addAudioClip,
+  addMusicClip,
   addVoiceoverClip,
   addToSequence,
   addToSequenceAt,
@@ -137,9 +137,9 @@ export function StudioView({ env }: { env: StudioEnv }) {
   const usedMedia = new Set(project.clips.map((clip) => clip.mediaId));
   useUploadGuard(env.library.some((item) => item.status === "processing" && usedMedia.has(item.id)));
   const failedUploads = env.library.filter((item) => item.status === "error" && usedMedia.has(item.id));
-  const [message, setMessage] = React.useState<string | null>(null);
-  const say = (text: string | null) => {
-    if (aliveRef.current) setMessage(text);
+  const [message, setMessage] = React.useState<{ text: string; tone: "error" | "info" } | null>(null);
+  const say = (text: string | null, tone: "error" | "info" = "error") => {
+    if (aliveRef.current) setMessage(text === null ? null : { text, tone });
   };
 
   const [tab, setTab] = React.useState<Tab>("media");
@@ -269,10 +269,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
     try {
       const media = await loadEditorMedia(item);
       if (!media || !aliveRef.current) return;
-      const playhead = useTransportStore.getState().time;
-      // Dropped music starts where it was dropped; added music starts at the playhead, or the beginning if that is past the end.
-      if (put((p) => addAudioClip(p, media, frame, at !== undefined ? Math.max(0, at) : musicStartTime(p, playhead)), true)) say(null);
-      else say("Couldn't add that to the video.");
+      putMusic(media, at);
     } catch (error) {
       say(error instanceof Error ? error.message : "Couldn't add that to the video.");
     }
@@ -288,9 +285,26 @@ export function StudioView({ env }: { env: StudioEnv }) {
       width: 0,
       height: 0,
     };
+    putMusic(media, at);
+  }
+
+  /**
+   * Puts a song on the music lane, cut at the end of the video. Dropped music
+   * starts where it was dropped; added music starts at the playhead, or the
+   * beginning if that is past the end. A song it lands on top of is swapped out.
+   */
+  function putMusic(media: EditorMedia, at?: number) {
+    if (!frame) return;
     const playhead = useTransportStore.getState().time;
-    if (put((p) => addAudioClip(p, media, frame, at !== undefined ? Math.max(0, at) : musicStartTime(p, playhead)), true)) say(null);
-    else say("Couldn't add that to the video.");
+    let replaced: string[] = [];
+    const added = put((p) => {
+      const result = addMusicClip(p, media, frame, at !== undefined ? Math.max(0, at) : musicStartTime(p, playhead));
+      replaced = result.replaced;
+      return result;
+    }, true);
+    if (!added) say("Couldn't add that to the video.");
+    else if (replaced.length > 0) say(`Swapped ${replaced.join(", ")} for ${media.name}. Press undo to put it back.`, "info");
+    else say(null);
   }
 
   /** Records the user's voice from the playhead while the video plays; the take lands on the voiceover lane. */
@@ -338,6 +352,28 @@ export function StudioView({ env }: { env: StudioEnv }) {
     if (problem) say(problem);
     else if (aliveRef.current) session?.play();
   }
+  // The take ends when the video stops: at its end, or when the user pauses.
+  // Otherwise the microphone keeps going over a silent, frozen picture.
+  const toggleVoiceoverRef = React.useRef(toggleVoiceover);
+  React.useEffect(() => {
+    toggleVoiceoverRef.current = toggleVoiceover;
+  });
+  const heardPlayRef = React.useRef(false);
+  const recording = recorder.state.phase === "recording";
+  React.useEffect(() => {
+    if (!recording) {
+      heardPlayRef.current = false;
+      return;
+    }
+    if (playing) {
+      heardPlayRef.current = true;
+      return;
+    }
+    if (heardPlayRef.current) {
+      heardPlayRef.current = false;
+      void toggleVoiceoverRef.current();
+    }
+  }, [recording, playing]);
   const [recordedFor, setRecordedFor] = React.useState(0);
   React.useEffect(() => {
     if (recorder.state.phase !== "recording") return;
@@ -694,8 +730,11 @@ export function StudioView({ env }: { env: StudioEnv }) {
             </p>
           )}
           {message && (
-            <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
-              {message}
+            <p
+              role={message.tone === "error" ? "alert" : "status"}
+              className={"border-t px-3 py-2 text-xs " + (message.tone === "error" ? "text-destructive" : "text-muted-foreground")}
+            >
+              {message.text}
             </p>
           )}
           <ClipTools />

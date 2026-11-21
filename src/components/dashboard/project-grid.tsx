@@ -25,7 +25,8 @@ export function ProjectGrid() {
   }, [fetchProjects]);
 
   const active = projects.filter((p) => !p.deletedAt);
-  const scoped = active.filter((p) => p.folderId === activeFolderId);
+  // "All projects" (no folder picked) really is all of them, folders included, matching its count.
+  const scoped = activeFolderId === null ? active : active.filter((p) => p.folderId === activeFolderId);
   const filtered = scoped.filter((p) =>
     p.name.toLowerCase().includes(search.trim().toLowerCase()),
   );

@@ -99,6 +99,32 @@ export function addAudioClip(
   return { project: insertClip(withTrack, clip), clipId: clip.id };
 }
 
+/**
+ * Adds a song to the music lane at `at`. Songs already playing in the part
+ * of the video the new one will cover are taken off, so picking another
+ * track swaps the music instead of playing two songs on top of each other.
+ * `replaced` names the songs that were taken off.
+ */
+export function addMusicClip(
+  project: TimelineProject,
+  media: EditorMedia,
+  frame: FrameSize,
+  at: number,
+  newId: IdFn = createId,
+): AddResult & { replaced: string[] } {
+  const start = Math.max(0, at);
+  const end = videoEnd(project);
+  // The song is cut at the end of the video, so only that part can clash.
+  const until = end > start ? Math.min(start + media.duration, end) : start + media.duration;
+  const lane = project.tracks.find((track) => track.type === "audio" && track.role !== "voiceover");
+  const clashing = lane
+    ? clipsOnTrack(project, lane.id).filter((clip) => clip.start < until && clipEnd(clip) > start)
+    : [];
+  const gone = new Set(clashing.map((clip) => clip.id));
+  const cleared = gone.size > 0 ? { ...project, clips: project.clips.filter((clip) => !gone.has(clip.id)) } : project;
+  return { ...addAudioClip(cleared, media, frame, start, newId), replaced: clashing.map((clip) => clip.name) };
+}
+
 /** Puts a recorded voiceover on the voiceover lane (made if needed) at `at`, never trimmed to the video. */
 export function addVoiceoverClip(
   project: TimelineProject,

@@ -50,6 +50,17 @@ function gradientFor(id: string) {
 export function ProjectCard({ project }: { project: Project }) {
   const [isRenaming, setIsRenaming] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState(project.name);
+  const renameRequested = React.useRef(false);
+  const nameInputRef = React.useRef<HTMLInputElement>(null);
+  // The menu is still closing when Rename is picked: focus the name box once it has gone.
+  React.useEffect(() => {
+    if (!isRenaming) return;
+    const timer = window.setTimeout(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isRenaming]);
   const renameProject = useProjectStore((s) => s.renameProject);
   const deleteProject = useProjectStore((s) => s.deleteProject);
   const restoreProject = useProjectStore((s) => s.restoreProject);
@@ -123,7 +134,8 @@ export function ProjectCard({ project }: { project: Project }) {
         <div className="min-w-0 flex-1">
           {isRenaming ? (
             <Input
-              autoFocus
+              ref={nameInputRef}
+              aria-label="Project name"
               value={nameDraft}
               onChange={(e) => setNameDraft(e.target.value)}
               onBlur={commitRename}
@@ -137,7 +149,9 @@ export function ProjectCard({ project }: { project: Project }) {
               className="h-7 px-1.5 text-sm"
             />
           ) : (
-            <p className="truncate text-sm font-medium">{project.name}</p>
+            <Link href={`/editor/${project.id}`} className="block truncate text-sm font-medium hover:underline">
+              {project.name}
+            </Link>
           )}
           <p className="mt-0.5 text-xs text-muted-foreground">
             Edited {formatRelativeDate(project.updatedAt)}
@@ -155,9 +169,19 @@ export function ProjectCard({ project }: { project: Project }) {
               <MoreVertical className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent
+            align="end"
+            // Picking Rename puts the cursor in the name box; the menu must not take the focus back to its button.
+            onCloseAutoFocus={(event) => {
+              if (renameRequested.current) {
+                renameRequested.current = false;
+                event.preventDefault();
+              }
+            }}
+          >
             <DropdownMenuItem
               onSelect={() => {
+                renameRequested.current = true;
                 setNameDraft(project.name);
                 setIsRenaming(true);
               }}

@@ -208,6 +208,15 @@ export function TimelineView({ onSeek, onToggle, onStep, visuals, onAddClip, onD
       detach();
       if (!drag) return;
       if (drag.kind !== "marquee" && drag.moved) useClipProjectStore.getState().endGesture();
+      // A plain click on a clip the playhead is not over brings the preview to
+      // it, so changes to that clip (a filter, its text) show straight away.
+      if (drag.kind === "move" && !drag.moved) {
+        const clip = selectProject(useClipProjectStore.getState()).clips.find((c) => c.id === drag.clipId);
+        const { time: playhead, playing } = useTransportStore.getState();
+        if (clip && !playing && (playhead < clip.start || playhead >= clipEnd(clip))) {
+          latest.current.onSeek(clip.start);
+        }
+      }
       if (drag.moved) {
         // The browser sends a click after the pointer is released; ignore that one.
         suppressClick.current = true;

@@ -1,13 +1,20 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 
 import { useSupabaseStudioEnv } from "@/app/editor/[id]/supabase-env";
 import { StudioView } from "@/components/studio/studio-view";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSettingsStore } from "@/store/use-settings-store";
 
 export function SupabaseStudio({ projectId }: { projectId: string }) {
   const { env, missing } = useSupabaseStudioEnv(projectId);
+  // The export dialog starts from the export defaults chosen in Settings.
+  const fetchSettings = useSettingsStore((s) => s.fetchSettings);
+  React.useEffect(() => {
+    void fetchSettings();
+  }, [fetchSettings]);
 
   if (missing) {
     return (

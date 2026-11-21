@@ -175,11 +175,19 @@ describe("StudioView", () => {
     expect(music.mediaId).toContain(track.id);
     expect(clipEnd(music)).toBeCloseTo(videoEnd);
 
-    // The user's own song is cut the same way.
+    // The user's own song is cut the same way, and swaps out the song it would play over.
     fireEvent.click(screen.getByRole("button", { name: "Add My song as music" }));
-    await vi.waitFor(() => expect(clips()).toHaveLength(3));
+    await vi.waitFor(() => expect(clips().some((c) => c.mediaId === song.id)).toBe(true));
+    expect(clips()).toHaveLength(2);
+    expect(clips().some((c) => c.mediaId === music.mediaId)).toBe(false);
     const mine = clips().find((c) => c.mediaId === song.id)!;
     expect(clipEnd(mine)).toBeCloseTo(videoEnd);
+    expect(screen.getByText(new RegExp(`Swapped ${track.name} for`))).toBeTruthy();
+
+    // One undo brings the first song back.
+    act(() => useClipProjectStore.getState().undo());
+    expect(clips().some((c) => c.mediaId === music.mediaId)).toBe(true);
+    expect(clips().some((c) => c.mediaId === song.id)).toBe(false);
   });
 
   it("starts music at the beginning when the playhead sits at the end of the video, and the video stays as long as its pictures", async () => {

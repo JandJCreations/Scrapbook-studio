@@ -189,6 +189,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     if (error || !data) throw new Error("Couldn't duplicate that project.");
     set((state) => ({ projects: [rowToProject(data, null), ...state.projects] }));
+
+    // The copy gets its own copy of the original's picture, so its card is not blank until it is opened.
+    if (sourceRow.thumbnail_path) {
+      const path = `${user.id}/projects/${data.id}/thumb.jpg`;
+      const { error: copyError } = await supabase.storage
+        .from(MEDIA_BUCKET)
+        .copy(sourceRow.thumbnail_path, path);
+      if (copyError) return;
+      await supabase.from("projects").update({ thumbnail_path: path }).eq("id", data.id);
+      const thumbnailUrl = await getSignedUrl(path);
+      set((state) => ({
+        projects: state.projects.map((p) => (p.id === data.id ? { ...p, thumbnailUrl } : p)),
+      }));
+    }
   },
 
   saveProjectThumbnail: async (id, dataUrl) => {

@@ -14,7 +14,7 @@ import { selectSavableProject, useClipProjectStore } from "@/store/use-clip-proj
  * retries after a load error or discards local edits after a conflict.
  */
 export function useTimelineSync(projectId: string, storage?: TimelineStorage) {
-  const [status, setStatus] = React.useState<SyncStatus>({ phase: "loading", error: null });
+  const [status, setStatus] = React.useState<SyncStatus>({ phase: "loading", error: null, unsaved: false });
   const [frame, setFrame] = React.useState<FrameSize | null>(null);
   const syncRef = React.useRef<TimelineSync | null>(null);
 
@@ -39,12 +39,22 @@ export function useTimelineSync(projectId: string, storage?: TimelineStorage) {
     function flushNow() {
       void sync.flush();
     }
+    // Reloading or closing the tab straight after an edit would drop it:
+    // start saving, and have the browser ask before leaving.
+    function warnIfUnsaved(event: BeforeUnloadEvent) {
+      if (!sync.hasUnsavedChanges()) return;
+      void sync.flush();
+      event.preventDefault();
+      event.returnValue = "";
+    }
     document.addEventListener("visibilitychange", flushWhenHidden);
     window.addEventListener("pagehide", flushNow);
+    window.addEventListener("beforeunload", warnIfUnsaved);
 
     return () => {
       document.removeEventListener("visibilitychange", flushWhenHidden);
       window.removeEventListener("pagehide", flushNow);
+      window.removeEventListener("beforeunload", warnIfUnsaved);
       syncRef.current = null;
       setFrame(null);
       void sync.stop();
