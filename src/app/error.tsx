@@ -3,6 +3,7 @@
 import * as React from "react";
 import { TriangleAlert } from "lucide-react";
 
+import { reportClientError } from "@/lib/client-error-report";
 import { EmptyState } from "@/components/common/empty-state";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +16,7 @@ export default function GlobalError({
 }) {
   React.useEffect(() => {
     console.error("Unhandled app error:", error);
+    reportClientError(error, "error-boundary");
   }, [error]);
 
   return (
