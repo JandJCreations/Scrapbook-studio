@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Download } from "lucide-react";
+import { ChevronDown, Download, Share } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -54,7 +54,7 @@ const STAGE_TEXT: Record<ExportStage, string> = {
 type Run =
   | { state: "idle" }
   | { state: "running"; stage: ExportStage; ratio: number }
-  | { state: "done"; filename: string }
+  | { state: "done"; filename: string; file: File }
   | { state: "error"; message: string };
 
 interface ExportDialogProps {
@@ -68,6 +68,20 @@ interface ExportDialogProps {
   playhead: number;
   /** The thing that does the work; replaced in tests. */
   exporter?: (options: StudioExportOptions) => Promise<StudioExportResult>;
+}
+
+function clockText(seconds: number): string {
+  const whole = Math.round(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+/** The finished file, offered to the phone's share sheet (where "Save Video" puts it in Photos), if this browser has one. */
+function canShareFile(file: File): boolean {
+  try {
+    return typeof navigator !== "undefined" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
+  } catch {
+    return false;
+  }
 }
 
 function fileName(projectName: string, extension: string): string {
@@ -107,6 +121,8 @@ export function ExportDialog({
   const [fps, setFps] = React.useState(30);
   const [transparent, setTransparent] = React.useState(false);
   const [run, setRun] = React.useState<Run>({ state: "idle" });
+  // Format, size and speed stay folded away: most people just want the video.
+  const [showOptions, setShowOptions] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
 
   // Leaving the page or closing the dialog stops an export that is still going.
@@ -119,6 +135,12 @@ export function ExportDialog({
   const size = resolveTargetSize(frame, preset);
   const estimate = estimateExport(projectDuration(exportableProject(project)), fps, size.width, size.height);
   const tooBig = animated && estimate.tooBig;
+  const length = projectDuration(exportableProject(project));
+  const empty = project.clips.length === 0;
+  const kind = format === "pdf" ? "PDF" : animated ? "video" : "picture";
+  const summary = animated
+    ? `${format === "gif" ? "A GIF" : `An ${FORMAT_LABEL[format]} video`}, ${preset.label}, ${clockText(length)} long.`
+    : `${format === "pdf" ? "A PDF" : `A ${FORMAT_LABEL[format]} picture`} of the moment at the playhead, ${preset.label}.`;
   const running = run.state === "running";
 
   function close(next: boolean) {
@@ -152,7 +174,7 @@ export function ExportDialog({
       }
       const filename = fileName(projectName, result.extension);
       download(result.blob, filename);
-      setRun({ state: "done", filename });
+      setRun({ state: "done", filename, file: new File([result.blob], filename, { type: result.blob.type }) });
     } catch (error) {
       if (abort.signal.aborted || (error instanceof DOMException && error.name === "AbortError")) {
         setRun({ state: "idle" });
@@ -170,78 +192,89 @@ export function ExportDialog({
             <Download className="size-4" />
             Export
           </DialogTitle>
-          <DialogDescription>
-            {animated ? "The whole project, from the start." : "The picture at the playhead."}
-          </DialogDescription>
+          <DialogDescription>{empty ? "Your video is empty. Add some photos or clips first." : summary}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {FORMAT_GROUPS.map((group) => (
-            <div key={group.label} className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground">{group.label}</p>
-              <div role="radiogroup" aria-label={group.label} className="flex flex-wrap gap-1.5">
-                {group.formats.map((value) => (
-                  <Button
-                    key={value}
-                    size="sm"
-                    role="radio"
-                    aria-checked={format === value}
-                    variant={format === value ? "default" : "outline"}
-                    disabled={running}
-                    onClick={() => setFormat(value)}
-                  >
-                    {FORMAT_LABEL[value]}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          <div className="flex items-center gap-3">
-            <Label className="w-24 text-xs font-normal text-muted-foreground">Resolution</Label>
-            <select
-              aria-label="Resolution"
-              value={resolutionId}
-              disabled={running}
-              onChange={(event) => setResolutionId(event.target.value)}
-              className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-xs"
-            >
-              {RESOLUTION_PRESETS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label} ({resolveTargetSize(frame, p).width} × {resolveTargetSize(frame, p).height})
-                </option>
+          <button
+            type="button"
+            aria-expanded={showOptions}
+            onClick={() => setShowOptions((v) => !v)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ChevronDown className={"size-3.5 transition-transform " + (showOptions ? "rotate-180" : "")} aria-hidden />
+            {showOptions ? "Fewer options" : "More options (format, size)"}
+          </button>
+          {showOptions && (
+            <div className="space-y-4">
+              {FORMAT_GROUPS.map((group) => (
+                <div key={group.label} className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">{group.label}</p>
+                  <div role="radiogroup" aria-label={group.label} className="flex flex-wrap gap-1.5">
+                    {group.formats.map((value) => (
+                      <Button
+                        key={value}
+                        size="sm"
+                        role="radio"
+                        aria-checked={format === value}
+                        variant={format === value ? "default" : "outline"}
+                        disabled={running}
+                        onClick={() => setFormat(value)}
+                      >
+                        {FORMAT_LABEL[value]}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               ))}
-            </select>
-          </div>
 
-          {animated && (
-            <div className="flex items-center gap-3">
-              <Label className="w-24 text-xs font-normal text-muted-foreground">Frame rate</Label>
-              <select
-                aria-label="Frame rate"
-                value={fps}
-                disabled={running}
-                onChange={(event) => setFps(Number(event.target.value))}
-                className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-xs"
-              >
-                {FRAME_RATES.map((rate) => (
-                  <option key={rate} value={rate}>
-                    {rate} fps
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+              <div className="flex items-center gap-3">
+                <Label className="w-24 text-xs font-normal text-muted-foreground">Resolution</Label>
+                <select
+                  aria-label="Resolution"
+                  value={resolutionId}
+                  disabled={running}
+                  onChange={(event) => setResolutionId(event.target.value)}
+                  className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-xs"
+                >
+                  {RESOLUTION_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label} ({resolveTargetSize(frame, p).width} × {resolveTargetSize(frame, p).height})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          {canBeTransparent && (
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-normal">Transparent background</Label>
-              <Switch
-                aria-label="Transparent background"
-                checked={transparent}
-                disabled={running}
-                onCheckedChange={setTransparent}
-              />
+              {animated && (
+                <div className="flex items-center gap-3">
+                  <Label className="w-24 text-xs font-normal text-muted-foreground">Frame rate</Label>
+                  <select
+                    aria-label="Frame rate"
+                    value={fps}
+                    disabled={running}
+                    onChange={(event) => setFps(Number(event.target.value))}
+                    className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-xs"
+                  >
+                    {FRAME_RATES.map((rate) => (
+                      <option key={rate} value={rate}>
+                        {rate} fps
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {canBeTransparent && (
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-normal">Transparent background</Label>
+                  <Switch
+                    aria-label="Transparent background"
+                    checked={transparent}
+                    disabled={running}
+                    onCheckedChange={setTransparent}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -267,7 +300,27 @@ export function ExportDialog({
               <Progress value={Math.round(run.ratio * 100)} />
             </div>
           )}
-          {run.state === "done" && <p className="text-xs">Saved as {run.filename}.</p>}
+          {run.state === "done" && (
+            <div className="space-y-2">
+              <p className="text-xs" role="status">
+                Saved as {run.filename}. Look for it in your downloads.
+              </p>
+              {canShareFile(run.file) && (
+                <Button
+                  variant="outline"
+                  className="h-11 w-full"
+                  onClick={() => {
+                    navigator.share({ files: [run.file], title: projectName }).catch(() => {
+                      // Closing the share sheet is not an error worth showing.
+                    });
+                  }}
+                >
+                  <Share className="size-4" />
+                  Share or save to Photos
+                </Button>
+              )}
+            </div>
+          )}
           {run.state === "error" && (
             <p role="alert" className="text-xs text-destructive">
               {run.message}
@@ -277,12 +330,13 @@ export function ExportDialog({
 
         <div className="flex justify-end gap-2">
           {running ? (
-            <Button variant="outline" onClick={() => controller.current?.abort()}>
+            <Button variant="outline" className="h-11 w-full" onClick={() => controller.current?.abort()}>
               Cancel export
             </Button>
           ) : (
-            <Button disabled={tooBig} onClick={() => void start()}>
-              Export
+            <Button className="h-11 w-full text-base" disabled={tooBig || empty} onClick={() => void start()}>
+              <Download className="size-4" />
+              {run.state === "done" ? `Save ${kind} again` : `Save ${kind}`}
             </Button>
           )}
         </div>

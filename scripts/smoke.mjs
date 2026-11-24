@@ -222,10 +222,12 @@ if (EMAIL && PASSWORD) {
   // Carries on in the "Beach day" video made above.
   check("the video exports as an MP4 with its sound", () => {
     clickFirst(/button "Export"/);
-    waitForSnapshot(/combobox "Resolution"/);
+    waitForSnapshot(/button "More options/);
     ab("wait", "500"); // let the dialog finish opening
+    clickFirst(/button "More options/);
+    waitForSnapshot(/combobox "Resolution"/);
     ab("select", '[aria-label="Resolution"]', "720p");
-    ab("eval", '[...document.querySelectorAll("[role=dialog] button")].find((b) => b.textContent.trim() === "Export").click()');
+    clickButton("Save video");
     const end = Date.now() + 180000;
     let snap = "";
     while (Date.now() < end) {
@@ -244,6 +246,28 @@ if (EMAIL && PASSWORD) {
     waitForSnapshot(/combobox "Frame size"[^\n]*Portrait/);
     clickButton("Undo");
     waitForSnapshot(/combobox "Frame size"[^\n]*Landscape/);
+  });
+
+  check("a new video with no name starts from the start card, and Make my video fills it in one tap", () => {
+    ab("open", `${BASE}/dashboard`);
+    ab("eval", 'localStorage.setItem("scrapbook-studio:tour-seen", "1")');
+    ab("find", "role", "button", "click", "--name", "New project");
+    waitForSnapshot(/button "Create video"/);
+    ab("wait", "500");
+    clickFirst(/radio "Tall/);
+    clickButton("Create video");
+    const path = waitForPath((p) => p.startsWith("/editor/"));
+    expect(path.startsWith("/editor/"), `expected the editor, got ${path}`);
+    waitForSnapshot(/button "Choose photos & videos"/);
+    expect(/heading "My video, /.test(ab("snapshot")), "the blank name did not become My video, <date>");
+    const dir = mkdtempSync(join(tmpdir(), "smoke-"));
+    const files = ["pier.png", "dunes.png"].map((name, i) => writePng(dir, name, [[200, 90, 60], [60, 160, 200]][i]));
+    ab("upload", 'input[aria-label="Choose photos and videos"]', ...files);
+    waitForSnapshot(/button "Make my video"/, 30000);
+    clickButton("Make my video");
+    waitForSnapshot(/button "⇄ dunes\.png"/);
+    expect(!/button "Make my video"/.test(ab("snapshot", "-i")), "the start card stayed after making the video");
+    expect(/combobox "Frame size"[^\n]*Portrait/.test(ab("snapshot", "-i")), "the Tall shape was not used");
   });
 
   // A real video file (2 s, VP8 + Opus) from scripts/fixtures, imported on its own.

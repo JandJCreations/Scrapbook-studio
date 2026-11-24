@@ -7,10 +7,12 @@ interface StudioPreviewProps {
   containerRef: React.RefCallback<HTMLDivElement>;
   /** The whole preview, for going full screen. */
   wrapperRef?: React.Ref<HTMLDivElement>;
+  /** Drawn on top of the picture, e.g. the start card of an empty video. */
+  children?: React.ReactNode;
 }
 
 /** The video as it will be exported: nothing on it can be dragged, resized or selected. */
-export function StudioPreview({ containerRef, wrapperRef }: StudioPreviewProps) {
+export function StudioPreview({ containerRef, wrapperRef, children }: StudioPreviewProps) {
   return (
     <div
       ref={wrapperRef}
@@ -19,6 +21,7 @@ export function StudioPreview({ containerRef, wrapperRef }: StudioPreviewProps) 
       className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-muted/30"
     >
       <div ref={containerRef} className="absolute inset-0" />
+      {children}
     </div>
   );
 }

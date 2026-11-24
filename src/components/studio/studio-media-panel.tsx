@@ -93,10 +93,17 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onMakeVideo
         </p>
       )}
 
+      {pictures.length >= 2 && chosen.length === 0 && onMakeVideo && (
+        <p className="text-xs text-muted-foreground">
+          Tip: tap pictures to tick them, then press <span className="font-medium text-foreground">Make a video</span>.
+        </p>
+      )}
+
       {chosen.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1 rounded-md border bg-muted/40 p-2">
+        // Stays in view at the bottom while the list scrolls, so the next step never scrolls away.
+        <div className="sticky bottom-0 z-10 order-last flex flex-wrap items-center gap-1 rounded-md border bg-background p-2 shadow-md">
           <Button
-            size="xs"
+            size="sm"
             variant="secondary"
             onClick={() => {
               onAddMany(chosen);
@@ -107,7 +114,7 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onMakeVideo
           </Button>
           {onMakeVideo && chosen.length >= 2 && (
             <Button
-              size="xs"
+              size="sm"
               className="gap-1"
               title="Photos and clips in order, with movement, transitions, a title and music"
               onClick={() => {
@@ -115,11 +122,11 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onMakeVideo
                 setTicked(new Set());
               }}
             >
-              <Wand2 className="size-3" />
+              <Wand2 className="size-4" />
               Make a video
             </Button>
           )}
-          <Button size="xs" variant="ghost" onClick={() => setTicked(new Set())}>
+          <Button size="sm" variant="ghost" onClick={() => setTicked(new Set())}>
             Clear selection
           </Button>
         </div>
@@ -133,13 +140,22 @@ export function StudioMediaPanel({ items, loading, onAdd, onAddMany, onMakeVideo
             onDragStart={(event) => writeMediaDrag(event.dataTransfer, { source: "library", id: item.id }, "visual")}
             className="relative cursor-grab overflow-hidden rounded-md border"
           >
-            <MediaThumbnail item={item} className="aspect-square w-full" />
+            {/* The whole picture ticks it: a big target for a finger. */}
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-hidden
+              onClick={() => toggle(item.id)}
+              className={"block w-full " + (ticked.has(item.id) ? "ring-2 ring-inset ring-primary" : "")}
+            >
+              <MediaThumbnail item={item} className="aspect-square w-full" />
+            </button>
             <input
               type="checkbox"
               aria-label={`Select ${item.name}`}
               checked={ticked.has(item.id)}
               onChange={() => toggle(item.id)}
-              className="absolute left-1.5 top-1.5 size-4"
+              className="absolute left-1.5 top-1.5 size-5 accent-primary"
             />
             {item.status === "processing" && (
               <span className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">

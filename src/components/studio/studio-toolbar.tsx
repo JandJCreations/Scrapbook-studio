@@ -77,7 +77,8 @@ export function StudioToolbar({
 
         <select
           aria-label="Frame size"
-          className="w-28 rounded border bg-background px-1 py-1 text-xs text-foreground sm:w-auto"
+          // On a phone the shape lives in the Details tab, so the name and Export have room.
+          className="hidden rounded border bg-background px-1 py-1 text-xs text-foreground sm:block"
           value={current}
           onChange={(event) => {
             const preset = FRAME_PRESETS.find((p) => p.id === event.target.value);
@@ -103,9 +104,9 @@ export function StudioToolbar({
           </Button>
         )}
         {onOpenExport && (
-          <Button variant="secondary" size="sm" aria-label="Export" data-tour="export-button" onClick={onOpenExport}>
+          <Button size="sm" aria-label="Export" data-tour="export-button" onClick={onOpenExport}>
             <Download className="size-4" />
-            <span className="hidden sm:inline">Export</span>
+            Export
           </Button>
         )}
 

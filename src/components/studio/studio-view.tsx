@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeftRight, Image as ImageIcon, Music, Palette, SlidersHorizontal, Type } from "lucide-react";
+import { ArrowLeftRight, Image as ImageIcon, Music, Palette, Plus, SlidersHorizontal, Type } from "lucide-react";
 
 import { AudioTab } from "@/components/studio/audio-tab";
 import { ClipTools } from "@/components/studio/clip-tools";
@@ -15,6 +15,7 @@ import { ExportDialog } from "@/components/studio/export-dialog";
 import { StudioMediaPanel } from "@/components/studio/studio-media-panel";
 import type { StudioEnv } from "@/components/studio/studio-env";
 import { StudioPreview } from "@/components/studio/studio-preview";
+import { StartCard } from "@/components/studio/start-card";
 import { StudioToolbar } from "@/components/studio/studio-toolbar";
 import { useStudioMedia } from "@/components/studio/use-studio-media";
 import { useStudioPlayback } from "@/components/studio/use-studio-playback";
@@ -48,6 +49,7 @@ import {
 } from "@/lib/editor/ops";
 import { TOUR_SEEN_STORAGE_KEY } from "@/lib/onboarding/tour-steps";
 import { readMediaInfo } from "@/lib/playback/browser";
+import { isUsable } from "@/lib/media/local-media";
 import { withBundledAssets } from "@/lib/sync/bundled-assets";
 import type { FrameSize } from "@/lib/sync/timeline-document";
 import { projectDuration } from "@/lib/timeline/clip-math";
@@ -152,8 +154,10 @@ export function StudioView({ env }: { env: StudioEnv }) {
   const [toolsOpen, setToolsOpen] = React.useState(false);
   const [tourOpen, setTourOpen] = React.useState(false);
   const ready = status.phase === "ready";
+  // An empty video has the start card to show the way; the tour waits until there is something to edit.
+  const hasClips = project.clips.length > 0;
   React.useEffect(() => {
-    if (!env.welcomeTour || !ready) return;
+    if (!env.welcomeTour || !ready || !hasClips) return;
     try {
       if (window.localStorage.getItem(TOUR_SEEN_STORAGE_KEY)) return;
     } catch {
@@ -162,8 +166,12 @@ export function StudioView({ env }: { env: StudioEnv }) {
     // Opening the tour once, the first time the editor is ready on this browser.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads localStorage, which only exists on the client
     setTourOpen(true);
-  }, [env.welcomeTour, ready]);
+  }, [env.welcomeTour, ready, hasClips]);
   const previewRef = React.useRef<HTMLDivElement>(null);
+  // The start card's own file picker. What was in the library before a pick tells the new files apart.
+  const startPicker = React.useRef<HTMLInputElement>(null);
+  const [libraryBeforePick, setLibraryBeforePick] = React.useState<Set<string> | null>(null);
+  const [startDismissed, setStartDismissed] = React.useState(false);
   const [exportOpen, setExportOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
 
@@ -575,6 +583,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
           }}
           onMakeVideo={(items) => {
             void makeVideo(items);
+            setToolsOpen(false);
           }}
           onAddMany={(items) => {
             void addMany(items);
@@ -619,8 +628,55 @@ export function StudioView({ env }: { env: StudioEnv }) {
     </>
   );
 
+  // The start card: while the video is empty, choose photos, then make the video in one tap.
+  const pictures = env.library.filter((item) => item.type !== "audio" && item.status !== "error");
+  const justPicked = libraryBeforePick ? pictures.filter((item) => !libraryBeforePick.has(item.id)) : [];
+  const justReady = justPicked.filter(isUsable);
+  const showStart = !!env.uploadFiles && !hasClips && !startDismissed;
+  const openPanel = (name: Tab) => {
+    setTab(name);
+    if (compact) setToolsOpen(true);
+  };
+  const startCard = showStart ? (
+    <StartCard
+      picked={justPicked.length}
+      ready={justReady.length}
+      hasLibrary={pictures.some(isUsable)}
+      onChoose={() => startPicker.current?.click()}
+      onMakeVideo={() => {
+        setLibraryBeforePick(null);
+        void makeVideo(justReady);
+      }}
+      onArrangeMyself={() => {
+        setLibraryBeforePick(null);
+        void addMany(justReady);
+      }}
+      onUseLibrary={() => {
+        setStartDismissed(true);
+        openPanel("media");
+      }}
+    />
+  ) : null;
+
   return (
     <div className="flex h-full flex-col">
+      {env.uploadFiles && (
+        <input
+          ref={startPicker}
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          aria-label="Choose photos and videos"
+          className="hidden"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            event.target.value = "";
+            if (files.length === 0) return;
+            setLibraryBeforePick(new Set(env.library.map((item) => item.id)));
+            env.uploadFiles?.(files);
+          }}
+        />
+      )}
       <StudioToolbar
         projectName={env.projectName}
         backHref={env.backHref}
@@ -676,33 +732,35 @@ export function StudioView({ env }: { env: StudioEnv }) {
           </aside>
         )}
         <main className="flex min-w-0 flex-1 flex-col">
-          <StudioPreview containerRef={containerRef} wrapperRef={previewRef} />
+          <StudioPreview containerRef={containerRef} wrapperRef={previewRef}>
+            {startCard}
+          </StudioPreview>
           {compact && (
-            <div className="flex items-center gap-3 border-t px-3 py-2" onClickCapture={blurOnMouseClick}>
-              <Button
-                size="sm"
-                variant="outline"
-                data-tour="tools-button"
-                onClick={() => {
-                  setTab("media");
-                  setToolsOpen(true);
-                }}
-              >
-                Add
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                aria-label="Edit selected"
-                disabled={!selectedClip}
-                onClick={() => {
-                  setTab("edit");
-                  setToolsOpen(true);
-                }}
-              >
-                <SlidersHorizontal className="size-4" />
-              </Button>
-            </div>
+            // A phone's tool bar: every panel one tap away, with a word under each icon.
+            <nav aria-label="Tools" className="grid grid-cols-5 border-t" onClickCapture={blurOnMouseClick}>
+              {(
+                [
+                  { name: "media", label: "Add", icon: Plus, tour: "tools-button" },
+                  { name: "audio", label: "Music", icon: Music },
+                  { name: "text", label: "Text", icon: Type },
+                  { name: "filters", label: "Filters", icon: Palette },
+                  { name: "edit", label: "Edit", icon: SlidersHorizontal, needsClip: true },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.name}
+                  type="button"
+                  data-tour={"tour" in item ? item.tour : undefined}
+                  aria-label={item.name === "edit" ? "Edit selected" : undefined}
+                  disabled={"needsClip" in item && !selectedClip}
+                  onClick={() => openPanel(item.name)}
+                  className="flex min-h-12 flex-col items-center justify-center gap-0.5 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40"
+                >
+                  <item.icon className="size-5" aria-hidden />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
           )}
           <div onClickCapture={blurOnMouseClick}>
             <PreviewControls
@@ -738,7 +796,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
             </p>
           )}
           <ClipTools />
-          <div data-tour="timeline" className="flex h-[40%] min-h-[260px] shrink-0 flex-col border-t p-2">
+          <div data-tour="timeline" className="flex h-[40%] min-h-[200px] shrink-0 flex-col border-t p-2 lg:min-h-[260px]">
             <TimelineView
               fps={FPS}
               onSeek={(t) => session?.seek(t)}

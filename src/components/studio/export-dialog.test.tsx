@@ -33,11 +33,41 @@ function setup(exporter: (o: StudioExportOptions) => Promise<StudioExportResult>
   );
 }
 
+const saveButton = () => screen.getByRole("button", { name: /^Save/ });
+const openOptions = () => fireEvent.click(screen.getByRole("button", { name: /more options/i }));
+
 const done = async (): Promise<StudioExportResult> => ({ blob: new Blob(["x"]), extension: "png" });
 
 describe("ExportDialog", () => {
+  it("keeps the options folded away and says in words what will be saved", () => {
+    setup(done);
+    expect(screen.queryByRole("radio", { name: "MP4" })).toBeNull();
+    expect(screen.getByText(/an mp4 video, 1080p/i)).toBeTruthy();
+    expect(saveButton().textContent).toMatch(/save video/i);
+  });
+
+  it("will not export an empty video", () => {
+    setup(done, { project: makeProject(makeStandardTracks(), []) });
+    expect(screen.getByText(/your video is empty/i)).toBeTruthy();
+    expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("offers the share sheet for the finished file where the browser has one", async () => {
+    const share = vi.fn(async () => {});
+    Object.assign(navigator, { canShare: () => true, share });
+    try {
+      setup(done);
+      fireEvent.click(saveButton());
+      fireEvent.click(await screen.findByRole("button", { name: /share or save to photos/i }));
+      expect(share).toHaveBeenCalledWith(expect.objectContaining({ files: [expect.any(File)] }));
+    } finally {
+      Object.assign(navigator, { canShare: undefined, share: undefined });
+    }
+  });
+
   it("offers the formats in two groups", () => {
     setup(done);
+    openOptions();
     for (const name of ["PNG", "JPG", "PDF", "GIF", "MP4", "MOV", "WebM"]) {
       expect(screen.getByRole("radio", { name })).toBeTruthy();
     }
@@ -46,9 +76,10 @@ describe("ExportDialog", () => {
   it("exports the chosen format at the chosen size and saves the file under the project name", async () => {
     const exporter = vi.fn<(o: StudioExportOptions) => Promise<StudioExportResult>>(done);
     setup(exporter);
+    openOptions();
     fireEvent.click(screen.getByRole("radio", { name: "PNG" }));
     fireEvent.change(screen.getByLabelText("Resolution"), { target: { value: "720p" } });
-    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    fireEvent.click(saveButton());
     await waitFor(() => expect(exporter).toHaveBeenCalledTimes(1));
     const options = exporter.mock.calls[0][0];
     expect(options).toMatchObject({ format: "png", targetWidth: 1280, playhead: 2, transparent: false, frame });
@@ -59,6 +90,7 @@ describe("ExportDialog", () => {
 
   it("shows the frame rate only for moving pictures and transparency only where it works", () => {
     setup(done);
+    openOptions();
     fireEvent.click(screen.getByRole("radio", { name: "PNG" }));
     expect(screen.queryByLabelText("Frame rate")).toBeNull();
     expect(screen.getByRole("switch", { name: "Transparent background" })).toBeTruthy();
@@ -75,10 +107,11 @@ describe("ExportDialog", () => {
       extension: "webm",
     }));
     setup(exporter);
+    openOptions();
     fireEvent.click(screen.getByRole("radio", { name: "WebM" }));
     fireEvent.change(screen.getByLabelText("Frame rate"), { target: { value: "60" } });
     fireEvent.click(screen.getByRole("switch", { name: "Transparent background" }));
-    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    fireEvent.click(saveButton());
     await waitFor(() => expect(exporter).toHaveBeenCalled());
     expect(exporter.mock.calls[0][0]).toMatchObject({ format: "webm", fps: 60, transparent: true });
   });
@@ -105,11 +138,11 @@ describe("ExportDialog", () => {
         }),
     );
     setup(exporter);
-    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    fireEvent.click(saveButton());
     expect(await screen.findByText(/rendering frames/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancel export" }));
     await waitFor(() => expect(aborted).toBe(true));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Export" })).toBeTruthy());
+    await waitFor(() => expect(saveButton()).toBeTruthy());
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -122,32 +155,33 @@ describe("ExportDialog", () => {
         }),
     );
     setup(exporter);
-    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    fireEvent.click(saveButton());
     fireEvent.click(await screen.findByRole("button", { name: "Cancel export" }));
     finish({ blob: new Blob(["x"]), extension: "mp4" });
-    expect(await screen.findByRole("button", { name: "Export" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /^Save/ })).toBeTruthy();
     expect(screen.queryByText(/saved as/i)).toBeNull();
     expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
   });
 
   it("will not start an export too big for the encoder, and says how to fix it", () => {
     setup(done);
+    openOptions();
     fireEvent.change(screen.getByLabelText("Resolution"), { target: { value: "4k" } });
     fireEvent.change(screen.getByLabelText("Frame rate"), { target: { value: "60" } });
-    expect((screen.getByRole("button", { name: "Export" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/too long|too big|too large/i)).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Resolution"), { target: { value: "720p" } });
     fireEvent.change(screen.getByLabelText("Frame rate"), { target: { value: "15" } });
-    expect((screen.getByRole("button", { name: "Export" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((saveButton() as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("tells the user when the export fails, and lets them try again", async () => {
     setup(async () => {
       throw new Error("The video could not be loaded.");
     });
-    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    fireEvent.click(saveButton());
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByText(/could not be loaded/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Export" })).toBeTruthy();
+    expect(saveButton()).toBeTruthy();
   });
 });
