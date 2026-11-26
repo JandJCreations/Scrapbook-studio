@@ -24,10 +24,11 @@ interface StartCardProps {
 export function StartCard({ picked, ready, hasLibrary, onChoose, onMakeVideo, onArrangeMyself, onUseLibrary }: StartCardProps) {
   const waiting = picked > 0 && ready < picked;
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center overflow-y-auto bg-background/85 p-4 backdrop-blur-sm">
+    // m-auto (not items-center) keeps the top of the card reachable when a phone's short preview makes it scroll.
+    <div className="absolute inset-0 z-10 flex overflow-y-auto bg-background/85 p-3 backdrop-blur-sm sm:p-4">
       <section
         aria-label="Get started"
-        className="flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl border bg-card p-5 text-center shadow-lg"
+        className="m-auto flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl border bg-card p-4 text-center shadow-lg sm:p-5"
       >
         {picked === 0 ? (
           <>
@@ -50,7 +51,7 @@ export function StartCard({ picked, ready, hasLibrary, onChoose, onMakeVideo, on
           </>
         ) : (
           <>
-            <span className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary" aria-hidden>
+            <span className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary [@media(max-height:760px)]:hidden" aria-hidden>
               {waiting ? <Loader2 className="size-5 animate-spin" /> : <Wand2 className="size-5" />}
             </span>
             <div className="space-y-1">
@@ -61,7 +62,7 @@ export function StartCard({ picked, ready, hasLibrary, onChoose, onMakeVideo, on
                     ? "1 photo or clip picked"
                     : `${picked} photos and clips picked`}
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground [@media(max-height:760px)]:hidden">
                 We&apos;ll put them in order with music, a title and smooth transitions. You can change anything after.
               </p>
             </div>
@@ -71,6 +72,10 @@ export function StartCard({ picked, ready, hasLibrary, onChoose, onMakeVideo, on
             </Button>
             <Button variant="ghost" size="sm" className="h-10 w-full" disabled={waiting} onClick={onArrangeMyself}>
               I&apos;ll arrange them myself
+            </Button>
+            <Button variant="link" size="sm" className="h-10" onClick={onChoose}>
+              <ImagePlus className="size-4" />
+              Add more photos
             </Button>
           </>
         )}

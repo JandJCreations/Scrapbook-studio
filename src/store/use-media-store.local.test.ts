@@ -14,7 +14,10 @@ function fakeQuery(): unknown {
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
-    auth: { getUser: () => (signIn === "never" ? new Promise(() => {}) : Promise.resolve({ data: { user: null } })) },
+    auth: {
+      getUser: () => (signIn === "never" ? new Promise(() => {}) : Promise.resolve({ data: { user: null } })),
+      getSession: () => (signIn === "never" ? new Promise(() => {}) : Promise.resolve({ data: { session: null } })),
+    },
     from: () => fakeQuery(),
     storage: { from: () => fakeQuery() },
   }),
@@ -72,5 +75,30 @@ describe("the rest of the store keeps the local files straight", () => {
     );
     useMediaStore.getState().deleteItems(ids);
     expect(revoke).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("uploads that lose the connection", () => {
+  it("say there's no internet (not \"signed out\") and carry on by themselves when it comes back", async () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    const [id] = useMediaStore.getState().addFiles([new File(["x"], "pier.jpg", { type: "image/jpeg" })], null);
+    await vi.waitFor(() => expect(useMediaStore.getState().items.find((i) => i.id === id)?.status).toBe("error"));
+    const failed = useMediaStore.getState().items.find((i) => i.id === id)!;
+    expect(failed.connectionLost).toBe(true);
+    expect(failed.error).toMatch(/no internet/i);
+
+    vi.stubGlobal("navigator", { onLine: true });
+    signIn = "never"; // the retried upload is still going
+    useMediaStore.getState().retryLostUploads();
+    expect(useMediaStore.getState().items.find((i) => i.id === id)?.status).toBe("processing");
+  });
+
+  it("names iPhone's look-alike files by their place in the batch", () => {
+    const ids = useMediaStore
+      .getState()
+      .addFiles([new File(["x"], "image.jpg", { type: "image/jpeg" }), new File(["y"], "image.jpg", { type: "image/jpeg" })], null);
+    const names = ids.map((id) => useMediaStore.getState().items.find((i) => i.id === id)!.name);
+    expect(names[0]).toMatch(/^Photo 1, /);
+    expect(names[1]).toMatch(/^Photo 2, /);
   });
 });

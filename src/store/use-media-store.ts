@@ -6,7 +6,8 @@ import {
   generateVideoThumbnail,
   getAudioDuration,
 } from "@/lib/media/generate-thumbnail";
-import { detectMediaType } from "@/lib/media/file-type";
+import { detectMediaType, friendlyMediaName, mimeTypeFor } from "@/lib/media/file-type";
+import { PhotoFormatError, preparePhoto } from "@/lib/media/prepare-photo";
 import { shrinkVideo, ShrinkError } from "@/lib/media/shrink-video";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/database.types";
@@ -21,6 +22,7 @@ import {
   uploadWithProgress,
 } from "@/lib/supabase/storage";
 import type { MediaFolder, MediaItem, MediaType } from "@/types/media";
+import { ConnectionLostError } from "@/lib/supabase/storage";
 
 type MediaItemRow = Database["public"]["Tables"]["media_items"]["Row"];
 type MediaFolderRow = Database["public"]["Tables"]["media_folders"]["Row"];
@@ -81,6 +83,8 @@ interface MediaStore {
   addFiles: (files: File[], folderId: string | null) => string[];
   /** Tries a failed upload again, while this session still holds its file. */
   retryUpload: (id: string) => void;
+  /** Tries again every upload that failed because the connection dropped (the phone locked, Safari went to the background, the signal went). */
+  retryLostUploads: () => void;
   deleteItem: (id: string) => void;
   deleteItems: (ids: string[]) => void;
   renameItem: (id: string, name: string) => void;
@@ -98,6 +102,8 @@ const pendingFiles = new Map<string, File>();
 const runThumbnail = createLimiter(2);
 const runUpload = createLimiter(UPLOAD_CONCURRENCY);
 const runShrink = createLimiter(1);
+/** Big photos are redrawn one at a time: a phone has little memory to spare. */
+const runPhoto = createLimiter(1);
 
 function createLimiter(limit: number) {
   let active = 0;
@@ -150,6 +156,46 @@ async function uploadBlob(path: string, body: Blob, contentType: string, onProgr
   );
 }
 
+/**
+ * Whether an upload failed because the connection went (signal lost, or an
+ * iPhone pausing the page) rather than being refused: those are tried again
+ * by themselves. A fetch that couldn't reach the server throws a TypeError.
+ */
+function isConnectionLoss(err: unknown): boolean {
+  if (err instanceof ConnectionLostError || err instanceof TypeError) return true;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  return err instanceof Error && /failed to fetch|load failed|network ?error|networkerror/i.test(err.message);
+}
+
+/**
+ * Who is uploading. Read from the session saved on this device, so it still
+ * works with no signal (asking the server would fail, and wrongly say
+ * "signed out"); the upload itself checks the session with the server.
+ */
+async function currentUser(): Promise<{ id: string; problem?: never } | { id?: never; problem: Partial<MediaItem> }> {
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  try {
+    const {
+      data: { session },
+    } = await createClient().auth.getSession();
+    if (session?.user) return { id: session.user.id };
+  } catch {
+    // Treated like no session below.
+  }
+  return {
+    problem: offline
+      ? { status: "error", stage: undefined, retryable: true, connectionLost: true, error: "No internet connection. It will carry on when you're back online." }
+      : { status: "error", stage: undefined, retryable: true, error: "You were signed out. Sign in again and retry." },
+  };
+}
+
+/** Keeps the new ending (".jpg") on the name the user sees. */
+function renamedLike(shown: string, saved: string): string {
+  const ext = saved.slice(saved.lastIndexOf("."));
+  const dot = shown.lastIndexOf(".");
+  return (dot === -1 ? shown : shown.slice(0, dot)) + ext;
+}
+
 async function processMediaItem(
   userId: string,
   item: MediaItem,
@@ -173,10 +219,32 @@ async function processMediaItem(
   const supabase = createClient();
   // The file is usually already held locally (addFiles); one made here is ours to let go of.
   let earlyThumbnail: string | null = null;
-  const madeLocalUrl = item.localUrl === undefined;
-  const localUrl = item.localUrl ?? URL.createObjectURL(file);
+  let madeLocalUrl = item.localUrl === undefined;
+  let localUrl = item.localUrl ?? URL.createObjectURL(file);
 
   try {
+    if (type === "image") {
+      // An iPhone HEIC becomes a JPEG and a huge photo is made smaller, before anything is sent.
+      const original = file;
+      try {
+        file = await runPhoto(() => preparePhoto(original));
+      } catch (err) {
+        if (err instanceof PhotoFormatError) pendingFiles.delete(item.id);
+        throw err;
+      }
+      if (file !== original) {
+        if (pendingFiles.has(item.id)) pendingFiles.set(item.id, file);
+        // The editor plays the JPEG from now on: every browser can show it.
+        const nextUrl = URL.createObjectURL(file);
+        if (madeLocalUrl) URL.revokeObjectURL(localUrl);
+        else if (item.localUrl) setTimeout(() => URL.revokeObjectURL(item.localUrl!), 60000);
+        localUrl = nextUrl;
+        madeLocalUrl = false;
+        update(item.id, { localUrl: nextUrl, name: renamedLike(item.name, file.name), mimeType: file.type, size: file.size });
+        item = { ...item, localUrl: nextUrl, name: renamedLike(item.name, file.name) };
+      }
+    }
+
     // The picture first, outside the upload queue: the tile shows the photo while it waits its turn.
     const preview = await runThumbnail(() => makePreview(type, file, localUrl));
     if (preview.thumbnailBlob) {
@@ -237,7 +305,7 @@ async function processMediaItem(
       };
 
       await Promise.all([
-        uploadBlob(storagePath, file, file.type, (f) => {
+        uploadBlob(storagePath, file, mimeTypeFor(file), (f) => {
           fileSent = f * file.size;
           report();
         }),
@@ -264,7 +332,7 @@ async function processMediaItem(
         folder_id: item.folderId,
         name: item.name,
         type,
-        mime_type: file.type || item.mimeType,
+        mime_type: mimeTypeFor(file),
         size: file.size,
         storage_path: storagePath,
         thumbnail_path: thumbnailPath,
@@ -286,11 +354,13 @@ async function processMediaItem(
       });
     });
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Couldn't upload this file. Try again.";
     update(item.id, {
       status: "error",
       stage: undefined,
       retryable: pendingFiles.has(item.id),
-      error: err instanceof Error ? err.message : "Couldn't upload this file. Try again.",
+      connectionLost: isConnectionLoss(err),
+      error: message,
     });
   } finally {
     if (madeLocalUrl) URL.revokeObjectURL(localUrl);
@@ -425,15 +495,18 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
         ),
       }));
 
+    let photos = 0;
+    let videos = 0;
     const newItems: MediaItem[] = files.map((file) => {
       const type = detectMediaType(file);
+      const position = type === "video" ? ++videos : type === "image" ? ++photos : 0;
       return {
         // Held in memory for the session: the file can be added to the video and played at once, while it uploads.
         ...(type ? { localUrl: URL.createObjectURL(file) } : {}),
         id: id(),
-        name: file.name,
+        name: friendlyMediaName(file, type, position),
         type: type ?? "image",
-        mimeType: file.type,
+        mimeType: mimeTypeFor(file),
         size: file.size,
         url: "",
         thumbnailUrl: null,
@@ -450,17 +523,12 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     set((state) => ({ items: [...newItems, ...state.items] }));
 
     (async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        newItems.forEach((item) =>
-          update(item.id, { status: "error", stage: undefined, retryable: true, error: "You were signed out. Sign in again and retry." }),
-        );
+      const who = await currentUser();
+      if (!who.id) {
+        newItems.forEach((item) => update(item.id, who.problem!));
         return;
       }
-      newItems.forEach((item, index) => void processMediaItem(user.id, item, files[index], update));
+      newItems.forEach((item, index) => void processMediaItem(who.id, item, files[index], update));
     })();
 
     return newItems.map((item) => item.id);
@@ -472,18 +540,22 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     if (!file || !item || item.status !== "error") return;
     const update = (id: string, patch: Partial<MediaItem>) =>
       set((state) => ({ items: state.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
-    update(itemId, { status: "processing", stage: "waiting", progress: 0, error: undefined });
+    update(itemId, { status: "processing", stage: "waiting", progress: 0, error: undefined, connectionLost: undefined });
     (async () => {
-      const {
-        data: { user },
-      } = await createClient().auth.getUser();
-      if (!user) {
-        update(itemId, { status: "error", stage: undefined, retryable: true, error: "You were signed out. Sign in again and retry." });
+      const who = await currentUser();
+      if (!who.id) {
+        update(itemId, who.problem!);
         return;
       }
       const fresh = get().items.find((i) => i.id === itemId);
-      if (fresh) void processMediaItem(user.id, fresh, file, update);
+      if (fresh) void processMediaItem(who.id, fresh, file, update);
     })();
+  },
+
+  retryLostUploads: () => {
+    for (const item of get().items) {
+      if (item.status === "error" && item.connectionLost && pendingFiles.has(item.id)) get().retryUpload(item.id);
+    }
   },
 
   deleteItem: (itemId) => {
@@ -604,3 +676,15 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     void supabase.from("media_folders").delete().eq("id", folderId);
   },
 }));
+
+// An iPhone stops uploads when the screen locks or Safari goes to the
+// background, and they fail with a lost connection. Coming back (or the
+// signal returning) picks them up again without the user tapping Retry.
+if (typeof window !== "undefined") {
+  const resume = () => {
+    if (document.visibilityState === "visible") useMediaStore.getState().retryLostUploads();
+  };
+  document.addEventListener("visibilitychange", resume);
+  window.addEventListener("online", resume);
+  window.addEventListener("pageshow", resume);
+}

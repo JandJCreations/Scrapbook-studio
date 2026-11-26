@@ -57,6 +57,9 @@ export function safeFileName(name: string): string {
   return cleaned || "file";
 }
 
+/** The upload stopped because the connection went (or the phone paused the page), not because Storage refused it. */
+export class ConnectionLostError extends Error {}
+
 /**
  * Uploads to Storage like `storage.upload`, but reports how much has been sent
  * (supabase-js has no progress events), so a big video shows a moving bar
@@ -83,7 +86,8 @@ export function uploadWithProgress(
       if (xhr.status >= 200 && xhr.status < 300) return resolve();
       reject(new Error(uploadErrorMessage(xhr.status, xhr.responseText, body.size)));
     };
-    xhr.onerror = () => reject(new Error("Lost the connection while uploading. Check your internet and try again."));
+    xhr.onerror = () =>
+      reject(new ConnectionLostError("Lost the connection while uploading. It will carry on when you're back online, or tap Retry."));
     xhr.ontimeout = () => reject(new Error("The upload took too long. Try again."));
     xhr.send(body);
   });

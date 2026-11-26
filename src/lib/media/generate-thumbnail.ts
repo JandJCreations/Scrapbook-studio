@@ -25,9 +25,13 @@ export function generateVideoThumbnail(
 
     video.onseeked = () => {
       try {
+        // A small picture is all a tile needs; a full-size 4K frame is a lot of memory on a phone.
+        const width = video.videoWidth || 320;
+        const height = video.videoHeight || 180;
+        const scale = Math.min(1, MAX_THUMBNAIL_DIMENSION / Math.max(width, height));
         const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 320;
-        canvas.height = video.videoHeight || 180;
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
         const ctx = canvas.getContext("2d");
 
         if (!ctx) {

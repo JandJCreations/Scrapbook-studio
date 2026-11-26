@@ -270,6 +270,24 @@ if (EMAIL && PASSWORD) {
     expect(/combobox "Frame size"[^\n]*Portrait/.test(ab("snapshot", "-i")), "the Tall shape was not used");
   });
 
+  check("photos picked in the New video dialog open straight into the editor, ready for Make my video", () => {
+    ab("open", `${BASE}/dashboard`);
+    ab("eval", 'localStorage.setItem("scrapbook-studio:tour-seen", "1")');
+    ab("find", "role", "button", "click", "--name", "New project");
+    waitForSnapshot(/button "Choose photos & videos"/);
+    ab("wait", "500");
+    const dir = mkdtempSync(join(tmpdir(), "smoke-"));
+    const files = ["harbour.png", "lighthouse.png"].map((name, i) => writePng(dir, name, [[90, 120, 200], [220, 200, 80]][i]));
+    // The dialog's own picker: choosing files makes the project and opens it, with no second picking step.
+    ab("upload", 'input[aria-label="Choose photos and videos for the new video"]', ...files);
+    const path = waitForPath((p) => p.startsWith("/editor/"));
+    expect(path.startsWith("/editor/"), `expected the editor, got ${path}`);
+    waitForSnapshot(/button "Make my video"/, 30000);
+    expect(/2 photos and clips picked/.test(ab("snapshot")), "the editor did not start with the 2 picked photos");
+    clickButton("Make my video");
+    waitForSnapshot(/button "⇄ lighthouse\.png"/);
+  });
+
   // A real video file (2 s, VP8 + Opus) from scripts/fixtures, imported on its own.
   check("an imported video clip goes on the timeline as a video", () => {
     newVideoWithPhotos("Clip test", []);

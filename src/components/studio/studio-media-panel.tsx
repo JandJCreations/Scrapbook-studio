@@ -89,9 +89,14 @@ export function StudioMediaPanel({
           <p role="status" className="text-xs text-muted-foreground">
             {busy.length > 0
               ? `Uploading ${busy.length} ${busy.length === 1 ? "file" : "files"}. You can add them now.`
-              : "Drag photos, videos and songs here"}
+              : (
+                <>
+                  <span className="pointer-coarse:hidden">Drag photos, videos and songs here</span>
+                  <span className="hidden pointer-coarse:inline">Photos, videos and songs from your phone</span>
+                </>
+              )}
           </p>
-          <Button size="sm" onClick={() => fileInput.current?.click()} aria-label="Import">
+          <Button className="pointer-coarse:h-11 pointer-coarse:px-6 pointer-coarse:text-base" onClick={() => fileInput.current?.click()} aria-label="Import">
             Import
           </Button>
           <input
@@ -124,12 +129,12 @@ export function StudioMediaPanel({
                 <p className="text-muted-foreground">{item.error ?? "Couldn't upload this file."}</p>
                 <div className="mt-1.5 flex gap-1">
                   {item.retryable && onRetryUpload && (
-                    <Button size="xs" variant="secondary" aria-label={`Retry ${item.name}`} onClick={() => onRetryUpload(item.id)}>
+                    <Button size="xs" variant="secondary" className="pointer-coarse:h-9 pointer-coarse:px-3" aria-label={`Retry ${item.name}`} onClick={() => onRetryUpload(item.id)}>
                       Retry
                     </Button>
                   )}
                   {onRemoveUpload && (
-                    <Button size="xs" variant="ghost" aria-label={`Remove ${item.name}`} onClick={() => onRemoveUpload(item.id)}>
+                    <Button size="xs" variant="ghost" className="pointer-coarse:h-9 pointer-coarse:px-3" aria-label={`Remove ${item.name}`} onClick={() => onRemoveUpload(item.id)}>
                       Remove
                     </Button>
                   )}
@@ -154,7 +159,7 @@ export function StudioMediaPanel({
 
       {chosen.length > 0 && (
         // Stays in view at the bottom while the list scrolls, so the next step never scrolls away.
-        <div className="sticky bottom-0 z-10 order-last flex flex-wrap items-center gap-1 rounded-md border bg-background p-2 shadow-md">
+        <div className="sticky bottom-0 z-10 order-last flex flex-wrap items-center gap-1 rounded-md border bg-background p-2 shadow-md pointer-coarse:gap-2 pointer-coarse:[&_button]:h-10">
           <Button
             size="sm"
             variant="secondary"
@@ -208,7 +213,7 @@ export function StudioMediaPanel({
               aria-label={`Select ${item.name}`}
               checked={ticked.has(item.id)}
               onChange={() => toggle(item.id)}
-              className="absolute left-1.5 top-1.5 size-5 accent-primary"
+              className="absolute left-1.5 top-1.5 size-5 accent-primary pointer-coarse:size-7"
             />
             {item.status === "processing" && (
               <span className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
@@ -219,7 +224,13 @@ export function StudioMediaPanel({
               <span className="min-w-0 flex-1 truncate text-[11px]" title={item.name}>
                 {item.name}
               </span>
-              <Button size="xs" variant="secondary" aria-label={`Add ${item.name} to the video`} onClick={() => onAdd(item)}>
+              <Button
+                size="xs"
+                variant="secondary"
+                className="pointer-coarse:h-9 pointer-coarse:px-3 pointer-coarse:text-sm"
+                aria-label={`Add ${item.name} to the video`}
+                onClick={() => onAdd(item)}
+              >
                 Add
               </Button>
             </div>

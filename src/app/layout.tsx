@@ -34,6 +34,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // Lets the app reach the rounded corners and home bar of an iPhone; bars near the edges pad themselves with the safe-area insets.
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#fbf9f2" },
     { media: "(prefers-color-scheme: dark)", color: "#1c1a24" },
@@ -51,7 +53,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
@@ -60,7 +62,8 @@ export default function RootLayout({
         >
           <TooltipProvider delayDuration={200}>
             {children}
-            <Toaster />
+            {/* On a phone, messages sit above the editor's tool bar (and the home bar) instead of covering it. */}
+            <Toaster mobileOffset={{ bottom: "calc(env(safe-area-inset-bottom) + 76px)" }} />
           </TooltipProvider>
         </ThemeProvider>
         <ServiceWorkerRegistration />

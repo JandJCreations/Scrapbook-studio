@@ -26,6 +26,10 @@ export interface StudioEnv {
   saveThumbnail?(dataUrl: string): Promise<void>;
   /** Present when the Media tab may offer an upload button. Returns the new library ids, where known. */
   uploadFiles?(files: File[]): string[] | void;
+  /** Library ids picked for this project before the editor opened (in the New video dialog): the start card begins with them. */
+  startPickedIds?: string[];
+  /** Forgets those ids once they have gone into the video. */
+  clearStartPick?(): void;
   /** Tries a failed upload again. */
   retryUpload?(id: string): void;
   /** Takes a failed upload off the library. */

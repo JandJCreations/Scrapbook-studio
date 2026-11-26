@@ -194,6 +194,7 @@ describe("StudioMediaPanel", () => {
 
   it("shows a photo's picture while it is still uploading", () => {
     panel([item({ id: "p", name: "Sunset", status: "processing", progress: 20, thumbnailUrl: "blob:thumb", localUrl: "blob:p" })]);
-    expect(screen.getByRole("img", { name: "Sunset" }).getAttribute("src")).toBe("blob:thumb");
+    // The picture sits inside the tick button, which is hidden from screen readers (the checkbox speaks for it).
+    expect(screen.getByRole("img", { name: "Sunset", hidden: true }).getAttribute("src")).toBe("blob:thumb");
   });
 });
