@@ -150,9 +150,50 @@ describe("StudioMediaPanel", () => {
     expect(onAdd).toHaveBeenCalledWith(uploading);
   });
 
-  it("does not list an upload that has nothing local to play, or one that failed", () => {
-    panel([item({ id: "a", name: "Pending", status: "processing" }), item({ id: "b", name: "Broken", status: "error", localUrl: "blob:b" })]);
+  it("does not list an upload that has nothing local to play", () => {
+    panel([item({ id: "a", name: "Pending", status: "processing" })]);
     expect(screen.queryByText("Pending")).toBeNull();
-    expect(screen.queryByText("Broken")).toBeNull();
+  });
+
+  it("keeps a failed upload in view with the reason, and it can't be added", () => {
+    panel([item({ id: "b", name: "Broken", status: "error", error: "Too big to save (74 MB).", localUrl: "blob:b" })]);
+    expect(screen.getByText("Broken")).toBeTruthy();
+    expect(screen.getByText("Too big to save (74 MB).")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add Broken to the video" })).toBeNull();
+  });
+
+  it("retries or removes a failed upload", () => {
+    const onRetryUpload = vi.fn();
+    const onRemoveUpload = vi.fn();
+    panel(
+      [
+        item({ id: "b", name: "Dropped", status: "error", error: "Lost the connection", retryable: true }),
+        item({ id: "c", name: "Huge", status: "error", error: "Too big", retryable: false }),
+      ],
+      { onRetryUpload, onRemoveUpload },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry Dropped" }));
+    expect(onRetryUpload).toHaveBeenCalledWith("b");
+    // Trying again can't help a file that is too big.
+    expect(screen.queryByRole("button", { name: "Retry Huge" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Huge" }));
+    expect(onRemoveUpload).toHaveBeenCalledWith("c");
+  });
+
+  it("says when an upload is waiting its turn, being saved or being made smaller", () => {
+    panel([
+      item({ id: "w", name: "Next", status: "processing", stage: "waiting", progress: 0, localUrl: "blob:w" }),
+      item({ id: "s", name: "Long clip", type: "video", status: "processing", stage: "shrinking", progress: 40, localUrl: "blob:s" }),
+      item({ id: "v", name: "Nearly", status: "processing", stage: "saving", progress: 96, localUrl: "blob:v" }),
+    ], { onUpload: vi.fn() });
+    expect(screen.getByText("Waiting…")).toBeTruthy();
+    expect(screen.getByText("Making smaller 40%")).toBeTruthy();
+    expect(screen.getByText("Saving…")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toMatch(/Uploading 3 files/);
+  });
+
+  it("shows a photo's picture while it is still uploading", () => {
+    panel([item({ id: "p", name: "Sunset", status: "processing", progress: 20, thumbnailUrl: "blob:thumb", localUrl: "blob:p" })]);
+    expect(screen.getByRole("img", { name: "Sunset" }).getAttribute("src")).toBe("blob:thumb");
   });
 });
