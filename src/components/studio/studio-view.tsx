@@ -15,6 +15,7 @@ import { ExportDialog } from "@/components/studio/export-dialog";
 import { StudioMediaPanel } from "@/components/studio/studio-media-panel";
 import type { StudioEnv } from "@/components/studio/studio-env";
 import { StudioPreview } from "@/components/studio/studio-preview";
+import { UploadStatusBar, useKeepScreenOn } from "@/components/studio/upload-status-bar";
 import { StartCard } from "@/components/studio/start-card";
 import { StudioToolbar } from "@/components/studio/studio-toolbar";
 import { useStudioMedia } from "@/components/studio/use-studio-media";
@@ -138,7 +139,9 @@ export function StudioView({ env }: { env: StudioEnv }) {
   // A file the video uses that is still uploading would be lost if the page closed; one that failed to upload is missing for good.
   const usedMedia = new Set(project.clips.map((clip) => clip.mediaId));
   useUploadGuard(env.library.some((item) => item.status === "processing" && usedMedia.has(item.id)));
-  const failedUploads = env.library.filter((item) => item.status === "error" && usedMedia.has(item.id));
+  useKeepScreenOn(env.library.some((item) => item.status === "processing"));
+  // Ones that can be tried again are counted in the upload bar, with its Try again button.
+  const failedUploads = env.library.filter((item) => item.status === "error" && !item.retryable && usedMedia.has(item.id));
   const [message, setMessage] = React.useState<{ text: string; tone: "error" | "info" } | null>(null);
   const say = (text: string | null, tone: "error" | "info" = "error") => {
     if (aliveRef.current) setMessage(text === null ? null : { text, tone });
@@ -168,9 +171,17 @@ export function StudioView({ env }: { env: StudioEnv }) {
     setTourOpen(true);
   }, [env.welcomeTour, ready, hasClips]);
   const previewRef = React.useRef<HTMLDivElement>(null);
-  // The start card's own file picker. What was in the library before a pick tells the new files apart.
+  // The start card's own file picker. The new library ids tell the picked files apart (or, where the
+  // upload doesn't say, what was in the library before the pick). Files picked in the New video dialog
+  // arrive as ids already.
   const startPicker = React.useRef<HTMLInputElement>(null);
-  const [libraryBeforePick, setLibraryBeforePick] = React.useState<Set<string> | null>(null);
+  const [startPick, setStartPick] = React.useState<{ ids?: Set<string>; before?: Set<string> } | null>(() =>
+    env.startPickedIds?.length ? { ids: new Set(env.startPickedIds) } : null,
+  );
+  const finishStartPick = () => {
+    setStartPick(null);
+    env.clearStartPick?.();
+  };
   const [startDismissed, setStartDismissed] = React.useState(false);
   const [exportOpen, setExportOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
@@ -590,6 +601,8 @@ export function StudioView({ env }: { env: StudioEnv }) {
             setToolsOpen(false);
           }}
           onUpload={env.uploadFiles}
+          onRetryUpload={env.retryUpload}
+          onRemoveUpload={env.removeUpload}
           openPickerRef={openPickerRef}
         />
       ) : shownTab === "audio" ? (
@@ -630,7 +643,12 @@ export function StudioView({ env }: { env: StudioEnv }) {
 
   // The start card: while the video is empty, choose photos, then make the video in one tap.
   const pictures = env.library.filter((item) => item.type !== "audio" && item.status !== "error");
-  const justPicked = libraryBeforePick ? pictures.filter((item) => !libraryBeforePick.has(item.id)) : [];
+  // In the order they were picked (the library lists newest first, which would turn the video around).
+  const justPicked = startPick?.ids
+    ? Array.from(startPick.ids).flatMap((id) => pictures.filter((item) => item.id === id))
+    : startPick?.before
+      ? pictures.filter((item) => !startPick.before!.has(item.id))
+      : [];
   const justReady = justPicked.filter(isUsable);
   const showStart = !!env.uploadFiles && !hasClips && !startDismissed;
   const openPanel = (name: Tab) => {
@@ -644,11 +662,11 @@ export function StudioView({ env }: { env: StudioEnv }) {
       hasLibrary={pictures.some(isUsable)}
       onChoose={() => startPicker.current?.click()}
       onMakeVideo={() => {
-        setLibraryBeforePick(null);
+        finishStartPick();
         void makeVideo(justReady);
       }}
       onArrangeMyself={() => {
-        setLibraryBeforePick(null);
+        finishStartPick();
         void addMany(justReady);
       }}
       onUseLibrary={() => {
@@ -672,8 +690,14 @@ export function StudioView({ env }: { env: StudioEnv }) {
             const files = Array.from(event.target.files ?? []);
             event.target.value = "";
             if (files.length === 0) return;
-            setLibraryBeforePick(new Set(env.library.map((item) => item.id)));
-            env.uploadFiles?.(files);
+            const before = new Set(env.library.map((item) => item.id));
+            const ids = env.uploadFiles?.(files);
+            // Picking more adds to what is already picked.
+            setStartPick((current) =>
+              Array.isArray(ids)
+                ? { ids: new Set([...(current?.ids ?? []), ...ids]) }
+                : { before: current?.before ?? before },
+            );
           }}
         />
       )}
@@ -694,7 +718,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
       <WelcomeTour open={tourOpen} onOpenChange={closeTour} />
       {compact && (
         <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
-          <SheetContent side="bottom" className="gap-0 p-0 data-[side=bottom]:h-[70svh]">
+          <SheetContent side="bottom" className="gap-0 p-0 pb-[env(safe-area-inset-bottom)] data-[side=bottom]:h-[70svh]">
             <SheetHeader className="sr-only">
               <SheetTitle>Tools</SheetTitle>
             </SheetHeader>
@@ -737,7 +761,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
           </StudioPreview>
           {compact && (
             // A phone's tool bar: every panel one tap away, with a word under each icon.
-            <nav aria-label="Tools" className="grid grid-cols-5 border-t" onClickCapture={blurOnMouseClick}>
+            <nav aria-label="Tools" className="order-last grid grid-cols-5 border-t pb-[env(safe-area-inset-bottom)]" onClickCapture={blurOnMouseClick}>
               {(
                 [
                   { name: "media", label: "Add", icon: Plus, tour: "tools-button" },
@@ -782,6 +806,17 @@ export function StudioView({ env }: { env: StudioEnv }) {
               }
             />
           </div>
+          <UploadStatusBar
+            library={env.library}
+            onShowUploads={() => openPanel("media")}
+            onRetryAll={
+              env.retryUpload
+                ? () => {
+                    for (const item of env.library) if (item.status === "error" && item.retryable) env.retryUpload?.(item.id);
+                  }
+                : undefined
+            }
+          />
           {failedUploads.length > 0 && (
             <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
               {failedUploads.map((item) => item.name).join(", ")} did not upload, so {failedUploads.length === 1 ? "it" : "they"} will be missing the next time you open this video. Import {failedUploads.length === 1 ? "it" : "them"} again.

@@ -4,6 +4,7 @@ import * as React from "react";
 
 import type { StudioEnv } from "@/components/studio/studio-env";
 import { createClient } from "@/lib/supabase/client";
+import { clearStartPick, getStartPick } from "@/lib/media/start-pick";
 import { createStoreLocalFiles, withLocalFiles, type LocalFiles } from "@/lib/media/local-media";
 import { createMediaUrlStore, type MediaUrlStore } from "@/lib/sync/media-url-store";
 import { saveProjectFrameChecked } from "@/lib/sync/project-frame";
@@ -76,6 +77,10 @@ export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null
       saveFrame: (frame) => saveFrame(projectId, frame),
       saveThumbnail: (dataUrl) => useProjectStore.getState().saveProjectThumbnail(projectId, dataUrl),
       uploadFiles: (files) => useMediaStore.getState().addFiles(files, null),
+      startPickedIds: getStartPick(projectId),
+      clearStartPick: () => clearStartPick(projectId),
+      retryUpload: (id) => useMediaStore.getState().retryUpload(id),
+      removeUpload: (id) => useMediaStore.getState().deleteItem(id),
     };
   }, [mediaSource, projectName, hasThumbnail, projectId, storage, library, libraryLoading]);
 

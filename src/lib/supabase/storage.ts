@@ -37,3 +37,74 @@ export function dataUrlToBlob(dataUrl: string): Blob {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return new Blob([bytes], { type: mime });
 }
+
+/** Supabase's free plan refuses any single file over 50 MB; a paid plan can raise it with NEXT_PUBLIC_MAX_UPLOAD_MB. */
+export const MAX_UPLOAD_BYTES = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB || 50) * 1024 * 1024;
+
+export function formatMegabytes(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  return `${mb >= 10 ? Math.round(mb) : mb.toFixed(1)} MB`;
+}
+
+/** Storage keys only take plain characters; a name like "Beach 🌊 #2 (é).mov" would be refused outright. */
+export function safeFileName(name: string): string {
+  const cleaned = name
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^[_.]+/, "");
+  return cleaned || "file";
+}
+
+/** The upload stopped because the connection went (or the phone paused the page), not because Storage refused it. */
+export class ConnectionLostError extends Error {}
+
+/**
+ * Uploads to Storage like `storage.upload`, but reports how much has been sent
+ * (supabase-js has no progress events), so a big video shows a moving bar
+ * instead of sitting at 0% until it is done.
+ */
+export function uploadWithProgress(
+  options: { baseUrl: string; anonKey: string; accessToken: string; path: string; body: Blob; contentType: string },
+  onProgress: (fraction: number) => void,
+): Promise<void> {
+  const { baseUrl, anonKey, accessToken, path, body, contentType } = options;
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${baseUrl}/storage/v1/object/${MEDIA_BUCKET}/${encoded}`);
+    xhr.setRequestHeader("authorization", `Bearer ${accessToken}`);
+    xhr.setRequestHeader("apikey", anonKey);
+    xhr.setRequestHeader("x-upsert", "true");
+    xhr.setRequestHeader("cache-control", "max-age=3600");
+    xhr.setRequestHeader("content-type", contentType || "application/octet-stream");
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) return resolve();
+      reject(new Error(uploadErrorMessage(xhr.status, xhr.responseText, body.size)));
+    };
+    xhr.onerror = () =>
+      reject(new ConnectionLostError("Lost the connection while uploading. It will carry on when you're back online, or tap Retry."));
+    xhr.ontimeout = () => reject(new Error("The upload took too long. Try again."));
+    xhr.send(body);
+  });
+}
+
+function uploadErrorMessage(status: number, responseText: string, size: number): string {
+  let message = "";
+  try {
+    const parsed = JSON.parse(responseText) as { message?: string; statusCode?: string };
+    message = parsed.message ?? "";
+    if (parsed.statusCode === "413") status = 413;
+  } catch {
+    // Not JSON: fall back to the status.
+  }
+  if (status === 413 || /maximum allowed size/i.test(message)) {
+    return `Too big to save (${formatMegabytes(size)}). Each file can be up to ${formatMegabytes(MAX_UPLOAD_BYTES)}.`;
+  }
+  if (status === 401 || status === 403) return "You were signed out. Sign in again and retry.";
+  return message || `Upload failed (error ${status}). Try again.`;
+}

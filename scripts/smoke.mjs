@@ -270,6 +270,24 @@ if (EMAIL && PASSWORD) {
     expect(/combobox "Frame size"[^\n]*Portrait/.test(ab("snapshot", "-i")), "the Tall shape was not used");
   });
 
+  check("photos picked in the New video dialog open straight into the editor, ready for Make my video", () => {
+    ab("open", `${BASE}/dashboard`);
+    ab("eval", 'localStorage.setItem("scrapbook-studio:tour-seen", "1")');
+    ab("find", "role", "button", "click", "--name", "New project");
+    waitForSnapshot(/button "Choose photos & videos"/);
+    ab("wait", "500");
+    const dir = mkdtempSync(join(tmpdir(), "smoke-"));
+    const files = ["harbour.png", "lighthouse.png"].map((name, i) => writePng(dir, name, [[90, 120, 200], [220, 200, 80]][i]));
+    // The dialog's own picker: choosing files makes the project and opens it, with no second picking step.
+    ab("upload", 'input[aria-label="Choose photos and videos for the new video"]', ...files);
+    const path = waitForPath((p) => p.startsWith("/editor/"));
+    expect(path.startsWith("/editor/"), `expected the editor, got ${path}`);
+    waitForSnapshot(/button "Make my video"/, 30000);
+    expect(/2 photos and clips picked/.test(ab("snapshot")), "the editor did not start with the 2 picked photos");
+    clickButton("Make my video");
+    waitForSnapshot(/button "⇄ lighthouse\.png"/);
+  });
+
   // A real video file (2 s, VP8 + Opus) from scripts/fixtures, imported on its own.
   check("an imported video clip goes on the timeline as a video", () => {
     newVideoWithPhotos("Clip test", []);
@@ -279,6 +297,20 @@ if (EMAIL && PASSWORD) {
     // The clip's tooltip names its kind, so a video that was read as a photo or a song fails here.
     const title = ab("get", "attr", 'button[title^="clip.webm"]', "title");
     expect(/\(video\)/.test(title), `expected the clip to be a video, got "${title}"`);
+  });
+
+  // A file that can't be used stays in view with the reason and can be taken away, instead of quietly vanishing.
+  check("a file that can't be uploaded says why and can be removed", () => {
+    const dir = mkdtempSync(join(tmpdir(), "smoke-"));
+    const notes = join(dir, "notes.txt");
+    writeFileSync(notes, "not a photo");
+    ab("upload", "input[type=file]", notes);
+    waitForSnapshot(/button "Remove notes\.txt"/);
+    expect(/can't be used/.test(ab("get", "text", "body")), "expected a reason next to the failed file");
+    clickButton("Remove notes.txt");
+    const end = Date.now() + 10000;
+    while (/Remove notes\.txt/.test(ab("snapshot", "-i")) && Date.now() < end) ab("wait", "400");
+    expect(!/Remove notes\.txt/.test(ab("snapshot", "-i")), "the failed file was not removed");
   });
 
   // The editing checks below share one video: a 3-second photo, a 5-second photo and the 2-second clip.

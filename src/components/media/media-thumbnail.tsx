@@ -23,7 +23,7 @@ export function MediaThumbnail({
         className,
       )}
     >
-      {item.status === "ready" && item.thumbnailUrl ? (
+      {item.status !== "error" && item.thumbnailUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={item.thumbnailUrl}
@@ -65,8 +65,15 @@ export function MediaThumbnail({
         </div>
       )}
 
-      {item.status === "ready" && item.type === "video" && (
-        <span className="absolute right-1.5 bottom-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
+      {item.status === "processing" && item.thumbnailUrl && (
+        <Progress
+          value={item.progress}
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 h-1 w-auto rounded-none bg-black/40"
+        />
+      )}
+      {item.status !== "error" && item.type === "video" && item.duration !== null && (
+        <span className="absolute right-1.5 bottom-2.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
           {formatDuration(item.duration ?? 0)}
         </span>
       )}

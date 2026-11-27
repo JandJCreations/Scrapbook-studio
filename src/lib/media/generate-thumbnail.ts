@@ -25,9 +25,13 @@ export function generateVideoThumbnail(
 
     video.onseeked = () => {
       try {
+        // A small picture is all a tile needs; a full-size 4K frame is a lot of memory on a phone.
+        const width = video.videoWidth || 320;
+        const height = video.videoHeight || 180;
+        const scale = Math.min(1, MAX_THUMBNAIL_DIMENSION / Math.max(width, height));
         const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 320;
-        canvas.height = video.videoHeight || 180;
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
         const ctx = canvas.getContext("2d");
 
         if (!ctx) {
@@ -114,4 +118,40 @@ export function getAudioDuration(objectUrl: string): Promise<number> {
       reject(new Error("Failed to load audio"));
     };
   });
+}
+
+/**
+ * A small JPEG of a photo file, made without holding up the page: the browser
+ * decodes the photo off the main thread (createImageBitmap), which keeps the
+ * editor responsive while a batch of 12-megapixel phone photos comes in.
+ * Falls back to the <img> route where that is not supported.
+ */
+export async function generateImageThumbnailFromFile(file: Blob, objectUrl: string): Promise<Blob> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file);
+      try {
+        const scale = Math.min(1, MAX_THUMBNAIL_DIMENSION / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Canvas context unavailable");
+        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+        if (blob) return blob;
+      } finally {
+        bitmap.close();
+      }
+    } catch {
+      // Some formats (or browsers) can't be decoded this way: try the <img> route.
+    }
+  }
+  const dataUrl = await generateImageThumbnail(objectUrl);
+  const [header, base64] = dataUrl.split(",");
+  const mime = header.match(/data:(.*?);base64/)?.[1] ?? "image/jpeg";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
 }

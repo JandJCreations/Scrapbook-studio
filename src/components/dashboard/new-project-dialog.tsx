@@ -7,6 +7,8 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { ImagePlus } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,9 +22,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FRAME_PRESETS, DEFAULT_FRAME_PRESET } from "@/lib/export/frame-presets";
+import { setStartPick } from "@/lib/media/start-pick";
 import { createClient } from "@/lib/supabase/client";
 import { saveProjectFrameChecked } from "@/lib/sync/project-frame";
 import { useDashboardUiStore } from "@/store/use-dashboard-ui-store";
+import { useMediaStore } from "@/store/use-media-store";
 import { useProjectStore } from "@/store/use-project-store";
 import { useSettingsStore } from "@/store/use-settings-store";
 
@@ -71,9 +75,16 @@ export function NewProjectDialog({ children }: { children: React.ReactNode }) {
     defaultValues: { name: "" },
   });
 
-  async function onSubmit(values: FormValues) {
+  const picker = React.useRef<HTMLInputElement>(null);
+  const [picking, setPicking] = React.useState(false);
+
+  /** Makes the project and opens it; `files` were picked here and start uploading straight away. */
+  async function onSubmit(values: FormValues, files: File[] = []) {
+    // Uploads begin before the project exists, so the photos are on their way while it is made.
+    const pickedIds = files.length > 0 ? useMediaStore.getState().addFiles(files, null) : [];
     try {
       const project = await createProject(values.name || defaultVideoName(), activeFolderId);
+      if (pickedIds.length > 0) setStartPick(project.id, pickedIds);
       try {
         const preset = FRAME_PRESETS.find((p) => p.id === shapeId) ?? DEFAULT_FRAME_PRESET;
         await saveProjectFrameChecked(createClient(), project.id, { width: preset.width, height: preset.height });
@@ -92,6 +103,8 @@ export function NewProjectDialog({ children }: { children: React.ReactNode }) {
       router.push(`/editor/${project.id}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create project");
+    } finally {
+      setPicking(false);
     }
   }
 
@@ -108,11 +121,11 @@ export function NewProjectDialog({ children }: { children: React.ReactNode }) {
     >
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-sm">
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit((values) => onSubmit(values))}>
           <DialogHeader>
             <DialogTitle>New video</DialogTitle>
             <DialogDescription>
-              Pick a shape, then choose your photos and clips. You can change both later.
+              Pick a shape, then choose your photos and clips. You can change anything later.
             </DialogDescription>
           </DialogHeader>
 
@@ -159,11 +172,41 @@ export function NewProjectDialog({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
+          {/*
+            The photo picker opens right from this tap (an iPhone won't open it later, from the
+            editor page loading), so picking photos and starting the video is one step.
+          */}
+          <input
+            ref={picker}
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            aria-label="Choose photos and videos for the new video"
+            className="hidden"
+            onChange={(event) => {
+              const files = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              if (files.length === 0) return;
+              setPicking(true);
+              void handleSubmit((values) => onSubmit(values, files), () => setPicking(false))();
+            }}
+          />
+          <Button
+            type="button"
+            size="lg"
+            className="mb-2 h-12 w-full text-base"
+            disabled={isSubmitting || picking}
+            onClick={() => picker.current?.click()}
+          >
+            <ImagePlus className="size-5" />
+            {picking ? "Opening your video…" : "Choose photos & videos"}
+          </Button>
+
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" variant="outline" disabled={isSubmitting || picking}>
               Create video
             </Button>
           </DialogFooter>

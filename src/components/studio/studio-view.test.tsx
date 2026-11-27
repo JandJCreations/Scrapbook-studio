@@ -394,6 +394,42 @@ describe("StudioView start card", () => {
     await vi.waitFor(() => expect(clips().map((c) => c.mediaId)).toEqual([forest.id]));
   });
 
+  it("starts with the photos picked in the New video dialog, ready to make the video", async () => {
+    const clearStartPick = vi.fn();
+    const picked = [
+      { ...photo, status: "processing" as const, progress: 10, localUrl: "blob:a" },
+      { ...forest, status: "processing" as const, progress: 10, localUrl: "blob:b" },
+    ];
+    // The older Lake photo was in the library before, and is not counted.
+    render(
+      <StudioView
+        env={env({ library: [...picked, third], uploadFiles: vi.fn(), startPickedIds: [photo.id, forest.id], clearStartPick })}
+      />,
+    );
+    await screen.findByText("My trip");
+    expect(screen.getByText("2 photos and clips picked")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /make my video/i }));
+    await vi.waitFor(() => expect(clips().filter((c) => c.kind === "image").map((c) => c.mediaId)).toEqual([photo.id, forest.id]));
+    expect(clearStartPick).toHaveBeenCalled();
+  });
+
+  it("adds a second pick to the first, by the ids the upload returns", async () => {
+    const uploadFiles = vi.fn().mockReturnValueOnce([photo.id]).mockReturnValueOnce([forest.id]);
+    const base = env({ library: [third], uploadFiles });
+    const view = render(<StudioView env={base} />);
+    await screen.findByText("My trip");
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["x"], "beach.jpg", { type: "image/jpeg" })] },
+    });
+    view.rerender(<StudioView env={{ ...base, library: [photo, third] }} />);
+    expect(screen.getByText("1 photo or clip picked")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Choose photos and videos"), {
+      target: { files: [new File(["x"], "forest.jpg", { type: "image/jpeg" })] },
+    });
+    view.rerender(<StudioView env={{ ...base, library: [forest, photo, third] }} />);
+    expect(screen.getByText("2 photos and clips picked")).toBeTruthy();
+  });
+
   it("offers the library when it already has photos, and is not shown without a way to upload", async () => {
     const first = render(<StudioView env={env({ uploadFiles: vi.fn() })} />);
     await screen.findByText("My trip");
