@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckSquare, LayoutGrid, List, Search, Upload } from "lucide-react";
+import { CheckSquare, FolderUp, LayoutGrid, List, Search, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,14 @@ import {
 import { cn } from "@/lib/utils";
 import { useMediaUiStore } from "@/store/use-media-ui-store";
 
-export function MediaToolbar({ onUploadClick }: { onUploadClick: () => void }) {
+export function MediaToolbar({
+  onUploadClick,
+  onUploadFolderClick,
+}: {
+  onUploadClick: () => void;
+  /** Picks a whole folder (an album saved on the computer); computers only. */
+  onUploadFolderClick?: () => void;
+}) {
   const search = useMediaUiStore((s) => s.search);
   const setSearch = useMediaUiStore((s) => s.setSearch);
   const viewMode = useMediaUiStore((s) => s.viewMode);
@@ -91,6 +98,12 @@ export function MediaToolbar({ onUploadClick }: { onUploadClick: () => void }) {
           </Tooltip>
         </div>
 
+        {onUploadFolderClick && (
+          <Button variant="outline" onClick={onUploadFolderClick} className="gap-2 pointer-coarse:hidden">
+            <FolderUp className="size-4" />
+            Upload folder
+          </Button>
+        )}
         <Button onClick={onUploadClick} className="gap-2">
           <Upload className="size-4" />
           Upload

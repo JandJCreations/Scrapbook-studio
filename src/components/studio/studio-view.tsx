@@ -71,6 +71,7 @@ import {
 } from "@/store/use-clip-project-store";
 import { useTransportStore } from "@/store/use-transport-store";
 import type { MediaItem } from "@/types/media";
+import { pickedFolderName, sortByPath } from "@/lib/media/drop-files";
 
 const FPS = 30;
 
@@ -175,6 +176,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
   // upload doesn't say, what was in the library before the pick). Files picked in the New video dialog
   // arrive as ids already.
   const startPicker = React.useRef<HTMLInputElement>(null);
+  const startFolderPicker = React.useRef<HTMLInputElement>(null);
   const [startPick, setStartPick] = React.useState<{ ids?: Set<string>; before?: Set<string> } | null>(() =>
     env.startPickedIds?.length ? { ids: new Set(env.startPickedIds) } : null,
   );
@@ -655,12 +657,25 @@ export function StudioView({ env }: { env: StudioEnv }) {
     setTab(name);
     if (compact) setToolsOpen(true);
   };
+  /** Files picked from the start card upload and wait on it, ready for Make my video. */
+  const startPickFiles = (files: File[], album: string | null) => {
+    if (files.length === 0) return;
+    const before = new Set(env.library.map((item) => item.id));
+    const ids = env.uploadFiles?.(files, album);
+    // Picking more adds to what is already picked.
+    setStartPick((current) =>
+      Array.isArray(ids)
+        ? { ids: new Set([...(current?.ids ?? []), ...ids]) }
+        : { before: current?.before ?? before },
+    );
+  };
   const startCard = showStart ? (
     <StartCard
       picked={justPicked.length}
       ready={justReady.length}
       hasLibrary={pictures.some(isUsable)}
       onChoose={() => startPicker.current?.click()}
+      onChooseFolder={() => startFolderPicker.current?.click()}
       onMakeVideo={() => {
         finishStartPick();
         void makeVideo(justReady);
@@ -679,27 +694,34 @@ export function StudioView({ env }: { env: StudioEnv }) {
   return (
     <div className="flex h-full flex-col">
       {env.uploadFiles && (
-        <input
-          ref={startPicker}
-          type="file"
-          multiple
-          accept="image/*,video/*"
-          aria-label="Choose photos and videos"
-          className="hidden"
-          onChange={(event) => {
-            const files = Array.from(event.target.files ?? []);
-            event.target.value = "";
-            if (files.length === 0) return;
-            const before = new Set(env.library.map((item) => item.id));
-            const ids = env.uploadFiles?.(files);
-            // Picking more adds to what is already picked.
-            setStartPick((current) =>
-              Array.isArray(ids)
-                ? { ids: new Set([...(current?.ids ?? []), ...ids]) }
-                : { before: current?.before ?? before },
-            );
-          }}
-        />
+        <>
+          <input
+            ref={startPicker}
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            aria-label="Choose photos and videos"
+            className="hidden"
+            onChange={(event) => {
+              const files = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              startPickFiles(files, null);
+            }}
+          />
+          <input
+            ref={startFolderPicker}
+            type="file"
+            multiple
+            {...{ webkitdirectory: "", directory: "" }}
+            aria-label="Choose a folder of photos and videos"
+            className="hidden"
+            onChange={(event) => {
+              const files = sortByPath(Array.from(event.target.files ?? []));
+              event.target.value = "";
+              startPickFiles(files, pickedFolderName(files));
+            }}
+          />
+        </>
       )}
       <StudioToolbar
         projectName={env.projectName}

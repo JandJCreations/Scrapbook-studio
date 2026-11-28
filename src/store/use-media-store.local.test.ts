@@ -43,17 +43,44 @@ describe("addFiles keeps the file on this computer", () => {
     expect(isUsable(item)).toBe(true);
   });
 
-  it("gives nothing local to a file type that is not supported", () => {
-    const [id] = useMediaStore.getState().addFiles([new File(["x"], "notes.txt", { type: "text/plain" })], null);
-    const item = useMediaStore.getState().items.find((i) => i.id === id)!;
-    expect(item.localUrl).toBeUndefined();
-    expect(isUsable(item)).toBe(false);
+  it("leaves out a file that isn't a photo, video or song (a folder's notes), adding the rest", () => {
+    const before = useMediaStore.getState().items.length;
+    const ids = useMediaStore.getState().addFiles(
+      [new File(["x"], "notes.txt", { type: "text/plain" }), new File(["x"], "a.jpg", { type: "image/jpeg" })],
+      null,
+    );
+    expect(ids).toHaveLength(1);
+    expect(useMediaStore.getState().items.length).toBe(before + 1);
+    expect(useMediaStore.getState().items.find((i) => i.id === ids[0])?.name).not.toMatch(/notes/);
   });
 
   it("stops being usable when the upload fails (not signed in), rather than silently losing the file later", async () => {
     const [id] = useMediaStore.getState().addFiles([new File(["x"], "a.mp4", { type: "video/mp4" })], null);
     await vi.waitFor(() => expect(useMediaStore.getState().items.find((i) => i.id === id)?.status).toBe("error"));
     expect(isUsable(useMediaStore.getState().items.find((i) => i.id === id)!)).toBe(false);
+  });
+});
+
+describe("addAlbum", () => {
+  it("puts a whole folder into a library folder named after it, reusing one that already exists", () => {
+    signIn = "never";
+    const ids = useMediaStore.getState().addAlbum("Beach trip", [
+      new File(["x"], "IMG_1.jpg", { type: "image/jpeg" }),
+      new File(["x"], "IMG_2.jpg", { type: "image/jpeg" }),
+    ]);
+    const folder = useMediaStore.getState().folders.find((f) => f.name === "Beach trip")!;
+    expect(folder).toBeTruthy();
+    const added = useMediaStore.getState().items.filter((i) => ids.includes(i.id));
+    expect(added.map((i) => i.folderId)).toEqual([folder.id, folder.id]);
+
+    useMediaStore.getState().addAlbum("beach trip", [new File(["x"], "IMG_3.jpg", { type: "image/jpeg" })]);
+    expect(useMediaStore.getState().folders.filter((f) => f.name.toLowerCase() === "beach trip")).toHaveLength(1);
+  });
+
+  it("makes no empty folder for a folder with no photos in it", () => {
+    const before = useMediaStore.getState().folders.length;
+    expect(useMediaStore.getState().addAlbum("Documents", [new File(["x"], "notes.txt", { type: "text/plain" })])).toEqual([]);
+    expect(useMediaStore.getState().folders.length).toBe(before);
   });
 });
 

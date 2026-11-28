@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { ImagePlus, Loader2, Wand2 } from "lucide-react";
+import { FolderUp, ImagePlus, Loader2, Wand2 } from "lucide-react";
+
+import { AlbumTip } from "@/components/media/album-tip";
 
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +14,8 @@ interface StartCardProps {
   /** True when the library already holds photos or clips from before. */
   hasLibrary: boolean;
   onChoose(): void;
+  /** Present where a whole folder (an album saved on the computer) can be picked. */
+  onChooseFolder?(): void;
   onMakeVideo(): void;
   onArrangeMyself(): void;
   onUseLibrary(): void;
@@ -21,7 +25,7 @@ interface StartCardProps {
  * Sits on the preview while the video is empty, so a first-time user always
  * sees the next step: choose photos, then one tap makes the video.
  */
-export function StartCard({ picked, ready, hasLibrary, onChoose, onMakeVideo, onArrangeMyself, onUseLibrary }: StartCardProps) {
+export function StartCard({ picked, ready, hasLibrary, onChoose, onChooseFolder, onMakeVideo, onArrangeMyself, onUseLibrary }: StartCardProps) {
   const waiting = picked > 0 && ready < picked;
   return (
     // m-auto (not items-center) keeps the top of the card reachable when a phone's short preview makes it scroll.
@@ -43,6 +47,14 @@ export function StartCard({ picked, ready, hasLibrary, onChoose, onMakeVideo, on
               <ImagePlus className="size-5" />
               Choose photos &amp; videos
             </Button>
+            {onChooseFolder && (
+              // Computers only: a phone's albums live in its photo picker, which the tip below explains.
+              <Button variant="outline" size="sm" className="h-10 w-full gap-1.5 pointer-coarse:hidden" onClick={onChooseFolder}>
+                <FolderUp className="size-4" aria-hidden />
+                Choose a whole folder
+              </Button>
+            )}
+            <AlbumTip className="hidden pointer-coarse:block" button="Choose photos & videos" />
             {hasLibrary && (
               <Button variant="ghost" size="sm" className="h-10 w-full" onClick={onUseLibrary}>
                 Use ones I&apos;ve already added

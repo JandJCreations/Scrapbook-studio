@@ -363,7 +363,7 @@ describe("StudioView start card", () => {
     expect(screen.getByRole("heading", { name: /let.s make your video/i })).toBeTruthy();
     const file = new File(["x"], "beach.jpg", { type: "image/jpeg" });
     fireEvent.change(screen.getByLabelText("Choose photos and videos"), { target: { files: [file] } });
-    expect(uploadFiles).toHaveBeenCalledWith([file]);
+    expect(uploadFiles).toHaveBeenCalledWith([file], null);
 
     // The picked files arrive in the library (still uploading, but already on this device).
     const picked = [

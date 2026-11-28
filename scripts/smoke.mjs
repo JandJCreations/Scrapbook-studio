@@ -14,7 +14,7 @@
 // Set AGENT_BROWSER_EXECUTABLE_PATH to reuse an existing Chrome/Chromium.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -302,15 +302,48 @@ if (EMAIL && PASSWORD) {
   // A file that can't be used stays in view with the reason and can be taken away, instead of quietly vanishing.
   check("a file that can't be uploaded says why and can be removed", () => {
     const dir = mkdtempSync(join(tmpdir(), "smoke-"));
+    // Not a photo at all: left out of the upload, with a message saying so.
     const notes = join(dir, "notes.txt");
     writeFileSync(notes, "not a photo");
     ab("upload", "input[type=file]", notes);
-    waitForSnapshot(/button "Remove notes\.txt"/);
-    expect(/can't be used/.test(ab("get", "text", "body")), "expected a reason next to the failed file");
-    clickButton("Remove notes.txt");
+    const shown = Date.now() + 10000;
+    while (!/isn't a photo, video or song/.test(ab("get", "text", "body")) && Date.now() < shown) ab("wait", "400");
+    expect(/isn't a photo, video or song/.test(ab("get", "text", "body")), "expected a message that notes.txt was skipped");
+    // Looks like an iPhone photo but isn't one: it fails with the reason, and can be taken off the list.
+    const broken = join(dir, "IMG_0001.HEIC");
+    writeFileSync(broken, "not really a photo");
+    ab("upload", "input[type=file]", broken);
+    waitForSnapshot(/button "Remove .*"/, 30000);
+    expect(/HEIC/.test(ab("get", "text", "body")), "expected a reason next to the failed file");
+    clickFirst(/button "Remove .*"/);
     const end = Date.now() + 10000;
-    while (/Remove notes\.txt/.test(ab("snapshot", "-i")) && Date.now() < end) ab("wait", "400");
-    expect(!/Remove notes\.txt/.test(ab("snapshot", "-i")), "the failed file was not removed");
+    while (/button "Remove /.test(ab("snapshot", "-i")) && Date.now() < end) ab("wait", "400");
+    expect(!/button "Remove /.test(ab("snapshot", "-i")), "the failed file was not removed");
+  });
+
+  // Carries on in the "Beach day" video, whose library holds its three photos (and more from earlier checks).
+  check("Select all ticks every photo and clip, ready to add in one go", () => {
+    clickButton("Select all");
+    const snap = waitForSnapshot(/button "Add \d+ to the video"/);
+    const count = Number(snap.match(/button "Add (\d+) to the video"/)[1]);
+    expect(count >= 3, `expected every photo ticked, got ${count}`);
+    expect(/\d+ of \d+ selected/.test(ab("get", "text", "body")), "expected a count of what is selected");
+    clickButton("Clear selection");
+    const end = Date.now() + 5000;
+    while (/button "Add \d+ to the video"/.test(ab("snapshot", "-i")) && Date.now() < end) ab("wait", "300");
+  });
+
+  check("a whole folder (an album) can be imported at once", () => {
+    const dir = mkdtempSync(join(tmpdir(), "smoke-album-"));
+    const album = join(dir, "Lake weekend");
+    mkdirSync(album);
+    writePng(album, "lake-1.png", [40, 90, 200]);
+    writePng(album, "lake-2.png", [200, 200, 60]);
+    // A folder carries along files that aren't photos; they are left out.
+    writeFileSync(join(album, "notes.txt"), "packing list");
+    ab("upload", 'input[aria-label="Import a folder"]', album);
+    waitForSnapshot(/button "Add lake-1\.png to the video"/, 30000);
+    waitForSnapshot(/button "Add lake-2\.png to the video"/, 30000);
   });
 
   // The editing checks below share one video: a 3-second photo, a 5-second photo and the 2-second clip.

@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { create } from "zustand";
 
 import {
@@ -7,6 +8,7 @@ import {
   getAudioDuration,
 } from "@/lib/media/generate-thumbnail";
 import { detectMediaType, friendlyMediaName, mimeTypeFor } from "@/lib/media/file-type";
+import { describeSkipped, planUpload } from "@/lib/media/plan-upload";
 import { PhotoFormatError, preparePhoto } from "@/lib/media/prepare-photo";
 import { shrinkVideo, ShrinkError } from "@/lib/media/shrink-video";
 import { createClient } from "@/lib/supabase/client";
@@ -80,7 +82,16 @@ interface MediaStore {
   error: string | null;
   fetchMedia: () => Promise<void>;
   backfillMissingThumbnails: () => void;
+  /**
+   * Uploads as many of the files as can be handled (see planUpload) and says
+   * what was left out. Returns the new library ids, in the order picked.
+   */
   addFiles: (files: File[], folderId: string | null) => string[];
+  /**
+   * Uploads a whole album (a folder of photos) into a library folder of the
+   * same name, made if there isn't one yet. Returns the new library ids.
+   */
+  addAlbum: (name: string, files: File[]) => string[];
   /** Tries a failed upload again, while this session still holds its file. */
   retryUpload: (id: string) => void;
   /** Tries again every upload that failed because the connection dropped (the phone locked, Safari went to the background, the signal went). */
@@ -94,6 +105,9 @@ interface MediaStore {
   renameFolder: (id: string, name: string) => void;
   deleteFolder: (id: string) => void;
 }
+
+/** Folders still being saved, so uploads into a brand-new folder wait for it. */
+const folderSaves = new Map<string, Promise<unknown>>();
 
 /** The files picked in this session that haven't been saved yet, so a failed upload can be tried again. */
 const pendingFiles = new Map<string, File>();
@@ -326,6 +340,8 @@ async function processMediaItem(
         thumbnailPath ? getSignedUrl(thumbnailPath) : Promise.resolve(null),
       ]);
 
+      // A folder made for this upload (an album) has to be saved before anything can go in it.
+      if (item.folderId) await folderSaves.get(item.folderId);
       const { error: insertError } = await supabase.from("media_items").insert({
         id: item.id,
         owner_id: userId,
@@ -487,7 +503,17 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     })();
   },
 
-  addFiles: (files, folderId) => {
+  addFiles: (picked, folderId) => {
+    // The space check needs the whole library; until it has loaded, the per-file limits still apply.
+    const state = get();
+    const usedBytes = state.loaded
+      ? state.items.reduce((sum, item) => sum + (item.status === "error" ? 0 : item.size || 0), 0)
+      : null;
+    const plan = planUpload(picked, { usedBytes });
+    const skipped = describeSkipped(plan);
+    if (skipped) (plan.accepted.length === 0 ? toast.error : toast.warning)(skipped, { duration: 10000 });
+    const files = plan.accepted;
+    if (files.length === 0) return [];
     const update = (itemId: string, patch: Partial<MediaItem>) =>
       set((state) => ({
         items: state.items.map((item) =>
@@ -532,6 +558,15 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     })();
 
     return newItems.map((item) => item.id);
+  },
+
+  addAlbum: (name, files) => {
+    const title = name.trim();
+    // Nothing to put in it (a folder of documents): no empty folder either, just the message.
+    if (!title || !files.some((file) => detectMediaType(file))) return get().addFiles(files, null);
+    const existing = get().folders.find((folder) => folder.name.toLowerCase() === title.toLowerCase());
+    const folder = existing ?? get().createFolder(title);
+    return get().addFiles(files, folder.id);
   },
 
   retryUpload: (itemId) => {
@@ -641,7 +676,7 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
     };
     set((state) => ({ folders: [...state.folders, folder] }));
 
-    (async () => {
+    const saving = (async () => {
       const supabase = createClient();
       const {
         data: { user },
@@ -652,7 +687,9 @@ export const useMediaStore = create<MediaStore>((set, get) => ({
         owner_id: user.id,
         name: folder.name,
       });
-    })();
+    })().catch(() => {});
+    folderSaves.set(folder.id, saving);
+    void saving.finally(() => folderSaves.delete(folder.id));
 
     return folder;
   },
