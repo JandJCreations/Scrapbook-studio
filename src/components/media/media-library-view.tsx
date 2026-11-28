@@ -16,7 +16,7 @@ import { useMediaStore } from "@/store/use-media-store";
 import { useMediaUiStore } from "@/store/use-media-ui-store";
 
 export function MediaLibraryView() {
-  const dropzoneRef = React.useRef<{ openFileDialog: () => void }>(null);
+  const dropzoneRef = React.useRef<{ openFileDialog: () => void; openFolderDialog: () => void }>(null);
   const items = useMediaStore((s) => s.items);
   const loaded = useMediaStore((s) => s.loaded);
   const error = useMediaStore((s) => s.error);
@@ -80,13 +80,14 @@ export function MediaLibraryView() {
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <MediaToolbar
             onUploadClick={() => dropzoneRef.current?.openFileDialog()}
+            onUploadFolderClick={() => dropzoneRef.current?.openFolderDialog()}
           />
 
           {items.length === 0 ? (
             <EmptyState
               icon={ImagePlus}
               title="Upload your first files"
-              description="Drag and drop photos, video, or audio anywhere on this page, or click upload to browse."
+              description="Drag and drop photos, video, audio or whole folders anywhere on this page, or click upload to browse."
               action={
                 <Button
                   className="gap-2"

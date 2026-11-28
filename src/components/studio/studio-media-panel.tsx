@@ -4,9 +4,12 @@ import * as React from "react";
 
 import { MediaThumbnail } from "@/components/media/media-thumbnail";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Upload, Wand2 } from "lucide-react";
+import { AlertCircle, CheckSquare, FolderUp, Upload, Wand2 } from "lucide-react";
+
+import { AlbumTip } from "@/components/media/album-tip";
 import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
 import { writeMediaDrag } from "@/lib/dom/media-drag";
+import { dragHasFiles, endFolderPick, filesFromDrop, openFolderPicker, pickedFolderName, sortByPath } from "@/lib/media/drop-files";
 import { isUsable } from "@/lib/media/local-media";
 import type { MediaItem } from "@/types/media";
 
@@ -19,7 +22,8 @@ interface StudioMediaPanelProps {
   onAddMany(items: MediaItem[]): void;
   /** Present where the ticked items can be turned into a finished video in one go. */
   onMakeVideo?(items: MediaItem[]): void;
-  onUpload?(files: File[]): void;
+  /** `album` names the folder the files came from, when a whole folder was picked or dropped. */
+  onUpload?(files: File[], album?: string | null): void;
   /** Tries a failed upload again. */
   onRetryUpload?(id: string): void;
   /** Takes a failed upload off the list. */
@@ -27,6 +31,13 @@ interface StudioMediaPanelProps {
   /** Filled in with a function that opens the file picker, so the timeline's + button can open it too. */
   openPickerRef?: React.RefObject<(() => void) | null>;
 }
+
+/**
+ * The most "Select all" ticks at once. Each one is loaded to go on the
+ * timeline, so a whole library of hundreds would leave the editor (and a
+ * phone's memory) struggling; past this, the rest can be added after.
+ */
+export const SELECT_ALL_LIMIT = 200;
 
 /** The user's photos and videos: tick any number and add them to the end of the video. */
 export function StudioMediaPanel({
@@ -48,6 +59,24 @@ export function StudioMediaPanel({
   // In the order of the list, whatever order they were ticked in; items that went away drop out.
   const chosen = pictures.filter((item) => ticked.has(item.id));
   const fileInput = React.useRef<HTMLInputElement>(null);
+  const folderInput = React.useRef<HTMLInputElement>(null);
+  // Select all takes as many as the editor handles at once, in the order of the list.
+  const selectable = pictures.slice(0, SELECT_ALL_LIMIT);
+  const allTicked = selectable.length > 0 && selectable.every((item) => ticked.has(item.id));
+  const [selectNote, setSelectNote] = React.useState<string | null>(null);
+  const selectAll = () => {
+    setTicked(new Set(selectable.map((item) => item.id)));
+    setSelectNote(
+      pictures.length > selectable.length
+        ? `Selected the first ${selectable.length} of ${pictures.length}, the most the editor can take at once. Add these, then select the rest.`
+        : null,
+    );
+  };
+  React.useEffect(() => {
+    // The note only describes the selection it was made for.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- follows the ticks
+    if (ticked.size === 0) setSelectNote(null);
+  }, [ticked.size]);
   React.useEffect(() => {
     if (!openPickerRef || !onUpload) return;
     openPickerRef.current = () => fileInput.current?.click();
@@ -55,13 +84,13 @@ export function StudioMediaPanel({
       openPickerRef.current = null;
     };
   }, [openPickerRef, onUpload]);
-  /** Files dropped anywhere on the panel are imported; any other drop is left alone. */
+  /** Files (and whole folders) dropped anywhere on the panel are imported; any other drop is left alone. */
   const handleFileDrop = (event: React.DragEvent<HTMLElement>) => {
-    if (!onUpload) return;
-    const files = Array.from(event.dataTransfer.files ?? []);
-    if (files.length === 0) return;
+    if (!onUpload || !dragHasFiles(event.dataTransfer)) return;
     event.preventDefault();
-    onUpload(files);
+    void filesFromDrop(event.dataTransfer).then(({ files, folderName }) => {
+      if (files.length > 0) onUpload(files, folderName);
+    });
   };
   const toggle = (id: string) =>
     setTicked((current) => {
@@ -75,7 +104,7 @@ export function StudioMediaPanel({
       className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3"
       onClickCapture={blurOnMouseClick}
       onDragOver={(event) => {
-        if (onUpload && Array.from(event.dataTransfer.types).includes("Files")) event.preventDefault();
+        if (onUpload && dragHasFiles(event.dataTransfer)) event.preventDefault();
       }}
       onDrop={(event) => handleFileDrop(event)}
     >
@@ -96,9 +125,36 @@ export function StudioMediaPanel({
                 </>
               )}
           </p>
-          <Button className="pointer-coarse:h-11 pointer-coarse:px-6 pointer-coarse:text-base" onClick={() => fileInput.current?.click()} aria-label="Import">
-            Import
-          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button className="pointer-coarse:h-11 pointer-coarse:px-6 pointer-coarse:text-base" onClick={() => fileInput.current?.click()} aria-label="Import">
+              Import
+            </Button>
+            {/* A phone has no folders to pick from (its albums live in the photo picker), so this is for computers. */}
+            <Button
+              variant="outline"
+              className="gap-1.5 pointer-coarse:hidden"
+              onClick={() => openFolderPicker(folderInput.current)}
+              title="Pick a folder, such as an album exported from your photos, and import everything in it"
+            >
+              <FolderUp className="size-4" aria-hidden />
+              Import a folder
+            </Button>
+          </div>
+          <AlbumTip className="hidden pointer-coarse:block" />
+          <input
+            ref={folderInput}
+            type="file"
+            multiple
+            // Becomes a folder picker (every file inside, subfolders included) when the button opens it.
+            aria-label="Import a folder"
+            className="hidden"
+            onChange={(event) => {
+              const files = sortByPath(Array.from(event.target.files ?? []));
+              event.target.value = "";
+              endFolderPick(event.target);
+              if (files.length > 0) onUpload(files, pickedFolderName(files));
+            }}
+          />
           <input
             ref={fileInput}
             type="file"
@@ -151,9 +207,23 @@ export function StudioMediaPanel({
         </p>
       )}
 
-      {pictures.length >= 2 && chosen.length === 0 && onMakeVideo && (
-        <p className="text-xs text-muted-foreground">
-          Tip: tap pictures to tick them, then press <span className="font-medium text-foreground">Make a video</span>.
+      {/* Once something is ticked, Select all moves into the bar at the bottom with the other choices. */}
+      {pictures.length >= 2 && chosen.length === 0 && (
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+            {onMakeVideo
+              ? <>Tip: tap pictures to tick them, then press <span className="font-medium text-foreground">Make a video</span>.</>
+              : `${pictures.length} photos and clips`}
+          </p>
+          <Button size="sm" variant="outline" className="shrink-0 gap-1 pointer-coarse:h-10" onClick={selectAll}>
+            <CheckSquare className="size-4" aria-hidden />
+            Select all
+          </Button>
+        </div>
+      )}
+      {selectNote && (
+        <p role="status" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+          {selectNote}
         </p>
       )}
 
@@ -184,9 +254,17 @@ export function StudioMediaPanel({
               Make a video
             </Button>
           )}
+          {!allTicked && pictures.length > chosen.length && (
+            <Button size="sm" variant="outline" onClick={selectAll}>
+              Select all
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={() => setTicked(new Set())}>
             Clear selection
           </Button>
+          <span className="ml-auto text-xs text-muted-foreground" aria-live="polite">
+            {chosen.length} of {pictures.length} selected
+          </span>
         </div>
       )}
 

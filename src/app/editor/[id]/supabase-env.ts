@@ -76,7 +76,8 @@ export function useSupabaseStudioEnv(projectId: string): { env: StudioEnv | null
       libraryLoading,
       saveFrame: (frame) => saveFrame(projectId, frame),
       saveThumbnail: (dataUrl) => useProjectStore.getState().saveProjectThumbnail(projectId, dataUrl),
-      uploadFiles: (files) => useMediaStore.getState().addFiles(files, null),
+      uploadFiles: (files, album) =>
+        album ? useMediaStore.getState().addAlbum(album, files) : useMediaStore.getState().addFiles(files, null),
       startPickedIds: getStartPick(projectId),
       clearStartPick: () => clearStartPick(projectId),
       retryUpload: (id) => useMediaStore.getState().retryUpload(id),

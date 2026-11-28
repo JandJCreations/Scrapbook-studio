@@ -1,22 +1,13 @@
 "use client";
 
-import { toast } from "sonner";
-
-import { MAX_FILES_PER_UPLOAD } from "@/lib/media/file-type";
 import { useMediaStore } from "@/store/use-media-store";
 
+/** Uploads picked or dropped files; a pick that's too big is trimmed (and the user told) by the store. */
 export function useMediaUpload(folderId: string | null) {
   const addFiles = useMediaStore((s) => s.addFiles);
 
-  return function handleFiles(fileList: FileList | null) {
+  return function handleFiles(fileList: FileList | File[] | null, folderOverride?: string | null) {
     if (!fileList || fileList.length === 0) return;
-    const files = Array.from(fileList);
-    if (files.length > MAX_FILES_PER_UPLOAD) {
-      toast.error(
-        `You selected ${files.length} files — the limit is ${MAX_FILES_PER_UPLOAD} per upload. Select ${MAX_FILES_PER_UPLOAD} or fewer and try again.`,
-      );
-      return;
-    }
-    addFiles(files, folderId);
+    addFiles(Array.from(fileList), folderOverride === undefined ? folderId : folderOverride);
   };
 }

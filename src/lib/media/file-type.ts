@@ -93,4 +93,6 @@ export const ACCEPTED_MEDIA_INPUT = "image/*,video/*,audio/*";
 // roll by accident doesn't queue thousands of files. A full event album
 // (weddings, parties, trips) easily runs past the old cap of 20, forcing
 // people to re-select in batches — raised well past typical album sizes.
-export const MAX_FILES_PER_UPLOAD = 150;
+// A bigger pick isn't refused: the first 200 are taken and the user is told
+// how many were left (see plan-upload.ts).
+export const MAX_FILES_PER_UPLOAD = 200;

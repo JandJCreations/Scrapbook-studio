@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import "@/test/dom-setup";
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { StudioMediaPanel } from "@/components/studio/studio-media-panel";
+import { SELECT_ALL_LIMIT, StudioMediaPanel } from "@/components/studio/studio-media-panel";
 import type { MediaItem } from "@/types/media";
 
 const item = (overrides: Partial<MediaItem>): MediaItem => ({
@@ -65,7 +65,7 @@ describe("StudioMediaPanel", () => {
     const input = container.querySelector("input[type=file]") as HTMLInputElement;
     const file = new File(["x"], "a.jpg", { type: "image/jpeg" });
     fireEvent.change(input, { target: { files: [file] } });
-    expect(onUpload).toHaveBeenCalledWith([file]);
+    expect(onUpload).toHaveBeenCalledWith([file], null);
   });
 
   it("ticks several and adds them together in the order of the list, then clears", () => {
@@ -80,6 +80,44 @@ describe("StudioMediaPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add 2 to the video" }));
     expect(onAddMany).toHaveBeenCalledWith([a, c]);
     expect(screen.queryByRole("button", { name: /^Add \d+ / })).toBeNull();
+  });
+
+  it("selects every photo and clip with one tap, and clears them again", () => {
+    const onAddMany = vi.fn();
+    const all = ["Beach", "Forest", "Lake"].map((name, i) => item({ id: String(i), name }));
+    panel(all, { onAddMany });
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+    expect(screen.getByText("3 of 3 selected")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Select all" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(screen.queryByRole("button", { name: /^Add \d+ / })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add 3 to the video" }));
+    expect(onAddMany).toHaveBeenCalledWith(all);
+  });
+
+  it("selects as many as the editor can take at once, and says the rest were left", () => {
+    const all = Array.from({ length: SELECT_ALL_LIMIT + 5 }, (_, i) => item({ id: `p${i}`, name: `Photo ${i}` }));
+    panel(all);
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+    expect(screen.getByRole("button", { name: `Add ${SELECT_ALL_LIMIT} to the video` })).toBeTruthy();
+    expect(screen.getByText(new RegExp(`first ${SELECT_ALL_LIMIT} of ${SELECT_ALL_LIMIT + 5}`))).toBeTruthy();
+  });
+
+  it("offers a whole folder on a computer, naming the album after it", () => {
+    const onUpload = vi.fn();
+    panel([], { onUpload });
+    const input = screen.getByLabelText("Import a folder") as HTMLInputElement;
+    const opened = vi.spyOn(input, "click").mockImplementation(() => {});
+    fireEvent.click(screen.getByRole("button", { name: "Import a folder" }));
+    expect(opened).toHaveBeenCalled();
+    expect(input.hasAttribute("webkitdirectory")).toBe(true);
+    const photo = new File(["x"], "IMG_2.jpg", { type: "image/jpeg" });
+    Object.defineProperty(photo, "webkitRelativePath", { value: "Beach trip/IMG_2.jpg" });
+    fireEvent.change(input, { target: { files: [photo] } });
+    expect(onUpload).toHaveBeenCalledWith([photo], "Beach trip");
+    // Back to a plain input once the folder's files are read.
+    expect(input.hasAttribute("webkitdirectory")).toBe(false);
   });
 
   it("can clear a selection without adding", () => {
@@ -109,21 +147,21 @@ describe("StudioMediaPanel", () => {
     expect(JSON.parse(data["application/x-studio-media"])).toEqual({ source: "library", id: "p1" });
   });
 
-  it("has a big, styled import area that takes files dropped on it", () => {
+  it("has a big, styled import area that takes files dropped on it", async () => {
     const onUpload = vi.fn();
     panel([], { onUpload });
     const area = screen.getByTestId("import-area");
     const file = new File(["x"], "a.jpg", { type: "image/jpeg" });
     fireEvent.drop(area, { dataTransfer: { files: [file], types: ["Files"] } });
-    expect(onUpload).toHaveBeenCalledWith([file]);
+    await waitFor(() => expect(onUpload).toHaveBeenCalledWith([file], null));
   });
 
-  it("takes files dropped anywhere in the panel, not only on the import area", () => {
+  it("takes files dropped anywhere in the panel, not only on the import area", async () => {
     const onUpload = vi.fn();
     const { container } = panel([item({})], { onUpload });
     const file = new File(["x"], "b.mp4", { type: "video/mp4" });
     fireEvent.drop(container.firstChild as HTMLElement, { dataTransfer: { files: [file], types: ["Files"] } });
-    expect(onUpload).toHaveBeenCalledWith([file]);
+    await waitFor(() => expect(onUpload).toHaveBeenCalledWith([file], null));
   });
 
   it("ignores a drop of something that is not files", () => {

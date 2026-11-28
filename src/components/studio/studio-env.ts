@@ -24,8 +24,12 @@ export interface StudioEnv {
   hasThumbnail?: boolean;
   /** Present where the project has somewhere to keep a dashboard thumbnail. */
   saveThumbnail?(dataUrl: string): Promise<void>;
-  /** Present when the Media tab may offer an upload button. Returns the new library ids, where known. */
-  uploadFiles?(files: File[]): string[] | void;
+  /**
+   * Present when the Media tab may offer an upload button. Returns the new
+   * library ids, where known. `album` is the name of a folder the files were
+   * picked or dropped as, so the library can keep them together.
+   */
+  uploadFiles?(files: File[], album?: string | null): string[] | void;
   /** Library ids picked for this project before the editor opened (in the New video dialog): the start card begins with them. */
   startPickedIds?: string[];
   /** Forgets those ids once they have gone into the video. */
