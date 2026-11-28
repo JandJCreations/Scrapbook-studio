@@ -71,7 +71,7 @@ import {
 } from "@/store/use-clip-project-store";
 import { useTransportStore } from "@/store/use-transport-store";
 import type { MediaItem } from "@/types/media";
-import { pickedFolderName, sortByPath } from "@/lib/media/drop-files";
+import { endFolderPick, openFolderPicker, pickedFolderName, sortByPath } from "@/lib/media/drop-files";
 
 const FPS = 30;
 
@@ -675,7 +675,7 @@ export function StudioView({ env }: { env: StudioEnv }) {
       ready={justReady.length}
       hasLibrary={pictures.some(isUsable)}
       onChoose={() => startPicker.current?.click()}
-      onChooseFolder={() => startFolderPicker.current?.click()}
+      onChooseFolder={() => openFolderPicker(startFolderPicker.current)}
       onMakeVideo={() => {
         finishStartPick();
         void makeVideo(justReady);
@@ -712,12 +712,12 @@ export function StudioView({ env }: { env: StudioEnv }) {
             ref={startFolderPicker}
             type="file"
             multiple
-            {...{ webkitdirectory: "", directory: "" }}
             aria-label="Choose a folder of photos and videos"
             className="hidden"
             onChange={(event) => {
               const files = sortByPath(Array.from(event.target.files ?? []));
               event.target.value = "";
+              endFolderPick(event.target);
               startPickFiles(files, pickedFolderName(files));
             }}
           />

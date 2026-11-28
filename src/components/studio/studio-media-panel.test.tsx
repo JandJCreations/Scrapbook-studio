@@ -108,11 +108,16 @@ describe("StudioMediaPanel", () => {
     const onUpload = vi.fn();
     panel([], { onUpload });
     const input = screen.getByLabelText("Import a folder") as HTMLInputElement;
+    const opened = vi.spyOn(input, "click").mockImplementation(() => {});
+    fireEvent.click(screen.getByRole("button", { name: "Import a folder" }));
+    expect(opened).toHaveBeenCalled();
     expect(input.hasAttribute("webkitdirectory")).toBe(true);
     const photo = new File(["x"], "IMG_2.jpg", { type: "image/jpeg" });
     Object.defineProperty(photo, "webkitRelativePath", { value: "Beach trip/IMG_2.jpg" });
     fireEvent.change(input, { target: { files: [photo] } });
     expect(onUpload).toHaveBeenCalledWith([photo], "Beach trip");
+    // Back to a plain input once the folder's files are read.
+    expect(input.hasAttribute("webkitdirectory")).toBe(false);
   });
 
   it("can clear a selection without adding", () => {

@@ -123,6 +123,9 @@ function writePng(dir, name, [r, g, b]) {
   return file;
 }
 
+// The editor's photo pickers (not its folder pickers: handing a folder picker a file stalls the page).
+const FILE_PICKER = "input[type=file]:not([webkitdirectory])";
+
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 
@@ -179,7 +182,7 @@ if (EMAIL && PASSWORD) {
   // Imports files into the open project's library and waits until each one can be added.
   function importFiles(files) {
     if (files.length === 0) return;
-    ab("upload", "input[type=file]", ...files);
+    ab("upload", FILE_PICKER, ...files);
     for (const file of files) {
       const name = basename(file).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       waitForSnapshot(new RegExp(`button "Add ${name} to the video"`), 30000);
@@ -282,7 +285,8 @@ if (EMAIL && PASSWORD) {
     ab("upload", 'input[aria-label="Choose photos and videos for the new video"]', ...files);
     const path = waitForPath((p) => p.startsWith("/editor/"));
     expect(path.startsWith("/editor/"), `expected the editor, got ${path}`);
-    waitForSnapshot(/button "Make my video"/, 30000);
+    // The button shows (greyed out) while the photos are still getting ready; wait until it can be pressed.
+    waitForSnapshot(/button "Make my video" \[ref=/, 30000);
     expect(/2 photos and clips picked/.test(ab("snapshot")), "the editor did not start with the 2 picked photos");
     clickButton("Make my video");
     waitForSnapshot(/button "⇄ lighthouse\.png"/);
@@ -305,14 +309,14 @@ if (EMAIL && PASSWORD) {
     // Not a photo at all: left out of the upload, with a message saying so.
     const notes = join(dir, "notes.txt");
     writeFileSync(notes, "not a photo");
-    ab("upload", "input[type=file]", notes);
+    ab("upload", FILE_PICKER, notes);
     const shown = Date.now() + 10000;
     while (!/isn't a photo, video or song/.test(ab("get", "text", "body")) && Date.now() < shown) ab("wait", "400");
     expect(/isn't a photo, video or song/.test(ab("get", "text", "body")), "expected a message that notes.txt was skipped");
     // Looks like an iPhone photo but isn't one: it fails with the reason, and can be taken off the list.
     const broken = join(dir, "IMG_0001.HEIC");
     writeFileSync(broken, "not really a photo");
-    ab("upload", "input[type=file]", broken);
+    ab("upload", FILE_PICKER, broken);
     waitForSnapshot(/button "Remove .*"/, 30000);
     expect(/HEIC/.test(ab("get", "text", "body")), "expected a reason next to the failed file");
     clickFirst(/button "Remove .*"/);
@@ -341,6 +345,8 @@ if (EMAIL && PASSWORD) {
     writePng(album, "lake-2.png", [200, 200, 60]);
     // A folder carries along files that aren't photos; they are left out.
     writeFileSync(join(album, "notes.txt"), "packing list");
+    // The button turns this input into a folder picker and opens the system's picker; here the folder is handed over directly.
+    ab("eval", 'document.querySelector(\'input[aria-label="Import a folder"]\').setAttribute("webkitdirectory", "")');
     ab("upload", 'input[aria-label="Import a folder"]', album);
     waitForSnapshot(/button "Add lake-1\.png to the video"/, 30000);
     waitForSnapshot(/button "Add lake-2\.png to the video"/, 30000);

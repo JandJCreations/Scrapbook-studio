@@ -69,3 +69,24 @@ export function sortByPath(files: File[]): File[] {
   const path = (file: File) => (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
   return [...files].sort((a, b) => path(a).localeCompare(path(b), undefined, { numeric: true }));
 }
+
+/**
+ * Opens a hidden file input as a folder picker. The input only becomes a
+ * folder picker for this one pick (see endFolderPick): a page that keeps
+ * folder pickers around all the time has been seen to stall in automated
+ * Chrome after a video is added, and nothing else needs the attribute.
+ */
+export function openFolderPicker(input: HTMLInputElement | null): void {
+  if (!input) return;
+  input.setAttribute("webkitdirectory", "");
+  input.setAttribute("directory", "");
+  // Closing the picker without choosing puts it back to normal too.
+  input.addEventListener("cancel", () => endFolderPick(input), { once: true });
+  input.click();
+}
+
+/** Turns a folder picker back into a plain hidden input once its files are read. */
+export function endFolderPick(input: HTMLInputElement): void {
+  input.removeAttribute("webkitdirectory");
+  input.removeAttribute("directory");
+}

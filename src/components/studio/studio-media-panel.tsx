@@ -9,7 +9,7 @@ import { AlertCircle, CheckSquare, FolderUp, Upload, Wand2 } from "lucide-react"
 import { AlbumTip } from "@/components/media/album-tip";
 import { blurOnMouseClick } from "@/lib/dom/blur-on-mouse-click";
 import { writeMediaDrag } from "@/lib/dom/media-drag";
-import { dragHasFiles, filesFromDrop, pickedFolderName, sortByPath } from "@/lib/media/drop-files";
+import { dragHasFiles, endFolderPick, filesFromDrop, openFolderPicker, pickedFolderName, sortByPath } from "@/lib/media/drop-files";
 import { isUsable } from "@/lib/media/local-media";
 import type { MediaItem } from "@/types/media";
 
@@ -120,7 +120,7 @@ export function StudioMediaPanel({
               ? `Uploading ${busy.length} ${busy.length === 1 ? "file" : "files"}. You can add them now.`
               : (
                 <>
-                  <span className="pointer-coarse:hidden">Drag photos, videos, songs or whole folders here</span>
+                  <span className="pointer-coarse:hidden">Drag photos, videos and songs here</span>
                   <span className="hidden pointer-coarse:inline">Photos, videos and songs from your phone</span>
                 </>
               )}
@@ -133,7 +133,7 @@ export function StudioMediaPanel({
             <Button
               variant="outline"
               className="gap-1.5 pointer-coarse:hidden"
-              onClick={() => folderInput.current?.click()}
+              onClick={() => openFolderPicker(folderInput.current)}
               title="Pick a folder, such as an album exported from your photos, and import everything in it"
             >
               <FolderUp className="size-4" aria-hidden />
@@ -145,13 +145,13 @@ export function StudioMediaPanel({
             ref={folderInput}
             type="file"
             multiple
-            // Folder picking: every file inside the chosen folder, subfolders included.
-            {...{ webkitdirectory: "", directory: "" }}
+            // Becomes a folder picker (every file inside, subfolders included) when the button opens it.
             aria-label="Import a folder"
             className="hidden"
             onChange={(event) => {
               const files = sortByPath(Array.from(event.target.files ?? []));
               event.target.value = "";
+              endFolderPick(event.target);
               if (files.length > 0) onUpload(files, pickedFolderName(files));
             }}
           />

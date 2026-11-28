@@ -5,7 +5,7 @@ import { UploadCloud } from "lucide-react";
 
 import { useMediaUpload } from "@/hooks/use-media-upload";
 import { ACCEPTED_MEDIA_INPUT } from "@/lib/media/file-type";
-import { dragHasFiles, filesFromDrop, pickedFolderName, sortByPath } from "@/lib/media/drop-files";
+import { dragHasFiles, endFolderPick, filesFromDrop, openFolderPicker, pickedFolderName, sortByPath } from "@/lib/media/drop-files";
 import { useMediaStore } from "@/store/use-media-store";
 import { cn } from "@/lib/utils";
 import { useMediaUiStore } from "@/store/use-media-ui-store";
@@ -35,7 +35,7 @@ export const MediaDropzone = React.forwardRef<
 
   React.useImperativeHandle(ref, () => ({
     openFileDialog: () => inputRef.current?.click(),
-    openFolderDialog: () => folderInputRef.current?.click(),
+    openFolderDialog: () => openFolderPicker(folderInputRef.current),
   }));
 
   return (
@@ -79,13 +79,13 @@ export const MediaDropzone = React.forwardRef<
         ref={folderInputRef}
         type="file"
         multiple
-        // Folder picking: every file in the chosen folder, subfolders included.
-        {...{ webkitdirectory: "", directory: "" }}
+        // Becomes a folder picker (every file inside, subfolders included) when openFolderDialog opens it.
         aria-label="Upload a folder"
         className="hidden"
         onChange={(e) => {
           const files = sortByPath(Array.from(e.target.files ?? []));
           e.target.value = "";
+          endFolderPick(e.target);
           upload(files, pickedFolderName(files));
         }}
       />
